@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- Meta tag per assicurare la compatibilità con Internet Explorer -->
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <!-- Meta tag per il mobile -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Projects</title>
+    <!-- Collegamento al file CSS -->
+    <link rel="stylesheet" href="styles.css">
+    <!-- Collegamento ai font e alle icone di Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo">AFC</div>
+            <ul>
+                <li><a href="projects.html" class="active">Projects</a></li>
+                <li><a href="users.html">Team Members</a></li>
+                <li><a href="#">My Tasks</a></li>
+                <li><a href="#">Clients</a></li>
+                <li><a href="#">Product Kinds</a></li>
+                <li><a href="#">Factories</a></li>
+                <li><a href="#">Configuration</a></li>
+            </ul>
+        </nav>
+        <div class="user-info">
+            <span>Welcome, </span>
+            <a href="#" id="logout">Logout</a>
+        </div>
+    </header>
+    <main>
+        <h1>Projects</h1>
+        <div class="table-actions">
+            <button id="add-project-btn" class="add-btn">Add Project</button>
+        </div>
+        <div class="filters">
+            <input type="text" id="factory-filter" placeholder="Factory">
+            <input type="text" id="model-filter" placeholder="Model n">
+            <input type="text" id="product-kind-filter" placeholder="Product kind">
+            <input type="text" id="client-filter" placeholder="Client">
+            <input type="text" id="status-filter" placeholder="Status">
+        </div>
+        <table id="projects-table">
+            <thead>
+                <tr>
+                    <th>Factory <i class="fas fa-sort"></i></th>
+                    <th>Model number <i class="fas fa-sort"></i></th>
+                    <th>Factory model number <i class="fas fa-sort"></i></th>
+                    <th>Product kind <i class="fas fa-sort"></i></th>
+                    <th>Client <i class="fas fa-sort"></i></th>
+                    <th>Start date <i class="fas fa-sort"></i></th>
+                    <th>End date <i class="fas fa-sort"></i></th>
+                    <th>Status <i class="fas fa-sort"></i></th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Le righe dei progetti verranno inserite dinamicamente qui -->
+            </tbody>
+        </table>
+    </main>
+    <!-- Inclusione degli script -->
+    <script src="users.js"></script> <!-- Aggiunto: include il file users.js -->
+    <script>
+        // Chiamata alla funzione dopo che il DOM è stato caricato
+        document.addEventListener('DOMContentLoaded', function() {
+            displayLoggedInUser(); // Aggiunto: chiama la funzione per visualizzare il nome dell'utente
+            // initializeDashboard(); // Se hai una funzione per inizializzare il dashboard, scommenta questa linea
+        });
+    </script>
+    <script src="projects.js"></script>
+</body>
+</html>

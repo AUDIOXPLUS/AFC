@@ -1,0 +1,126 @@
+const sqlite3 = require('sqlite3').verbose();
+const express = require('express');
+const bodyParser = require('body-parser');
+const path = require('path');
+const morgan = require('morgan'); // Middleware di logging
+
+const app = express();
+const db = new sqlite3.Database('./database/AFC.db', (err) => {
+    if (err) {
+        console.error('Errore di connessione al database:', err);
+    } else {
+        console.log('Connessione al database riuscita');
+    }
+});
+
+// Middleware
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(morgan('dev')); // Usa Morgan per loggare le richieste in modalità 'dev'
+
+// **Definisci tutte le rotte API prima di servire i file statici**
+
+/** Endpoint per il login **/
+app.post('/login', (req, res) => {
+    const { username, password } = req.body;
+    console.log(`Tentativo di login con username: ${username}`);
+
+    const query = 'SELECT * FROM users WHERE username = ? AND password = ?';
+    db.get(query, [username, password], (err, row) => {
+        if (err) {
+            console.error('Errore del server:', err);
+            return res.status(500).json({ success: false, message: 'Errore del server' });
+        }
+        if (row) {
+            console.log('Login effettuato con successo!');
+            console.log('Dati utente recuperati dal database:', row);
+            res.json({ success: true, name: row.name });
+        } else {
+            console.log('Credenziali non valide.');
+            res.json({ success: false, message: 'Credenziali non valide.' });
+        }
+    });
+});
+
+/** Endpoint per ottenere i progetti **/
+app.get('/api/projects', (req, res) => {
+    const query = 'SELECT * FROM projects';
+    db.all(query, [], (err, rows) => {
+        if (err) {
+            console.error('Errore del server:', err);
+            return res.status(500).send('Errore del server');
+        }
+        res.json(rows);
+    });
+});
+
+/** Endpoint per aggiungere un progetto **/
+app.post('/api/projects', (req, res) => {
+    const { factory, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, status } = req.body;
+    const query = `INSERT INTO projects (factory, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, status) 
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+    db.run(query, [factory, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, status], function(err) {
+        if (err) {
+            console.error('Errore nell\'inserimento del progetto:', err);
+            return res.status(500).send('Errore del server');
+        }
+        res.status(201).json({ id: this.lastID });
+    });
+});
+
+/** Endpoint per aggiornare un progetto **/
+app.put('/api/projects/:id', (req, res) => {
+    const { factory, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, status } = req.body;
+    const query = `UPDATE projects SET factory = ?, modelNumber = ?, factoryModelNumber = ?, productKind = ?, client = ?, startDate = ?, endDate = ?, status = ? WHERE id = ?`;
+    db.run(query, [factory, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, status, req.params.id], function(err) {
+        if (err) {
+            console.error('Errore nell\'aggiornamento del progetto:', err);
+            return res.status(500).send('Errore del server');
+        }
+        res.status(200).send('Progetto aggiornato con successo');
+    });
+});
+
+/** Endpoint per eliminare un progetto **/
+app.delete('/api/projects/:id', (req, res) => {
+    const query = `DELETE FROM projects WHERE id = ?`;
+    db.run(query, req.params.id, function(err) {
+        if (err) {
+            console.error('Errore nell\'eliminazione del progetto:', err);
+            return res.status(500).send('Errore del server');
+        }
+        res.status(200).send('Progetto eliminato con successo');
+    });
+});
+
+/** Endpoint per ottenere i membri del team **/
+app.get('/api/team-members', (req, res) => {
+    const query = 'SELECT id, name, role, email, color, username FROM users';
+    db.all(query, [], (err, rows) => {
+        if (err) {
+            console.error('Errore nel recupero dei team members:', err);
+            return res.status(500).send('Errore del server');
+        }
+        res.json(rows);
+    });
+});
+
+/** Endpoint per aggiungere un membro del team **/
+app.post('/api/team-members', (req, res) => {
+    const { name, role, email, color, username, password } = req.body;
+    const query = `INSERT INTO users (name, role, email, color, username, password) VALUES (?, ?, ?, ?, ?, ?)`;
+    db.run(query, [name, role, email, color, username, password], function(err) {
+        if (err) {
+            console.error('Errore nell\'inserimento del team member:', err);
+            return res.status(500).send('Errore del server');
+        }
+        res.status(201).json({ id: this.lastID });
+    });
+});
+
+/** Endpoint per aggiornare un membro del team **/
+app.put('/api/team-members/:id', (req, res) => {
+    const { name, role, email, color } = req.body;
+    const userId = req.params.id;
+
+    console.log(`Tentativo di aggiornamento del t
