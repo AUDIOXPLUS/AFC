@@ -172,44 +172,75 @@ app.get('/api/team-members/:id/privileges', (req, res) => {
 // Endpoint per aggiornare i privilegi di un membro del team
 app.put('/api/team-members/:id/privileges', (req, res) => {
     const userId = req.params.id;
-    const { privileges } = req.body; // { "Dashboard": ["View Stats"], "Projects": ["Create Project", ...], ... }
+    const { privileges } = req.body; // Ci aspettiamo un array di oggetti { page, action }
 
-    if (!privileges || typeof privileges !== 'object') {
+    if (!Array.isArray(privileges)) {
         return res.status(400).send('Privilegi non validi');
     }
 
     db.serialize(() => {
+        db.run('BEGIN TRANSACTION');
+
         // Rimuovi i privilegi esistenti
         db.run('DELETE FROM user_privileges WHERE user_id = ?', [userId], function(err) {
             if (err) {
                 console.error('Errore nella cancellazione dei privilegi esistenti:', err);
+                db.run('ROLLBACK');
                 return res.status(500).send('Errore del server');
             }
 
-            // Prepara l'inserimento dei nuovi privilegi
-            const stmt = db.prepare('INSERT INTO user_privileges (user_id, privilege_id) VALUES (?, ?)');
-            for (const page in privileges) {
-                privileges[page].forEach(action => {
-                    // Ottieni l'ID del privilegio corrispondente a page e action
-                    db.get('SELECT id FROM privileges WHERE page = ? AND action = ?', [page, action], (err, row) => {
-                        if (err) {
-                            console.error('Errore nel recupero dell\'ID del privilegio:', err);
-                            // Potresti voler gestire questo errore in modo più robusto
-                        } else if (row) {
-                            stmt.run(userId, row.id);
-                        } else {
-                            console.warn(`Privilegio non trovato: ${page} - ${action}`);
-                            // Potresti voler gestire questo caso, ad esempio creando il privilegio se non esiste
-                        }
-                    });
+            if (privileges.length === 0) {
+                db.run('COMMIT', (err) => {
+                    if (err) {
+                        db.run('ROLLBACK');
+                        console.error('Errore durante il commit della transazione:', err);
+                        return res.status(500).send('Errore del server');
+                    }
+                    res.status(200).send('Privilegi aggiornati con successo');
                 });
+                return;
             }
-            stmt.finalize((err) => {
-                if (err) {
-                    console.error('Errore nell\'inserimento dei nuovi privilegi:', err);
-                    return res.status(500).send('Errore del server');
-                }
-                res.status(200).send('Privilegi aggiornati con successo');
+
+            const stmt = db.prepare('INSERT INTO user_privileges (user_id, privilege_id) VALUES (?, ?)');
+            let pending = privileges.length;
+
+            privileges.forEach(priv => {
+                // Ottieni l'ID del privilegio corrispondente a page e action
+                db.get('SELECT id FROM privileges WHERE page = ? AND action = ?', [priv.page, priv.action], (err, row) => {
+                    if (err) {
+                        console.error('Errore nel recupero dell\'ID del privilegio:', err);
+                        // Potresti gestire l'errore qui
+                    } else if (row) {
+                        stmt.run(userId, row.id, function(err) {
+                            if (err) {
+                                console.error('Errore nell\'inserimento del privilegio:', err);
+                                // Potresti gestire l'errore qui
+                            }
+                        });
+                    } else {
+                        console.warn(`Privilegio non trovato: ${priv.page} - ${priv.action}`);
+                        // Potresti gestire questo caso, ad esempio creando il privilegio se non esiste
+                    }
+
+                    pending--;
+                    if (pending === 0) {
+                        stmt.finalize((err) => {
+                            if (err) {
+                                console.error('Errore nella finalizzazione dello statement:', err);
+                                db.run('ROLLBACK');
+                                return res.status(500).send('Errore del server');
+                            }
+                            db.run('COMMIT', (err) => {
+                                if (err) {
+                                    db.run('ROLLBACK');
+                                    console.error('Errore durante il commit della transazione:', err);
+                                    return res.status(500).send('Errore del server');
+                                }
+                                res.status(200).send('Privilegi aggiornati con successo');
+                            });
+                        });
+                    }
+                });
             });
         });
     });
@@ -219,7 +250,7 @@ app.put('/api/team-members/:id/privileges', (req, res) => {
 app.get('/api/team-members/:id', (req, res) => {
     const userId = req.params.id;
     const query = 'SELECT id, name, role, email, color, username FROM users WHERE id = ?';
-    
+
     db.get(query, [userId], (err, row) => {
         if (err) {
             console.error('Errore nel recupero dei dettagli del membro del team:', err);
@@ -241,4 +272,3 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server avviato sulla porta ${PORT}`);
 });
-

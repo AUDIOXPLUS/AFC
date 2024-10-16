@@ -96,21 +96,21 @@ document.addEventListener('DOMContentLoaded', function() {
     // Funzione per salvare i privilegi
     async function savePrivileges() {
         const checkboxes = roleGrid.querySelectorAll('input[type="checkbox"]');
-        const updatedPrivileges = {};
-
+        const updatedPrivileges = [];
+    
         checkboxes.forEach(checkbox => {
-            const page = checkbox.dataset.page;
-            const action = checkbox.dataset.action;
             if (checkbox.checked) {
-                if (!updatedPrivileges[page]) {
-                    updatedPrivileges[page] = [];
-                }
-                updatedPrivileges[page].push(action);
+                updatedPrivileges.push({
+                    page: checkbox.dataset.page,
+                    action: checkbox.dataset.action
+                });
             }
         });
-
+    
+        // Aggiungi questo log
+        console.log('Dati inviati al server:', JSON.stringify({ privileges: updatedPrivileges }, null, 2));
+    
         try {
-            // Invia i privilegi aggiornati all'API
             const response = await fetch(`/api/team-members/${memberId}/privileges`, {
                 method: 'PUT',
                 headers: {
@@ -118,20 +118,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 body: JSON.stringify({ privileges: updatedPrivileges }),
             });
-
+    
             if (response.ok) {
-                alert('Ruoli e privilegi salvati con successo!');
+                alert('Roles and privileges saved successfully!');
                 window.location.href = 'users.html';
             } else {
                 const errorText = await response.text();
-                console.error('Errore nel salvataggio dei privilegi:', response.status, errorText);
-                alert('Errore nel salvataggio dei privilegi.');
+                console.error('Error saving privileges:', response.status, errorText);
+                alert('Error saving privileges.');
             }
         } catch (error) {
-            console.error('Errore durante il salvataggio dei privilegi:', error);
-            alert('Errore durante il salvataggio dei privilegi.');
+            console.error('Error during saving privileges:', error);
+            alert('Error during saving privileges.');
         }
     }
+    
 
     // Inizializzazione della pagina
     (async function initializePage() {
