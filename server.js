@@ -2,7 +2,8 @@ const sqlite3 = require('sqlite3').verbose();
 const express = require('express');
 const bodyParser = require('body-parser');
 const path = require('path');
-const morgan = require('morgan'); // Middleware di logging
+const morgan = require('morgan');
+const session = require('express-session');
 
 const app = express();
 const db = new sqlite3.Database('./database/AFC.db', (err) => {
@@ -16,9 +17,41 @@ const db = new sqlite3.Database('./database/AFC.db', (err) => {
 // Middleware
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(morgan('dev')); // Usa Morgan per loggare le richieste in modalità 'dev'
+app.use(morgan('dev'));
 
-// **Definisci tutte le rotte API prima di servire i file statici**
+// Configurazione delle sessioni
+app.use(session({
+    secret: 'your-secret-key', // Cambia con una chiave segreta sicura
+    resave: false,
+    saveUninitialized: true,
+    cookie: { secure: false } // Imposta a true se usi HTTPS
+}));
+
+// Middleware di autenticazione
+function checkAuthentication(req, res, next) {
+    console.log('checkAuthentication chiamato per', req.path);
+    if (req.session && req.session.user) {
+        return next();
+    } else {
+        res.redirect('/login.html'); // Assicurati che questa sia la tua pagina di login
+    }
+}
+
+// Elenco dei file protetti
+const protectedFiles = ['/project-details.html', '/role-selection.html'];
+
+// Middleware per proteggere i file specifici
+app.use(function(req, res, next) {
+    if (protectedFiles.includes(req.path)) {
+        console.log(`Richiesta per file protetto: ${req.path}`);
+        checkAuthentication(req, res, next);
+    } else {
+        next();
+    }
+});
+
+// Servire file statici
+app.use(express.static(path.join(__dirname)));
 
 // Endpoint per il login
 app.post('/login', (req, res) => {
@@ -34,12 +67,22 @@ app.post('/login', (req, res) => {
         if (row) {
             console.log('Login effettuato con successo!');
             console.log('Dati utente recuperati dal database:', row);
+            req.session.user = row;
             res.json({ success: true, name: row.name });
         } else {
             console.log('Credenziali non valide.');
             res.json({ success: false, message: 'Credenziali non valide.' });
         }
     });
+});
+
+// Applica il middleware di autenticazione a tutte le rotte API protette
+app.use('/api', (req, res, next) => {
+    if (req.session && req.session.user) {
+        return next();
+    } else {
+        res.status(401).json({ error: 'Utente non autenticato' });
+    }
 });
 
 // Endpoint per ottenere i progetti
@@ -49,6 +92,49 @@ app.get('/api/projects', (req, res) => {
         if (err) {
             console.error('Errore del server:', err);
             return res.status(500).send('Errore del server');
+        }
+        res.json(rows);
+    });
+});
+
+// Nuovo endpoint per ottenere un singolo progetto
+app.get('/api/projects/:id', (req, res) => {
+    const projectId = req.params.id;
+    const query = 'SELECT * FROM projects WHERE id = ?';
+    db.get(query, [projectId], (err, row) => {
+        if (err) {
+            console.error('Errore nel recupero del progetto:', err);
+            return res.status(500).send('Errore del server');
+        }
+        if (row) {
+            res.json(row);
+        } else {
+            res.status(404).send('Progetto non trovato');
+        }
+    });
+});
+
+// Nuovo endpoint per ottenere le fasi di un progetto
+app.get('/api/projects/:id/phases', (req, res) => {
+    const projectId = req.params.id;
+    const query = 'SELECT * FROM phases WHERE project_id = ?';
+    db.all(query, [projectId], (err, rows) => {
+        if (err) {
+            console.error('Errore nel recupero delle fasi del progetto:', err);
+            return res.status(500).send('Errore del server');
+        }
+        res.json(rows);
+    });
+});
+
+// Nuovo endpoint per ottenere la cronologia di un progetto
+app.get('/api/projects/:id/history', (req, res) => {
+    const projectId = req.params.id;
+    const query = 'SELECT * FROM project_history WHERE project_id = ?';
+    db.all(query, [projectId], (err, rows) => {
+        if (err) {
+            console.error('Error fetching project history:', err);
+            return res.status(500).send('Server error');
         }
         res.json(rows);
     });
@@ -147,12 +233,10 @@ app.put('/api/team-members/:id', (req, res) => {
 // Endpoint per ottenere i privilegi di un membro del team
 app.get('/api/team-members/:id/privileges', (req, res) => {
     const userId = req.params.id;
-    const query = `
-        SELECT p.page, p.action 
-        FROM privileges p
-        JOIN user_privileges up ON p.id = up.privilege_id
-        WHERE up.user_id = ?
-    `;
+    const query = `SELECT p.page, p.action 
+                   FROM privileges p
+                   JOIN user_privileges up ON p.id = up.privilege_id
+                   WHERE up.user_id = ?`;
     db.all(query, [userId], (err, rows) => {
         if (err) {
             console.error('Errore nel recupero dei privilegi:', err);
@@ -172,7 +256,7 @@ app.get('/api/team-members/:id/privileges', (req, res) => {
 // Endpoint per aggiornare i privilegi di un membro del team
 app.put('/api/team-members/:id/privileges', (req, res) => {
     const userId = req.params.id;
-    const { privileges } = req.body; // Ci aspettiamo un array di oggetti { page, action }
+    const { privileges } = req.body;
 
     if (!Array.isArray(privileges)) {
         return res.status(400).send('Privilegi non validi');
@@ -181,7 +265,6 @@ app.put('/api/team-members/:id/privileges', (req, res) => {
     db.serialize(() => {
         db.run('BEGIN TRANSACTION');
 
-        // Rimuovi i privilegi esistenti
         db.run('DELETE FROM user_privileges WHERE user_id = ?', [userId], function(err) {
             if (err) {
                 console.error('Errore nella cancellazione dei privilegi esistenti:', err);
@@ -205,21 +288,17 @@ app.put('/api/team-members/:id/privileges', (req, res) => {
             let pending = privileges.length;
 
             privileges.forEach(priv => {
-                // Ottieni l'ID del privilegio corrispondente a page e action
                 db.get('SELECT id FROM privileges WHERE page = ? AND action = ?', [priv.page, priv.action], (err, row) => {
                     if (err) {
                         console.error('Errore nel recupero dell\'ID del privilegio:', err);
-                        // Potresti gestire l'errore qui
                     } else if (row) {
                         stmt.run(userId, row.id, function(err) {
                             if (err) {
                                 console.error('Errore nell\'inserimento del privilegio:', err);
-                                // Potresti gestire l'errore qui
                             }
                         });
                     } else {
                         console.warn(`Privilegio non trovato: ${priv.page} - ${priv.action}`);
-                        // Potresti gestire questo caso, ad esempio creando il privilegio se non esiste
                     }
 
                     pending--;
@@ -264,8 +343,67 @@ app.get('/api/team-members/:id', (req, res) => {
     });
 });
 
-// Servire file statici
-app.use(express.static(__dirname));
+// Endpoint per ottenere l'utente della sessione
+app.get('/api/session-user', (req, res) => {
+    if (req.session && req.session.user) {
+        res.json({ username: req.session.user.username, name: req.session.user.name });
+    } else {
+        res.status(401).json({ error: 'Utente non autenticato' });
+    }
+});
+
+// Nuovo endpoint per aggiungere una voce alla cronologia del progetto
+app.post('/api/projects/:id/history', (req, res) => {
+    const projectId = req.params.id;
+    const { date, phase, description, assignedTo, status } = req.body;
+
+    const query = `INSERT INTO project_history (project_id, date, phase, description, assigned_to, status) 
+                   VALUES (?, ?, ?, ?, ?, ?)`;
+    
+    db.run(query, [projectId, date, phase, description, assignedTo, status], function(err) {
+        if (err) {
+            console.error('Errore nell\'inserimento della voce di cronologia:', err);
+            return res.status(500).send('Errore del server');
+        }
+        res.status(201).json({ id: this.lastID });
+    });
+});
+
+// Endpoint per aggiornare una voce della cronologia del progetto
+app.put('/api/projects/:projectId/history/:historyId', (req, res) => {
+    const { projectId, historyId } = req.params;
+    const { date, phase, description, assignedTo, status } = req.body;
+
+    const query = `UPDATE project_history SET date = ?, phase = ?, description = ?, assigned_to = ?, status = ? WHERE id = ? AND project_id = ?`;
+
+    db.run(query, [date, phase, description, assignedTo, status, historyId, projectId], function(err) {
+        if (err) {
+            console.error('Errore nell\'aggiornamento della voce di cronologia:', err);
+            return res.status(500).send('Errore del server');
+        }
+        if (this.changes === 0) {
+            res.status(404).send('Voce di cronologia non trovata');
+        } else {
+            res.status(200).send('Voce di cronologia aggiornata con successo');
+        }
+    });
+});
+
+app.delete('/api/projects/:projectId/history/:entryId', (req, res) => {
+    const { projectId, entryId } = req.params;
+    const query = `DELETE FROM project_history WHERE project_id = ? AND id = ?`;
+    
+    db.run(query, [projectId, entryId], function(err) {
+        if (err) {
+            console.error(err.message);
+            return res.status(500).json({ error: 'Failed to delete history entry' });
+        }
+        if (this.changes === 0) {
+            return res.status(404).json({ error: 'History entry not found' });
+        }
+        res.status(200).json({ message: 'History entry deleted successfully' });
+    });
+});
 
 // Avviare il server alla fine dopo tutte le rotte
 const PORT = process.env.PORT || 3000;
