@@ -1,11 +1,11 @@
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     const urlParams = new URLSearchParams(window.location.search);
     window.projectId = urlParams.get('id'); // Dichiarato come variabile globale
 
     if (projectId) {
-        fetchProjectDetails(projectId);
-        fetchProjectPhases(projectId);
-        fetchTeamMembers();
+        await fetchTeamMembers(); // Ensure teamMembers is populated first
+        await fetchProjectDetails(projectId);
+        await fetchProjectPhases(projectId);
     } else {
         console.error('No project ID provided');
     }
@@ -94,6 +94,7 @@ async function fetchProjectHistory(projectId) {
     try {
         const response = await fetch(`/api/projects/${projectId}/history`);
         const history = await handleResponse(response);
+        console.log('Project History:', history); // Aggiungi questo log
         displayProjectHistory(history);
     } catch (error) {
         console.error('Error fetching project history:', error);
@@ -116,12 +117,14 @@ function displayProjectHistory(history) {
     tableBody.innerHTML = ''; // Clear existing rows
 
     history.forEach(entry => {
+        console.log('Assigned To:', entry.assigned_to); // Log the assigned_to value
+        console.log('Assigned To for entry ID', entry.id, ':', entry.assigned_to); // Verifica il valore di assigned_to
         const row = tableBody.insertRow();
         row.setAttribute('data-entry-id', entry.id); // Memorizza l'ID dell'entry
         row.insertCell(0).textContent = entry.date;
         row.insertCell(1).textContent = entry.phase;
         row.insertCell(2).textContent = entry.description;
-        row.insertCell(3).textContent = entry.assignedTo;
+        row.insertCell(3).textContent = entry.assigned_to; // Updated to assigned_to
         row.insertCell(4).textContent = entry.status;
 
         const actionsCell = row.insertCell(5);
@@ -143,7 +146,7 @@ function displayProjectHistory(history) {
         actionsCell.appendChild(deleteBtn);
 
         // Apply color-coding based on assigned team member
-        const assignedMember = teamMembers.find(member => member.name === entry.assignedTo);
+        const assignedMember = teamMembers.find(member => member.name === entry.assigned_to); // Updated to assigned_to
         if (assignedMember) {
             row.style.backgroundColor = assignedMember.color;
         }
@@ -154,10 +157,10 @@ function addHistoryEntry(projectId) {
     const tableBody = document.getElementById('history-table').getElementsByTagName('tbody')[0];
     const newRow = tableBody.insertRow(0);
 
-    const fields = ['date', 'phase', 'description', 'assignedTo', 'status'];
+    const fields = ['date', 'phase', 'description', 'assigned_to', 'status']; // Updated to assigned_to
     fields.forEach((field, index) => {
         const cell = newRow.insertCell(index);
-        if (field === 'assignedTo') {
+        if (field === 'assigned_to') { // Updated to assigned_to
             const select = document.createElement('select');
             teamMembers.forEach(member => {
                 const option = document.createElement('option');
@@ -193,9 +196,12 @@ async function saveNewHistoryEntry(projectId, row) {
         date: row.cells[0].firstChild.value,
         phase: row.cells[1].firstChild.value,
         description: row.cells[2].firstChild.value,
-        assignedTo: row.cells[3].firstChild.value,
+        assigned_to: row.cells[3].querySelector('select').value, // Updated to assigned_to
         status: row.cells[4].firstChild.value
     };
+
+    // Log all values to verify them
+    console.log('New Entry:', newEntry);
 
     try {
         const response = await fetch(`/api/projects/${projectId}/history`, {
@@ -222,7 +228,7 @@ function editHistoryEntry(entryId) {
             date: cells[0].textContent,
             phase: cells[1].textContent,
             description: cells[2].textContent,
-            assignedTo: cells[3].textContent,
+            assigned_to: cells[3].textContent, // Updated to assigned_to
             status: cells[4].textContent
         };
 
@@ -232,13 +238,13 @@ function editHistoryEntry(entryId) {
         // Converti le celle in campi di input
         for (let i = 0; i < 5; i++) {
             let input;
-            if (i === 3) { // Campo 'assignedTo'
+            if (i === 3) { // Campo 'assigned_to'
                 input = document.createElement('select');
                 teamMembers.forEach(member => {
                     const option = document.createElement('option');
                     option.value = member.name;
                     option.textContent = member.name;
-                    if (member.name === historyData.assignedTo) {
+                    if (member.name === historyData.assigned_to) { // Updated to assigned_to
                         option.selected = true;
                     }
                     input.appendChild(option);
@@ -263,7 +269,7 @@ function editHistoryEntry(entryId) {
                 date: cells[0].firstChild.value,
                 phase: cells[1].firstChild.value,
                 description: cells[2].firstChild.value,
-                assignedTo: cells[3].firstChild.value,
+                assignedTo: cells[3].querySelector('select').value, // Access the select element directly
                 status: cells[4].firstChild.value
             };
 
