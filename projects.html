@@ -2,14 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <!-- Meta tag per assicurare la compatibilità con Internet Explorer -->
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <!-- Meta tag per il mobile -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Projects</title>
-    <!-- Collegamento al file CSS -->
     <link rel="stylesheet" href="styles.css">
-    <!-- Collegamento ai font e alle icone di Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
 </head>
 <body>
@@ -19,7 +15,7 @@
             <ul>
                 <li><a href="projects.html" class="active">Projects</a></li>
                 <li><a href="users.html">Team Members</a></li>
-                <li><a href="#">My Tasks</a></li>
+                <li><a href="tasks.html">My Tasks</a></li>
                 <li><a href="#">Clients</a></li>
                 <li><a href="#">Product Kinds</a></li>
                 <li><a href="#">Factories</a></li>
@@ -62,13 +58,10 @@
             </tbody>
         </table>
     </main>
-    <!-- Inclusione degli script -->
-    <script src="users.js"></script> <!-- Aggiunto: include il file users.js -->
+    <script src="users.js"></script>
     <script>
-        // Chiamata alla funzione dopo che il DOM è stato caricato
         document.addEventListener('DOMContentLoaded', function() {
-            displayLoggedInUser(); // Aggiunto: chiama la funzione per visualizzare il nome dell'utente
-            // initializeDashboard(); // Se hai una funzione per inizializzare il dashboard, scommenta questa linea
+            displayLoggedInUser();
         });
     </script>
     <script src="projects.js"></script>

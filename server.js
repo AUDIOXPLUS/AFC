@@ -405,6 +405,31 @@ app.delete('/api/projects/:projectId/history/:entryId', (req, res) => {
     });
 });
 
+// Endpoint per ottenere tutte le attività
+app.get('/api/tasks', (req, res) => {
+    const query = `
+        SELECT 
+            ph.id, 
+            ph.project_id AS projectId, 
+            p.modelNumber, 
+            ph.date, 
+            ph.description, 
+            ph.assigned_to AS assignedTo, 
+            ph.status
+        FROM 
+            project_history ph
+        JOIN 
+            projects p ON ph.project_id = p.id
+    `;
+    db.all(query, [], (err, rows) => {
+        if (err) {
+            console.error('Errore nel recupero delle attività:', err);
+            return res.status(500).send('Errore del server');
+        }
+        res.json(rows);
+    });
+});
+
 // Avviare il server alla fine dopo tutte le rotte
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
