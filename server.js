@@ -4,6 +4,8 @@ const bodyParser = require('body-parser');
 const path = require('path');
 const morgan = require('morgan');
 const session = require('express-session');
+const multer = require('multer');
+const fs = require('fs-extra');
 
 const app = express();
 const db = new sqlite3.Database('./database/AFC.db', (err) => {
@@ -14,10 +16,31 @@ const db = new sqlite3.Database('./database/AFC.db', (err) => {
     }
 });
 
+// Create uploads directory if it doesn't exist
+const uploadsDir = path.join(__dirname, 'uploads');
+fs.ensureDirSync(uploadsDir);
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const projectDir = path.join(uploadsDir, req.params.projectId);
+        fs.ensureDirSync(projectDir);
+        cb(null, projectDir);
+    },
+    filename: function (req, file, cb) {
+        cb(null, Date.now() + '-' + file.originalname);
+    }
+});
+
+const upload = multer({ storage: storage });
+
 // Middleware
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(morgan('dev'));
+
+// Serve uploaded files
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Configurazione delle sessioni
 app.use(session({
@@ -93,7 +116,7 @@ app.get('/api/projects', (req, res) => {
             console.error('Errore del server:', err);
             return res.status(500).send('Errore del server');
         }
-        res.json(rows);
+       res.json(rows);
     });
 });
 
@@ -278,14 +301,13 @@ app.put('/api/team-members/:id/privileges', (req, res) => {
                         db.run('ROLLBACK');
                         console.error('Errore durante il commit della transazione:', err);
                         return res.status(500).send('Errore del server');
-                    }
-                    res.status(200).send('Privilegi aggiornati con successo');
-                });
-                return;
-            }
-
+                   }
+                   res.status(200).send('Privilegi aggiornati con successo');
+               });
+               return;
+           }
             const stmt = db.prepare('INSERT INTO user_privileges (user_id, privilege_id) VALUES (?, ?)');
-            let pending = privileges.length;
+           let pending = privileges.length;
 
             privileges.forEach(priv => {
                 db.get('SELECT id FROM privileges WHERE page = ? AND action = ?', [priv.page, priv.action], (err, row) => {
@@ -427,6 +449,159 @@ app.get('/api/tasks', (req, res) => {
             return res.status(500).send('Errore del server');
         }
         res.json(rows);
+    });
+});
+
+// File Management Endpoints
+app.post('/api/projects/:projectId/files', checkAuthentication, upload.single('file'), (req, res) => {
+    const { projectId } = req.params;
+    const { file } = req;
+    const uploadedBy = req.session.user.id;
+
+    const query = `INSERT INTO project_files (project_id, filename, filepath, uploaded_by) 
+                   VALUES (?, ?, ?, ?)`;
+    
+    db.run(query, [
+        projectId,
+        file.originalname,
+        file.path,
+        uploadedBy
+    ], function(err) {
+        if (err) {
+            console.error('Error uploading file:', err);
+            return res.status(500).json({ error: 'Failed to upload file' });
+        }
+        res.status(201).json({
+            id: this.lastID,
+            filename: file.originalname,
+            filepath: file.path
+        });
+    });
+});
+
+app.get('/api/projects/:projectId/files', checkAuthentication, (req, res) => {
+    const { projectId } = req.params;
+    const query = `
+        SELECT pf.*, u1.name as uploaded_by_name, u2.name as locked_by_name 
+        FROM project_files pf 
+        LEFT JOIN users u1 ON pf.uploaded_by = u1.id 
+        LEFT JOIN users u2 ON pf.locked_by = u2.id 
+        WHERE project_id = ?
+    `;
+    
+    db.all(query, [projectId], (err, files) => {
+        if (err) {
+            console.error('Error fetching files:', err);
+            return res.status(500).json({ error: 'Failed to fetch files' });
+        }
+        res.json(files);
+    });
+});
+
+app.get('/api/files/:fileId/download', checkAuthentication, (req, res) => {
+    const { fileId } = req.params;
+    
+    db.get('SELECT * FROM project_files WHERE id = ?', [fileId], (err, file) => {
+        if (err) {
+            console.error('Error fetching file:', err);
+            return res.status(500).json({ error: 'Failed to fetch file' });
+        }
+        if (!file) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+        
+        res.download(file.filepath, file.filename);
+    });
+});
+
+app.post('/api/files/:fileId/lock', checkAuthentication, (req, res) => {
+    const { fileId } = req.params;
+    const userId = req.session.user.id;
+    
+    db.get('SELECT locked_by FROM project_files WHERE id = ?', [fileId], (err, file) => {
+        if (err) {
+            return res.status(500).json({ error: 'Database error' });
+        }
+        if (!file) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+        if (file.locked_by && file.locked_by !== userId) {
+            return res.status(403).json({ error: 'File is locked by another user' });
+        }
+        
+        const query = `
+            UPDATE project_files 
+            SET locked_by = ?, lock_date = CURRENT_TIMESTAMP 
+            WHERE id = ?
+        `;
+        
+        db.run(query, [userId, fileId], function(err) {
+            if (err) {
+                return res.status(500).json({ error: 'Failed to lock file' });
+            }
+            res.json({ message: 'File locked successfully' });
+        });
+    });
+});
+
+app.post('/api/files/:fileId/unlock', checkAuthentication, (req, res) => {
+    const { fileId } = req.params;
+    const userId = req.session.user.id;
+    
+    db.get('SELECT locked_by FROM project_files WHERE id = ?', [fileId], (err, file) => {
+        if (err) {
+            return res.status(500).json({ error: 'Database error' });
+        }
+        if (!file) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+        if (file.locked_by !== userId) {
+            return res.status(403).json({ error: 'File is not locked by you' });
+        }
+        
+        const query = `
+            UPDATE project_files 
+            SET locked_by = NULL, lock_date = NULL 
+            WHERE id = ?
+        `;
+        
+        db.run(query, [fileId], function(err) {
+            if (err) {
+                return res.status(500).json({ error: 'Failed to unlock file' });
+            }
+            res.json({ message: 'File unlocked successfully' });
+        });
+    });
+});
+
+app.delete('/api/files/:fileId', checkAuthentication, (req, res) => {
+    const { fileId } = req.params;
+    
+    db.get('SELECT * FROM project_files WHERE id = ?', [fileId], (err, file) => {
+        if (err) {
+            return res.status(500).json({ error: 'Database error' });
+        }
+        if (!file) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+        if (file.locked_by) {
+            return res.status(403).json({ error: 'Cannot delete locked file' });
+        }
+        
+        db.run('DELETE FROM project_files WHERE id = ?', [fileId], function(err) {
+            if (err) {
+                return res.status(500).json({ error: 'Failed to delete file' });
+            }
+            
+            fs.remove(file.filepath)
+                .then(() => {
+                    res.json({ message: 'File deleted successfully' });
+                })
+                .catch(err => {
+                    console.error('Error deleting file from disk:', err);
+                    res.status(500).json({ error: 'Failed to delete file from disk' });
+                });
+        });
     });
 });
 

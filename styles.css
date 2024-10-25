@@ -353,3 +353,66 @@ table input[type="text"], table input[type="date"] {
     border-radius: 50%;
     cursor: pointer;
 }
+
+/* File management styles */
+.file-upload-form {
+    display: inline-block;
+    margin: 2px 0;
+}
+
+.file-upload-form input[type="file"] {
+    font-size: 12px;
+    max-width: 200px;
+}
+
+.file-upload-form button {
+    background-color: #3498db;
+    color: white;
+    border: none;
+    padding: 3px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+}
+
+.file-list {
+    margin-top: 4px;
+}
+
+.file-item {
+    display: flex;
+    align-items: center;
+    font-size: 12px;
+    margin: 2px 0;
+}
+
+.file-item button {
+    padding: 2px 6px;
+    margin-left: 4px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+}
+
+.download-btn {
+    background-color: #27ae60;
+    color: white;
+}
+
+.lock-btn {
+    background-color: #e67e22;
+    color: white;
+}
+
+.unlock-btn {
+    background-color: #3498db;
+    color: white;
+}
+
+.locked-by {
+    font-size: 11px;
+    color: #e74c3c;
+    font-style: italic;
+    margin-left: 4px;
+}

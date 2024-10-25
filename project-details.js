@@ -1,18 +1,25 @@
 document.addEventListener('DOMContentLoaded', async function() {
     const urlParams = new URLSearchParams(window.location.search);
     window.projectId = urlParams.get('id'); // Dichiarato come variabile globale
+    window.currentUserId = null; // Store current user ID for file operations
 
     if (projectId) {
         await fetchTeamMembers(); // Ensure teamMembers is populated first
         await fetchProjectDetails(projectId);
         await fetchProjectPhases(projectId);
+        
+        // Get current user ID
+        const response = await fetch('/api/session-user');
+        const userData = await handleResponse(response);
+        if (userData && userData.id) {
+            window.currentUserId = userData.id;
+        }
     } else {
         console.error('No project ID provided');
     }
 
     document.getElementById('add-history-btn').addEventListener('click', () => addHistoryEntry(projectId));
 
-    // Recupera e visualizza il nome utente
     fetch('/api/session-user')
         .then(response => handleResponse(response))
         .then(data => {
@@ -24,7 +31,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     restoreColumnWidths();
     enableColumnResizing();
-    enableColumnSorting(); // Se desideri abilitare l'ordinamento delle colonne
+    enableColumnSorting();
 });
 
 function handleResponse(response) {
@@ -94,7 +101,7 @@ async function fetchProjectHistory(projectId) {
     try {
         const response = await fetch(`/api/projects/${projectId}/history`);
         const history = await handleResponse(response);
-        console.log('Project History:', history); // Aggiungi questo log
+        console.log('Project History:', history);
         displayProjectHistory(history);
     } catch (error) {
         console.error('Error fetching project history:', error);
@@ -112,55 +119,126 @@ async function fetchTeamMembers() {
     }
 }
 
+async function fetchEntryFiles(entryId) {
+    try {
+        const response = await fetch(`/api/projects/${projectId}/files?historyId=${entryId}`);
+        return await handleResponse(response);
+    } catch (error) {
+        console.error('Error fetching files:', error);
+        return [];
+    }
+}
+
 function displayProjectHistory(history) {
     const tableBody = document.getElementById('history-table').getElementsByTagName('tbody')[0];
-    tableBody.innerHTML = ''; // Clear existing rows
+    tableBody.innerHTML = '';
 
-    history.forEach(entry => {
-        console.log('Assigned To:', entry.assigned_to); // Log the assigned_to value
-        console.log('Assigned To for entry ID', entry.id, ':', entry.assigned_to); // Verifica il valore di assigned_to
+    history.forEach(async entry => {
         const row = tableBody.insertRow();
-        row.setAttribute('data-entry-id', entry.id); // Memorizza l'ID dell'entry
+        row.setAttribute('data-entry-id', entry.id);
         row.insertCell(0).textContent = entry.date;
         row.insertCell(1).textContent = entry.phase;
         row.insertCell(2).textContent = entry.description;
-        row.insertCell(3).textContent = entry.assigned_to; // Updated to assigned_to
+        row.insertCell(3).textContent = entry.assigned_to;
         row.insertCell(4).textContent = entry.status;
 
-        const actionsCell = row.insertCell(5);
-        // Creare il pulsante "Edit" con la classe CSS corretta
-        const editBtn = document.createElement('button');
-        editBtn.className = 'edit-btn'; // Applica la classe CSS
-        editBtn.textContent = 'Edit';
-        editBtn.addEventListener('click', () => {
-            console.log('Edit button clicked for entry ID:', entry.id); // Log ID
-            editHistoryEntry(entry.id);
+        // Files cell
+        const filesCell = row.insertCell(5);
+        const fileUploadForm = document.createElement('form');
+        fileUploadForm.className = 'file-upload-form';
+        fileUploadForm.innerHTML = `
+            <input type="file" name="file" required>
+            <button type="submit" class="upload-btn">
+                <i class="fas fa-upload"></i>
+            </button>
+        `;
+        fileUploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(fileUploadForm);
+            formData.append('historyId', entry.id); // Include historyId in the form data
+            try {
+                const response = await fetch(`/api/projects/${projectId}/files`, {
+                    method: 'POST',
+                    body: formData
+                });
+                await handleResponse(response);
+                fetchProjectHistory(projectId);
+            } catch (error) {
+                console.error('Error uploading file:', error);
+            }
         });
+        filesCell.appendChild(fileUploadForm);
+
+        // Display existing files
+        const files = await fetchEntryFiles(entry.id);
+        const fileList = document.createElement('div');
+        fileList.className = 'file-list';
+        files.forEach(file => {
+            const fileItem = document.createElement('div');
+            fileItem.className = 'file-item';
+            fileItem.innerHTML = `
+                <span>${file.filename}</span>
+                <button onclick="downloadFile(${file.id})" class="download-btn">
+                    <i class="fas fa-download"></i>
+                </button>
+                <button onclick="deleteFile(${file.id})" class="delete-btn">
+                    <i class="fas fa-trash"></i>
+                </button>
+                ${file.locked_by ? 
+                    file.locked_by === currentUserId ?
+                        `<button onclick="unlockFile(${file.id})" class="unlock-btn">
+                            <i class="fas fa-unlock"></i>
+                        </button>` :
+                        `<span class="locked-by">Locked by ${file.locked_by_name}</span>` :
+                    `<button onclick="lockFile(${file.id})" class="lock-btn">
+                        <i class="fas fa-lock"></i>
+                    </button>`
+                }
+            `;
+            fileList.appendChild(fileItem);
+        });
+        filesCell.appendChild(fileList);
+
+        const actionsCell = row.insertCell(6);
+        const editBtn = document.createElement('button');
+        editBtn.className = 'edit-btn';
+        editBtn.textContent = 'Edit';
+        editBtn.addEventListener('click', () => editHistoryEntry(entry.id));
         actionsCell.appendChild(editBtn);
 
-        // Creare il pulsante "Delete" con la classe CSS corretta
         const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'delete-btn'; // Applica la classe CSS
+        deleteBtn.className = 'delete-btn';
         deleteBtn.textContent = 'Delete';
         deleteBtn.addEventListener('click', () => confirmDelete(entry.id));
         actionsCell.appendChild(deleteBtn);
 
-        // Apply color-coding based on assigned team member
-        const assignedMember = teamMembers.find(member => member.name === entry.assigned_to); // Updated to assigned_to
+        const assignedMember = teamMembers.find(member => member.name === entry.assigned_to);
         if (assignedMember) {
             row.style.backgroundColor = assignedMember.color;
         }
     });
 }
 
+async function deleteFile(fileId) {
+    try {
+        const response = await fetch(`/api/files/${fileId}`, {
+            method: 'DELETE'
+        });
+        await handleResponse(response);
+        fetchProjectHistory(projectId);
+    } catch (error) {
+        console.error('Error deleting file:', error);
+    }
+}
+
 function addHistoryEntry(projectId) {
     const tableBody = document.getElementById('history-table').getElementsByTagName('tbody')[0];
     const newRow = tableBody.insertRow(0);
 
-    const fields = ['date', 'phase', 'description', 'assigned_to', 'status']; // Updated to assigned_to
+    const fields = ['date', 'phase', 'description', 'assigned_to', 'status'];
     fields.forEach((field, index) => {
         const cell = newRow.insertCell(index);
-        if (field === 'assigned_to') { // Updated to assigned_to
+        if (field === 'assigned_to') {
             const select = document.createElement('select');
             teamMembers.forEach(member => {
                 const option = document.createElement('option');
@@ -173,18 +251,31 @@ function addHistoryEntry(projectId) {
             const input = document.createElement('input');
             input.type = 'date';
             input.name = field;
-            input.style.backgroundColor = '#ffff99'; // Sfondo giallo chiaro
+            input.style.backgroundColor = '#ffff99';
             cell.appendChild(input);
         } else {
             const input = document.createElement('input');
             input.type = 'text';
             input.name = field;
-            input.style.backgroundColor = '#ffff99'; // Sfondo giallo chiaro
+            input.style.backgroundColor = '#ffff99';
             cell.appendChild(input);
         }
     });
 
-    const actionsCell = newRow.insertCell(5);
+    // Add empty files cell
+    const filesCell = newRow.insertCell(5);
+    const fileUploadForm = document.createElement('form');
+    fileUploadForm.className = 'file-upload-form';
+    fileUploadForm.innerHTML = `
+        <input type="file" name="file">
+        <button type="submit" class="upload-btn" disabled>
+            <i class="fas fa-upload"></i>
+        </button>
+        <span class="upload-note">Save entry first to upload files</span>
+    `;
+    filesCell.appendChild(fileUploadForm);
+
+    const actionsCell = newRow.insertCell(6);
     const saveBtn = document.createElement('button');
     saveBtn.textContent = 'Save';
     saveBtn.addEventListener('click', () => saveNewHistoryEntry(projectId, newRow));
@@ -196,11 +287,10 @@ async function saveNewHistoryEntry(projectId, row) {
         date: row.cells[0].firstChild.value,
         phase: row.cells[1].firstChild.value,
         description: row.cells[2].firstChild.value,
-        assigned_to: row.cells[3].querySelector('select').value, // Updated to assigned_to
+        assigned_to: row.cells[3].querySelector('select').value,
         status: row.cells[4].firstChild.value
     };
 
-    // Log all values to verify them
     console.log('New Entry:', newEntry);
 
     try {
@@ -221,46 +311,41 @@ async function saveNewHistoryEntry(projectId, row) {
 }
 
 function editHistoryEntry(entryId) {
-    const row = document.querySelector(`tr[data-entry-id='${entryId}']`); // Seleziona la riga corretta
+    const row = document.querySelector(`tr[data-entry-id='${entryId}']`);
     if (row) {
         const cells = row.getElementsByTagName('td');
         const historyData = {
             date: cells[0].textContent,
             phase: cells[1].textContent,
             description: cells[2].textContent,
-            assigned_to: cells[3].textContent, // Updated to assigned_to
+            assigned_to: cells[3].textContent,
             status: cells[4].textContent
         };
 
-        // Rimuovi la riga che cambia il colore di sfondo della riga
-        // row.style.backgroundColor = 'yellow';
-
-        // Converti le celle in campi di input
         for (let i = 0; i < 5; i++) {
             let input;
-            if (i === 3) { // Campo 'assigned_to'
+            if (i === 3) {
                 input = document.createElement('select');
                 teamMembers.forEach(member => {
                     const option = document.createElement('option');
                     option.value = member.name;
                     option.textContent = member.name;
-                    if (member.name === historyData.assigned_to) { // Updated to assigned_to
+                    if (member.name === historyData.assigned_to) {
                         option.selected = true;
                     }
                     input.appendChild(option);
                 });
             } else {
                 input = document.createElement('input');
-                input.type = i === 0 ? 'date' : 'text'; // Input di tipo data per la data
+                input.type = i === 0 ? 'date' : 'text';
                 input.value = historyData[Object.keys(historyData)[i]];
             }
-            input.style.backgroundColor = '#ffff99'; // Sfondo giallo chiaro
+            input.style.backgroundColor = '#ffff99';
             cells[i].innerHTML = '';
             cells[i].appendChild(input);
         }
 
-        // Cambia il pulsante Edit in Save
-        const actionsCell = cells[5];
+        const actionsCell = cells[6];
         actionsCell.innerHTML = '';
         const saveBtn = document.createElement('button');
         saveBtn.textContent = 'Save';
@@ -269,7 +354,7 @@ function editHistoryEntry(entryId) {
                 date: cells[0].firstChild.value,
                 phase: cells[1].firstChild.value,
                 description: cells[2].firstChild.value,
-                assignedTo: cells[3].querySelector('select').value, // Access the select element directly
+                assignedTo: cells[3].querySelector('select').value,
                 status: cells[4].firstChild.value
             };
 
@@ -284,7 +369,7 @@ function editHistoryEntry(entryId) {
 
                 if (response.ok) {
                     console.log('History entry updated successfully');
-                    fetchProjectHistory(projectId); // Aggiorna la lista delle history
+                    fetchProjectHistory(projectId);
                 } else {
                     console.error('Failed to update history entry');
                 }
@@ -298,7 +383,6 @@ function editHistoryEntry(entryId) {
     }
 }
 
-// Aggiunta delle funzioni per la conferma e l'eliminazione
 function confirmDelete(entryId) {
     if (confirm("Are you sure you want to delete this history entry?")) {
         deleteHistoryEntry(entryId);
@@ -313,9 +397,41 @@ async function deleteHistoryEntry(entryId) {
 
         await handleResponse(response);
         console.log('History entry deleted successfully');
-        fetchProjectHistory(projectId); // Aggiorna la lista delle history
+        fetchProjectHistory(projectId);
     } catch (error) {
         console.error('Error deleting history entry:', error);
+    }
+}
+
+async function downloadFile(fileId) {
+    try {
+        window.location.href = `/api/files/${fileId}/download`;
+    } catch (error) {
+        console.error('Error downloading file:', error);
+    }
+}
+
+async function lockFile(fileId) {
+    try {
+        const response = await fetch(`/api/files/${fileId}/lock`, {
+            method: 'POST'
+        });
+        await handleResponse(response);
+        fetchProjectHistory(projectId);
+    } catch (error) {
+        console.error('Error locking file:', error);
+    }
+}
+
+async function unlockFile(fileId) {
+    try {
+        const response = await fetch(`/api/files/${fileId}/unlock`, {
+            method: 'POST'
+        });
+        await handleResponse(response);
+        fetchProjectHistory(projectId);
+    } catch (error) {
+        console.error('Error unlocking file:', error);
     }
 }
 
