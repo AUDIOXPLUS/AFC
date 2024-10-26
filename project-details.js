@@ -1,40 +1,48 @@
+// Aggiunta di un listener per l'evento DOMContentLoaded
 document.addEventListener('DOMContentLoaded', async function() {
     const urlParams = new URLSearchParams(window.location.search);
     window.projectId = urlParams.get('id'); // Dichiarato come variabile globale
-    window.currentUserId = null; // Store current user ID for file operations
+    window.currentUserId = null; // Memorizza l'ID utente corrente per le operazioni sui file
 
-    if (projectId) {
-        await fetchTeamMembers(); // Ensure teamMembers is populated first
-        await fetchProjectDetails(projectId);
-        await fetchProjectPhases(projectId);
-        
-        // Get current user ID
+    // Recupera e visualizza il nome utente
+    try {
         const response = await fetch('/api/session-user');
         const userData = await handleResponse(response);
-        if (userData && userData.id) {
-            window.currentUserId = userData.id;
+        console.log('userData:', userData);
+        if (userData && userData.username) {
+            window.currentUserId = String(userData.id);
+            if (userData.name) {
+                document.querySelector('.user-info span').textContent = `Welcome, ${userData.name}`;
+            }
+        } else {
+            console.error('userData.username is missing or null');
+            window.location.href = '/login.html';
+            return;
         }
+    } catch (error) {
+        console.error('Error fetching session user:', error);
+        window.location.href = '/login.html';
+        return;
+    }
+
+    if (projectId) {
+        await fetchTeamMembers(); // Assicura che teamMembers sia popolato prima
+        await fetchProjectDetails(projectId);
+        await fetchProjectPhases(projectId);
     } else {
         console.error('No project ID provided');
     }
 
     document.getElementById('add-history-btn').addEventListener('click', () => addHistoryEntry(projectId));
 
-    fetch('/api/session-user')
-        .then(response => handleResponse(response))
-        .then(data => {
-            if (data.name) {
-                document.querySelector('.user-info span').textContent = `Welcome, ${data.name}`;
-            }
-        })
-        .catch(error => console.error('Error fetching session user:', error));
-
     restoreColumnWidths();
     enableColumnResizing();
     enableColumnSorting();
 });
 
-function handleResponse(response) {
+// Funzione per gestire la risposta
+async function handleResponse(response) {
+    console.log('Response status:', response.status);
     if (response.status === 401) {
         window.location.href = '/login.html';
         throw new Error('Unauthorized');
@@ -42,9 +50,15 @@ function handleResponse(response) {
     if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
     }
-    return response.json();
+    try {
+        return await response.json();
+    } catch (error) {
+        console.error('Error parsing JSON:', error);
+        throw new Error('Invalid JSON response');
+    }
 }
 
+// Funzione per recuperare i dettagli del progetto
 async function fetchProjectDetails(projectId) {
     try {
         const response = await fetch(`/api/projects/${projectId}`);
@@ -56,6 +70,7 @@ async function fetchProjectDetails(projectId) {
     }
 }
 
+// Funzione per visualizzare i dettagli del progetto
 function displayProjectDetails(project) {
     document.getElementById('project-model-number').textContent = project.modelNumber;
 
@@ -71,6 +86,7 @@ function displayProjectDetails(project) {
     `;
 }
 
+// Funzione per recuperare le fasi del progetto
 async function fetchProjectPhases(projectId) {
     try {
         const response = await fetch(`/api/projects/${projectId}/phases`);
@@ -81,6 +97,7 @@ async function fetchProjectPhases(projectId) {
     }
 }
 
+// Funzione per visualizzare il riepilogo delle fasi
 function displayPhaseSummary(phases) {
     const summaryDiv = document.getElementById('phase-summary');
     summaryDiv.innerHTML = '';
@@ -97,6 +114,7 @@ function displayPhaseSummary(phases) {
     });
 }
 
+// Funzione per recuperare la cronologia del progetto
 async function fetchProjectHistory(projectId) {
     try {
         const response = await fetch(`/api/projects/${projectId}/history`);
@@ -110,6 +128,7 @@ async function fetchProjectHistory(projectId) {
 
 let teamMembers = [];
 
+// Funzione per recuperare i membri del team
 async function fetchTeamMembers() {
     try {
         const response = await fetch('/api/team-members');
@@ -119,6 +138,7 @@ async function fetchTeamMembers() {
     }
 }
 
+// Funzione per recuperare i file di una voce
 async function fetchEntryFiles(entryId) {
     try {
         const response = await fetch(`/api/projects/${projectId}/files?historyId=${entryId}`);
@@ -129,6 +149,7 @@ async function fetchEntryFiles(entryId) {
     }
 }
 
+// Funzione per visualizzare la cronologia del progetto
 function displayProjectHistory(history) {
     const tableBody = document.getElementById('history-table').getElementsByTagName('tbody')[0];
     tableBody.innerHTML = '';
@@ -142,12 +163,13 @@ function displayProjectHistory(history) {
         row.insertCell(3).textContent = entry.assigned_to;
         row.insertCell(4).textContent = entry.status;
 
-        // Files cell
+        // Cella dei file
         const filesCell = row.insertCell(5);
         const fileUploadForm = document.createElement('form');
         fileUploadForm.className = 'file-upload-form';
         fileUploadForm.innerHTML = `
             <input type="file" name="file" required>
+            <input type="hidden" name="historyId" value="${entry.id}">
             <button type="submit" class="upload-btn">
                 <i class="fas fa-upload"></i>
             </button>
@@ -155,7 +177,7 @@ function displayProjectHistory(history) {
         fileUploadForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const formData = new FormData(fileUploadForm);
-            formData.append('historyId', entry.id); // Include historyId in the form data
+            //formData.append('historyId', entry.id);
             try {
                 const response = await fetch(`/api/projects/${projectId}/files`, {
                     method: 'POST',
@@ -169,32 +191,76 @@ function displayProjectHistory(history) {
         });
         filesCell.appendChild(fileUploadForm);
 
-        // Display existing files
+        // Visualizza i file esistenti per questa voce di cronologia
         const files = await fetchEntryFiles(entry.id);
         const fileList = document.createElement('div');
         fileList.className = 'file-list';
         files.forEach(file => {
             const fileItem = document.createElement('div');
             fileItem.className = 'file-item';
-            fileItem.innerHTML = `
-                <span>${file.filename}</span>
-                <button onclick="downloadFile(${file.id})" class="download-btn">
-                    <i class="fas fa-download"></i>
-                </button>
-                <button onclick="deleteFile(${file.id})" class="delete-btn">
-                    <i class="fas fa-trash"></i>
-                </button>
-                ${file.locked_by ? 
-                    file.locked_by === currentUserId ?
-                        `<button onclick="unlockFile(${file.id})" class="unlock-btn">
-                            <i class="fas fa-unlock"></i>
-                        </button>` :
-                        `<span class="locked-by">Locked by ${file.locked_by_name}</span>` :
-                    `<button onclick="lockFile(${file.id})" class="lock-btn">
-                        <i class="fas fa-lock"></i>
-                    </button>`
-                }
-            `;
+            
+            // Nome del file
+            const fileNameSpan = document.createElement('span');
+            fileNameSpan.textContent = file.filename;
+            fileItem.appendChild(fileNameSpan);
+            
+            // Pulsante download
+            const downloadBtn = document.createElement('button');
+            downloadBtn.className = 'download-btn';
+            const downloadIcon = document.createElement('i');
+            downloadIcon.className = 'fas fa-download';
+            downloadBtn.appendChild(downloadIcon);
+            downloadBtn.addEventListener('click', () => downloadFile(file.id));
+            fileItem.appendChild(downloadBtn);
+            
+            // Pulsante elimina
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'delete-btn';
+            const deleteIcon = document.createElement('i');
+            deleteIcon.className = 'fas fa-trash';
+            deleteBtn.appendChild(deleteIcon);
+            deleteBtn.addEventListener('click', () => deleteFile(file.id));
+            fileItem.appendChild(deleteBtn);
+            
+            // Gestione lock/unlock
+            if (file.locked_by) {
+                const unlockBtn = document.createElement('button');
+                unlockBtn.className = 'unlock-btn';
+                const unlockIcon = document.createElement('i');
+                unlockIcon.className = 'fas fa-unlock';
+                unlockBtn.appendChild(unlockIcon);
+
+                // Converti entrambi i valori in stringhe per il confronto
+                const fileLockedBy = String(file.locked_by);
+                const userId = String(currentUserId);
+    
+                 // Aggiungi log per verificare i valori e i tipi
+                console.log('currentUserId:', userId, typeof userId);
+                console.log('file.locked_by:', fileLockedBy, typeof fileLockedBy);
+                console.log('Confronto:', fileLockedBy !== userId);
+
+                unlockBtn.disabled = fileLockedBy !== userId;
+
+                unlockBtn.addEventListener('click', () => {
+                    console.log('Tentativo di unlock del file:', file.id);
+                    unlockFile(file.id);
+                });
+                fileItem.appendChild(unlockBtn);
+                
+                const lockedBySpan = document.createElement('span');
+                lockedBySpan.className = 'locked-by';
+                lockedBySpan.textContent = `Locked by ${file.locked_by_name}`;
+                fileItem.appendChild(lockedBySpan);
+            } else {
+                const lockBtn = document.createElement('button');
+                lockBtn.className = 'lock-btn';
+                const lockIcon = document.createElement('i');
+                lockIcon.className = 'fas fa-lock';
+                lockBtn.appendChild(lockIcon);
+                lockBtn.addEventListener('click', () => lockFile(file.id));
+                fileItem.appendChild(lockBtn);
+            }
+            
             fileList.appendChild(fileItem);
         });
         filesCell.appendChild(fileList);
@@ -219,6 +285,7 @@ function displayProjectHistory(history) {
     });
 }
 
+// Funzione per eliminare un file
 async function deleteFile(fileId) {
     try {
         const response = await fetch(`/api/files/${fileId}`, {
@@ -231,6 +298,7 @@ async function deleteFile(fileId) {
     }
 }
 
+// Funzione per aggiungere una nuova voce alla cronologia
 function addHistoryEntry(projectId) {
     const tableBody = document.getElementById('history-table').getElementsByTagName('tbody')[0];
     const newRow = tableBody.insertRow(0);
@@ -262,7 +330,7 @@ function addHistoryEntry(projectId) {
         }
     });
 
-    // Add empty files cell
+    // Aggiungi cella vuota per i file
     const filesCell = newRow.insertCell(5);
     const fileUploadForm = document.createElement('form');
     fileUploadForm.className = 'file-upload-form';
@@ -282,6 +350,7 @@ function addHistoryEntry(projectId) {
     actionsCell.appendChild(saveBtn);
 }
 
+// Funzione per salvare una nuova voce nella cronologia
 async function saveNewHistoryEntry(projectId, row) {
     const newEntry = {
         date: row.cells[0].firstChild.value,
@@ -310,6 +379,7 @@ async function saveNewHistoryEntry(projectId, row) {
     }
 }
 
+// Funzione per modificare una voce della cronologia
 function editHistoryEntry(entryId) {
     const row = document.querySelector(`tr[data-entry-id='${entryId}']`);
     if (row) {
@@ -383,12 +453,14 @@ function editHistoryEntry(entryId) {
     }
 }
 
+// Funzione per confermare l'eliminazione di una voce
 function confirmDelete(entryId) {
     if (confirm("Are you sure you want to delete this history entry?")) {
         deleteHistoryEntry(entryId);
     }
 }
 
+// Funzione per eliminare una voce della cronologia
 async function deleteHistoryEntry(entryId) {
     try {
         const response = await fetch(`/api/projects/${projectId}/history/${entryId}`, {
@@ -403,6 +475,7 @@ async function deleteHistoryEntry(entryId) {
     }
 }
 
+// Funzione per scaricare un file
 async function downloadFile(fileId) {
     try {
         window.location.href = `/api/files/${fileId}/download`;
@@ -411,6 +484,7 @@ async function downloadFile(fileId) {
     }
 }
 
+// Funzione per bloccare un file
 async function lockFile(fileId) {
     try {
         const response = await fetch(`/api/files/${fileId}/lock`, {
@@ -423,26 +497,34 @@ async function lockFile(fileId) {
     }
 }
 
+// Funzione per sbloccare un file
 async function unlockFile(fileId) {
+    console.log('Chiamata a unlockFile con fileId:', fileId);
     try {
         const response = await fetch(`/api/files/${fileId}/unlock`, {
-            method: 'POST'
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
         });
+        console.log('Risposta unlock:', response);
         await handleResponse(response);
+        console.log('File sbloccato con successo');
         fetchProjectHistory(projectId);
     } catch (error) {
-        console.error('Error unlocking file:', error);
+        console.error('Errore durante lo sblocco del file:', error);
     }
 }
 
+// Funzione per salvare le larghezze delle colonne
 function saveColumnWidths() {
     const table = document.getElementById('history-table');
     const headerCells = table.getElementsByTagName('th');
     const columnWidths = Array.from(headerCells).map(cell => cell.style.width);
-    console.log('Salvataggio delle larghezze delle colonne:', columnWidths);
     localStorage.setItem('historyColumnWidths', JSON.stringify(columnWidths));
 }
 
+// Funzione per ripristinare le larghezze delle colonne
 function restoreColumnWidths() {
     const columnWidths = JSON.parse(localStorage.getItem('historyColumnWidths'));
     if (columnWidths) {
@@ -453,12 +535,10 @@ function restoreColumnWidths() {
                 headerCells[index].style.width = width;
             }
         });
-        console.log('Larghezze delle colonne ripristinate:', columnWidths);
-    } else {
-        console.log('Nessuna larghezza delle colonne trovata nel local storage.');
     }
 }
 
+// Funzione per abilitare il ridimensionamento delle colonne
 function enableColumnResizing() {
     const table = document.getElementById('history-table');
     const headerCells = table.getElementsByTagName('th');
@@ -499,6 +579,7 @@ function enableColumnResizing() {
     }
 }
 
+// Funzione per abilitare l'ordinamento delle colonne
 function enableColumnSorting() {
     const table = document.getElementById('history-table');
     const headers = table.getElementsByTagName('th');

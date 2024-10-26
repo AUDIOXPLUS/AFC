@@ -21,13 +21,17 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-// Middleware di autenticazione
+// Middleware di autenticazione migliorato
 function checkAuthentication(req, res, next) {
     console.log('checkAuthentication chiamato per', req.path);
     if (req.session && req.session.user) {
         return next();
     } else {
-        res.redirect('/login.html');
+        if (req.path.startsWith('/api/')) {
+            res.status(401).json({ error: 'Utente non autenticato' });
+        } else {
+            res.redirect('/login.html');
+        }
     }
 }
 
@@ -311,10 +315,14 @@ router.get('/api/team-members/:id', (req, res) => {
     });
 });
 
-// Endpoint per ottenere l'utente della sessione
+// Endpoint per ottenere l'utente della sessione con ID
 router.get('/api/session-user', (req, res) => {
     if (req.session && req.session.user) {
-        res.json({ username: req.session.user.username, name: req.session.user.name });
+        res.json({ 
+            id: req.session.user.id, 
+            username: req.session.user.username, 
+            name: req.session.user.name 
+        });
     } else {
         res.status(401).json({ error: 'Utente non autenticato' });
     }
@@ -402,13 +410,14 @@ router.get('/api/tasks', (req, res) => {
 router.post('/api/projects/:projectId/files', checkAuthentication, upload.single('file'), (req, res) => {
     const { projectId } = req.params;
     const { file } = req;
+    const { historyId } = req.body;
     const uploadedBy = req.session.user.id;
 
-    const query = `INSERT INTO project_files (project_id, filename, filepath, uploaded_by) 
-                   VALUES (?, ?, ?, ?)`;
+    const query = `INSERT INTO project_files (project_id, history_id, filename, filepath, uploaded_by) VALUES (?, ?, ?, ?, ?)`;
     
     req.db.run(query, [
         projectId,
+        historyId,
         file.originalname,
         file.path,
         uploadedBy
@@ -548,6 +557,25 @@ router.delete('/api/files/:fileId', checkAuthentication, (req, res) => {
                     res.status(500).json({ error: 'Failed to delete file from disk' });
                 });
         });
+    });
+});
+
+router.get('/api/projects/:projectId/history/:historyId/files', checkAuthentication, (req, res) => {
+    const { projectId, historyId } = req.params;
+    const query = `
+        SELECT pf.*, u1.name as uploaded_by_name, u2.name as locked_by_name 
+        FROM project_files pf 
+        LEFT JOIN users u1 ON pf.uploaded_by = u1.id 
+        LEFT JOIN users u2 ON pf.locked_by = u2.id 
+        WHERE project_id = ? AND history_id = ?
+    `;
+    
+    req.db.all(query, [projectId, historyId], (err, files) => {
+        if (err) {
+            console.error('Error fetching files:', err);
+            return res.status(500).json({ error: 'Failed to fetch files' });
+        }
+        res.json(files);
     });
 });
 
