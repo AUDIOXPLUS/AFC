@@ -367,17 +367,48 @@ router.put('/api/projects/:projectId/history/:historyId', (req, res) => {
 
 router.delete('/api/projects/:projectId/history/:entryId', (req, res) => {
     const { projectId, entryId } = req.params;
-    const query = `DELETE FROM project_history WHERE project_id = ? AND id = ?`;
+
+    // Prima otteniamo i file associati alla voce di cronologia
+    const getFilesQuery = `SELECT * FROM project_files WHERE project_id = ? AND history_id = ?`;
     
-    req.db.run(query, [projectId, entryId], function(err) {
+    req.db.all(getFilesQuery, [projectId, entryId], (err, files) => {
         if (err) {
-            console.error(err.message);
-            return res.status(500).json({ error: 'Failed to delete history entry' });
+            console.error('Errore nel recupero dei file associati:', err);
+            return res.status(500).json({ error: 'Errore nel recupero dei file associati' });
         }
-        if (this.changes === 0) {
-            return res.status(404).json({ error: 'History entry not found' });
-        }
-        res.status(200).json({ message: 'History entry deleted successfully' });
+
+        // Rimuoviamo fisicamente i file dal filesystem
+        files.forEach(file => {
+            fs.remove(file.filepath, (err) => {
+                if (err) {
+                    console.error('Errore nell\'eliminazione del file dal filesystem:', err);
+                }
+            });
+        });
+
+        // Poi eliminiamo i file dal database
+        const deleteFilesQuery = `DELETE FROM project_files WHERE project_id = ? AND history_id = ?`;
+
+        req.db.run(deleteFilesQuery, [projectId, entryId], function(err) {
+            if (err) {
+                console.error('Errore nell\'eliminazione dei file associati:', err);
+                return res.status(500).json({ error: 'Errore nell\'eliminazione dei file associati' });
+            }
+
+            // Infine, eliminiamo la voce di cronologia
+            const deleteHistoryQuery = `DELETE FROM project_history WHERE project_id = ? AND id = ?`;
+
+            req.db.run(deleteHistoryQuery, [projectId, entryId], function(err) {
+                if (err) {
+                    console.error('Errore nell\'eliminazione della voce di cronologia:', err);
+                    return res.status(500).json({ error: 'Errore del server' });
+                }
+                if (this.changes === 0) {
+                    return res.status(404).json({ error: 'Voce di cronologia non trovata' });
+                }
+                res.status(200).json({ message: 'Voce di cronologia e file associati eliminati con successo' });
+            });
+        });
     });
 });
 
@@ -436,15 +467,23 @@ router.post('/api/projects/:projectId/files', checkAuthentication, upload.single
 
 router.get('/api/projects/:projectId/files', checkAuthentication, (req, res) => {
     const { projectId } = req.params;
-    const query = `
+    const { historyId } = req.query;
+
+    let query = `
         SELECT pf.*, u1.name as uploaded_by_name, u2.name as locked_by_name 
         FROM project_files pf 
         LEFT JOIN users u1 ON pf.uploaded_by = u1.id 
         LEFT JOIN users u2 ON pf.locked_by = u2.id 
         WHERE project_id = ?
     `;
-    
-    req.db.all(query, [projectId], (err, files) => {
+    const params = [projectId];
+
+    if (historyId) {
+        query += ' AND history_id = ?';
+        params.push(historyId);
+    }
+
+    req.db.all(query, params, (err, files) => {
         if (err) {
             console.error('Error fetching files:', err);
             return res.status(500).json({ error: 'Failed to fetch files' });
@@ -452,6 +491,7 @@ router.get('/api/projects/:projectId/files', checkAuthentication, (req, res) => 
         res.json(files);
     });
 });
+
 
 router.get('/api/files/:fileId/download', checkAuthentication, (req, res) => {
     const { fileId } = req.params;

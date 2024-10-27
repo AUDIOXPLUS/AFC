@@ -149,6 +149,110 @@ async function fetchEntryFiles(entryId) {
     }
 }
 
+// Funzione per aggiornare solo la cella dei file di una riga specifica
+async function updateFilesCell(entryId) {
+    const files = await fetchEntryFiles(entryId);
+    const row = document.querySelector(`tr[data-entry-id='${entryId}']`);
+    if (!row) return;
+
+    const filesCell = row.cells[5];
+    filesCell.innerHTML = ''; // Pulisce solo la cella dei file
+
+    // Ricrea il form di upload
+    const fileUploadForm = document.createElement('form');
+    fileUploadForm.className = 'file-upload-form';
+    fileUploadForm.innerHTML = `
+        <input type="file" name="file" required>
+        <input type="hidden" name="historyId" value="${entryId}">
+        <button type="submit" class="upload-btn">
+            <i class="fas fa-upload"></i>
+        </button>
+    `;
+    fileUploadForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(fileUploadForm);
+        try {
+            const response = await fetch(`/api/projects/${projectId}/files`, {
+                method: 'POST',
+                body: formData
+            });
+            await handleResponse(response);
+            updateFilesCell(entryId); // Aggiorna solo questa cella
+        } catch (error) {
+            console.error('Error uploading file:', error);
+        }
+    });
+    filesCell.appendChild(fileUploadForm);
+
+    // Visualizza i file esistenti
+    const fileList = document.createElement('div');
+    fileList.className = 'file-list';
+    files.forEach(file => {
+        const fileItem = document.createElement('div');
+        fileItem.className = 'file-item';
+        
+        const fileNameSpan = document.createElement('span');
+        fileNameSpan.textContent = file.filename;
+        fileItem.appendChild(fileNameSpan);
+        
+        const downloadBtn = document.createElement('button');
+        downloadBtn.className = 'download-btn';
+        const downloadIcon = document.createElement('i');
+        downloadIcon.className = 'fas fa-download';
+        downloadBtn.appendChild(downloadIcon);
+        downloadBtn.addEventListener('click', () => downloadFile(file.id));
+        fileItem.appendChild(downloadBtn);
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'delete-btn';
+        const deleteIcon = document.createElement('i');
+        deleteIcon.className = 'fas fa-trash';
+        deleteBtn.appendChild(deleteIcon);
+        deleteBtn.addEventListener('click', async () => {
+            await deleteFile(file.id);
+            updateFilesCell(entryId); // Aggiorna solo questa cella dopo l'eliminazione
+        });
+        fileItem.appendChild(deleteBtn);
+        
+        if (file.locked_by) {
+            const unlockBtn = document.createElement('button');
+            unlockBtn.className = 'unlock-btn';
+            const unlockIcon = document.createElement('i');
+            unlockIcon.className = 'fas fa-unlock';
+            unlockBtn.appendChild(unlockIcon);
+
+            const fileLockedBy = String(file.locked_by);
+            const userId = String(currentUserId);
+            unlockBtn.disabled = fileLockedBy !== userId;
+
+            unlockBtn.addEventListener('click', async () => {
+                await unlockFile(file.id);
+                updateFilesCell(entryId); // Aggiorna solo questa cella dopo lo sblocco
+            });
+            fileItem.appendChild(unlockBtn);
+            
+            const lockedBySpan = document.createElement('span');
+            lockedBySpan.className = 'locked-by';
+            lockedBySpan.textContent = `Locked by ${file.locked_by_name}`;
+            fileItem.appendChild(lockedBySpan);
+        } else {
+            const lockBtn = document.createElement('button');
+            lockBtn.className = 'lock-btn';
+            const lockIcon = document.createElement('i');
+            lockIcon.className = 'fas fa-lock';
+            lockBtn.appendChild(lockIcon);
+            lockBtn.addEventListener('click', async () => {
+                await lockFile(file.id);
+                updateFilesCell(entryId); // Aggiorna solo questa cella dopo il blocco
+            });
+            fileItem.appendChild(lockBtn);
+        }
+        
+        fileList.appendChild(fileItem);
+    });
+    filesCell.appendChild(fileList);
+}
+
 // Funzione per visualizzare la cronologia del progetto
 function displayProjectHistory(history) {
     const tableBody = document.getElementById('history-table').getElementsByTagName('tbody')[0];
@@ -156,7 +260,11 @@ function displayProjectHistory(history) {
 
     history.forEach(async entry => {
         const row = tableBody.insertRow();
-        row.setAttribute('data-entry-id', entry.id);
+
+        // Imposta l'attributo data-entry-id
+        row.setAttribute('data-entry-id', entry.id); 
+
+        // Inserimento delle celle di dati
         row.insertCell(0).textContent = entry.date;
         row.insertCell(1).textContent = entry.phase;
         row.insertCell(2).textContent = entry.description;
@@ -177,14 +285,13 @@ function displayProjectHistory(history) {
         fileUploadForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const formData = new FormData(fileUploadForm);
-            //formData.append('historyId', entry.id);
             try {
                 const response = await fetch(`/api/projects/${projectId}/files`, {
                     method: 'POST',
                     body: formData
                 });
                 await handleResponse(response);
-                fetchProjectHistory(projectId);
+                await updateFilesCell(entry.id); // Aggiorna solo la cella specifica
             } catch (error) {
                 console.error('Error uploading file:', error);
             }
@@ -199,12 +306,10 @@ function displayProjectHistory(history) {
             const fileItem = document.createElement('div');
             fileItem.className = 'file-item';
             
-            // Nome del file
             const fileNameSpan = document.createElement('span');
             fileNameSpan.textContent = file.filename;
             fileItem.appendChild(fileNameSpan);
             
-            // Pulsante download
             const downloadBtn = document.createElement('button');
             downloadBtn.className = 'download-btn';
             const downloadIcon = document.createElement('i');
@@ -213,16 +318,17 @@ function displayProjectHistory(history) {
             downloadBtn.addEventListener('click', () => downloadFile(file.id));
             fileItem.appendChild(downloadBtn);
             
-            // Pulsante elimina
             const deleteBtn = document.createElement('button');
             deleteBtn.className = 'delete-btn';
             const deleteIcon = document.createElement('i');
             deleteIcon.className = 'fas fa-trash';
             deleteBtn.appendChild(deleteIcon);
-            deleteBtn.addEventListener('click', () => deleteFile(file.id));
+            deleteBtn.addEventListener('click', async () => {
+                await deleteFile(file.id);
+                updateFilesCell(entry.id); // Aggiorna solo la cella dei file
+            });
             fileItem.appendChild(deleteBtn);
             
-            // Gestione lock/unlock
             if (file.locked_by) {
                 const unlockBtn = document.createElement('button');
                 unlockBtn.className = 'unlock-btn';
@@ -230,20 +336,13 @@ function displayProjectHistory(history) {
                 unlockIcon.className = 'fas fa-unlock';
                 unlockBtn.appendChild(unlockIcon);
 
-                // Converti entrambi i valori in stringhe per il confronto
                 const fileLockedBy = String(file.locked_by);
                 const userId = String(currentUserId);
-    
-                 // Aggiungi log per verificare i valori e i tipi
-                console.log('currentUserId:', userId, typeof userId);
-                console.log('file.locked_by:', fileLockedBy, typeof fileLockedBy);
-                console.log('Confronto:', fileLockedBy !== userId);
-
                 unlockBtn.disabled = fileLockedBy !== userId;
 
-                unlockBtn.addEventListener('click', () => {
-                    console.log('Tentativo di unlock del file:', file.id);
-                    unlockFile(file.id);
+                unlockBtn.addEventListener('click', async () => {
+                    await unlockFile(file.id);
+                    updateFilesCell(entry.id); // Aggiorna solo la cella dei file
                 });
                 fileItem.appendChild(unlockBtn);
                 
@@ -257,7 +356,10 @@ function displayProjectHistory(history) {
                 const lockIcon = document.createElement('i');
                 lockIcon.className = 'fas fa-lock';
                 lockBtn.appendChild(lockIcon);
-                lockBtn.addEventListener('click', () => lockFile(file.id));
+                lockBtn.addEventListener('click', async () => {
+                    await lockFile(file.id);
+                    updateFilesCell(entry.id); // Aggiorna solo la cella dei file
+                });
                 fileItem.appendChild(lockBtn);
             }
             
@@ -292,7 +394,7 @@ async function deleteFile(fileId) {
             method: 'DELETE'
         });
         await handleResponse(response);
-        fetchProjectHistory(projectId);
+        // Non ricaricare tutta la tabella, l'aggiornamento della cella è gestito dal chiamante
     } catch (error) {
         console.error('Error deleting file:', error);
     }
@@ -335,7 +437,7 @@ function addHistoryEntry(projectId) {
     const fileUploadForm = document.createElement('form');
     fileUploadForm.className = 'file-upload-form';
     fileUploadForm.innerHTML = `
-        <input type="file" name="file">
+        <input type="file" name="file" disabled>
         <button type="submit" class="upload-btn" disabled>
             <i class="fas fa-upload"></i>
         </button>
@@ -360,8 +462,6 @@ async function saveNewHistoryEntry(projectId, row) {
         status: row.cells[4].firstChild.value
     };
 
-    console.log('New Entry:', newEntry);
-
     try {
         const response = await fetch(`/api/projects/${projectId}/history`, {
             method: 'POST',
@@ -371,9 +471,13 @@ async function saveNewHistoryEntry(projectId, row) {
             body: JSON.stringify(newEntry),
         });
 
-        await handleResponse(response);
-        console.log('History entry added successfully');
-        fetchProjectHistory(projectId);
+        const savedEntry = await handleResponse(response);
+        // Aggiorna solo la riga corrente con i nuovi dati
+        row.setAttribute('data-entry-id', savedEntry.id);
+        for (let i = 0; i < 5; i++) {
+            row.cells[i].textContent = newEntry[Object.keys(newEntry)[i]];
+        }
+        await updateFilesCell(savedEntry.id);
     } catch (error) {
         console.error('Error adding history entry:', error);
     }
@@ -438,8 +542,23 @@ function editHistoryEntry(entryId) {
                 });
 
                 if (response.ok) {
-                    console.log('History entry updated successfully');
-                    fetchProjectHistory(projectId);
+                    // Aggiorna solo i campi modificati nella riga corrente
+                    for (let i = 0; i < 5; i++) {
+                        cells[i].textContent = updatedEntry[Object.keys(updatedEntry)[i]];
+                    }
+                    // Ripristina i pulsanti di azione
+                    actionsCell.innerHTML = '';
+                    const editBtn = document.createElement('button');
+                    editBtn.className = 'edit-btn';
+                    editBtn.textContent = 'Edit';
+                    editBtn.addEventListener('click', () => editHistoryEntry(entryId));
+                    actionsCell.appendChild(editBtn);
+
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'delete-btn';
+                    deleteBtn.textContent = 'Delete';
+                    deleteBtn.addEventListener('click', () => confirmDelete(entryId));
+                    actionsCell.appendChild(deleteBtn);
                 } else {
                     console.error('Failed to update history entry');
                 }
@@ -468,8 +587,11 @@ async function deleteHistoryEntry(entryId) {
         });
 
         await handleResponse(response);
-        console.log('History entry deleted successfully');
-        fetchProjectHistory(projectId);
+        // Rimuovi solo la riga specifica invece di ricaricare tutta la tabella
+        const row = document.querySelector(`tr[data-entry-id='${entryId}']`);
+        if (row) {
+            row.remove();
+        }
     } catch (error) {
         console.error('Error deleting history entry:', error);
     }
@@ -491,7 +613,7 @@ async function lockFile(fileId) {
             method: 'POST'
         });
         await handleResponse(response);
-        fetchProjectHistory(projectId);
+        // Non ricaricare tutta la tabella, l'aggiornamento della cella è gestito dal chiamante
     } catch (error) {
         console.error('Error locking file:', error);
     }
@@ -510,7 +632,7 @@ async function unlockFile(fileId) {
         console.log('Risposta unlock:', response);
         await handleResponse(response);
         console.log('File sbloccato con successo');
-        fetchProjectHistory(projectId);
+        // Non ricaricare tutta la tabella, l'aggiornamento della cella è gestito dal chiamante
     } catch (error) {
         console.error('Errore durante lo sblocco del file:', error);
     }
@@ -569,7 +691,7 @@ function enableColumnResizing() {
         function resizeColumn(e) {
             const newWidth = startWidth + (e.pageX - startX);
             headerCells[i].style.width = newWidth + 'px';
-            saveColumnWidths(); // Salva le larghezze dopo il ridimensionamento
+            saveColumnWidths();
         }
 
         function stopResize() {
@@ -595,8 +717,8 @@ function enableColumnSorting() {
                 const bText = b.cells[columnIndex].textContent.trim();
                 return isAscending ? aText.localeCompare(bText) : bText.localeCompare(aText);
             });
-            sortDirection[columnIndex] = !isAscending; // Inverte la direzione di ordinamento
-            rows.forEach(row => table.getElementsByTagName('tbody')[0].appendChild(row)); // Riordina le righe
+            sortDirection[columnIndex] = !isAscending;
+            rows.forEach(row => table.getElementsByTagName('tbody')[0].appendChild(row));
         });
     }
 }
