@@ -331,12 +331,14 @@ router.get('/api/session-user', (req, res) => {
 // Endpoint per aggiungere una voce alla cronologia del progetto
 router.post('/api/projects/:id/history', (req, res) => {
     const projectId = req.params.id;
-    const { date, phase, description, assignedTo, status } = req.body;
+    const { date, phase, description, assigned_To, status } = req.body;
+
+    console.log('Dati ricevuti per la nuova voce di cronologia:', req.body); // Aggiungi un log per verificare i dati
 
     const query = `INSERT INTO project_history (project_id, date, phase, description, assigned_to, status) 
                    VALUES (?, ?, ?, ?, ?, ?)`;
     
-    req.db.run(query, [projectId, date, phase, description, assignedTo, status], function(err) {
+    req.db.run(query, [projectId, date, phase, description, assigned_To, status], function(err) {
         if (err) {
             console.error('Errore nell\'inserimento della voce di cronologia:', err);
             return res.status(500).send('Errore del server');

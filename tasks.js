@@ -1,4 +1,7 @@
+let teamMembers = [];
+
 document.addEventListener('DOMContentLoaded', async function() {
+    await fetchTeamMembers();
     await fetchTasks();
 
     document.getElementById('filter-input').addEventListener('input', filterTasks);
@@ -14,6 +17,15 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Enable column sorting
     enableColumnSorting();
 });
+
+async function fetchTeamMembers() {
+    try {
+        const response = await fetch('/api/team-members');
+        teamMembers = await handleResponse(response);
+    } catch (error) {
+        console.error('Error fetching team members:', error);
+    }
+}
 
 async function fetchTasks() {
     try {
@@ -33,14 +45,24 @@ function displayTasks(tasks) {
     tableBody.innerHTML = ''; // Clear existing rows
 
     tasks.forEach(task => {
+        // Non mostrare i task con assigned_to "completed"
+        if (task.assignedTo === 'Completed') {
+            return;
+        }
+
         const row = tableBody.insertRow();
-        row.setAttribute('data-task-id', task.id); // Store the task ID
+        row.setAttribute('data-task-id', task.id);
         row.insertCell(0).innerHTML = `<a href="project-details.html?id=${task.projectId}">${task.modelNumber}</a>`;
         row.insertCell(1).textContent = task.date;
         row.insertCell(2).textContent = task.description;
         row.insertCell(3).textContent = task.assignedTo;
         row.insertCell(4).textContent = task.status;
-        // Removed actions cell creation
+
+        // Applica il colore di sfondo in base all'utente assegnato
+        const assignedMember = teamMembers.find(member => member.name === task.assignedTo);
+        if (assignedMember) {
+            row.style.backgroundColor = assignedMember.color;
+        }
     });
 }
 
@@ -74,31 +96,6 @@ function handleResponse(response) {
     return response.json();
 }
 
-function editTask(taskId) {
-    // Logic to edit the task
-    console.log('Edit task with ID:', taskId);
-}
-
-function confirmDelete(taskId) {
-    if (confirm("Are you sure you want to delete this task?")) {
-        deleteTask(taskId);
-    }
-}
-
-async function deleteTask(taskId) {
-    try {
-        const response = await fetch(`/api/tasks/${taskId}`, {
-            method: 'DELETE',
-        });
-
-        await handleResponse(response);
-        console.log('Task deleted successfully');
-        fetchTasks(); // Refresh the task list
-    } catch (error) {
-        console.error('Error deleting task:', error);
-    }
-}
-
 // Function to enable column resizing
 function enableColumnResizing() {
     const table = document.getElementById('task-table');
@@ -130,7 +127,7 @@ function enableColumnResizing() {
         function resizeColumn(e) {
             const newWidth = startWidth + (e.pageX - startX);
             headerCells[i].style.width = newWidth + 'px';
-            saveColumnWidths(); // Save widths after resizing
+            saveColumnWidths();
         }
 
         function stopResize() {

@@ -64,7 +64,7 @@ async function fetchProjectDetails(projectId) {
         const response = await fetch(`/api/projects/${projectId}`);
         const project = await handleResponse(response);
         displayProjectDetails(project);
-        fetchProjectHistory(projectId);
+        await fetchProjectHistory(projectId);
     } catch (error) {
         console.error('Error fetching project details:', error);
     }
@@ -117,7 +117,7 @@ function displayPhaseSummary(phases) {
 // Funzione per recuperare la cronologia del progetto
 async function fetchProjectHistory(projectId) {
     try {
-        const response = await fetch(`/api/projects/${projectId}/history`);
+        const response = await fetch(`/api/projects/${projectId}/history?includeUserName=true`);
         const history = await handleResponse(response);
         console.log('Project History:', history);
         displayProjectHistory(history);
@@ -380,6 +380,44 @@ function displayProjectHistory(history) {
         deleteBtn.addEventListener('click', () => confirmDelete(entry.id));
         actionsCell.appendChild(deleteBtn);
 
+        // Aggiungi il pulsante Set Completed
+        const setCompletedBtn = document.createElement('button');
+        setCompletedBtn.className = 'set-completed-btn';
+        setCompletedBtn.textContent = 'Set Completed';
+        setCompletedBtn.addEventListener('click', async () => {
+            // Imposta il colore di sfondo neutro
+            row.style.backgroundColor = '#f0f0f0';
+            
+            // Aggiorna il campo assigned_to a "Completed"
+            const updatedEntry = {
+                date: entry.date,
+                phase: entry.phase,
+                description: entry.description,
+                assignedTo: 'Completed',
+                status: entry.status
+            };
+
+            try {
+                const response = await fetch(`/api/projects/${projectId}/history/${entry.id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(updatedEntry),
+                });
+
+                if (response.ok) {
+                    // Aggiorna il testo della cella assigned_to
+                    row.cells[3].textContent = 'Completed';
+                } else {
+                    console.error('Failed to update history entry');
+                }
+            } catch (error) {
+                console.error('Error updating history entry:', error);
+            }
+        });
+        actionsCell.appendChild(setCompletedBtn);
+
         const assignedMember = teamMembers.find(member => member.name === entry.assigned_to);
         if (assignedMember) {
             row.style.backgroundColor = assignedMember.color;
@@ -412,7 +450,7 @@ function addHistoryEntry(projectId) {
             const select = document.createElement('select');
             teamMembers.forEach(member => {
                 const option = document.createElement('option');
-                option.value = member.name;
+                option.value = member.id;  // Usa l'ID come value
                 option.textContent = member.name;
                 select.appendChild(option);
             });
@@ -461,8 +499,10 @@ async function saveNewHistoryEntry(projectId, row) {
         assigned_to: row.cells[3].querySelector('select').value,
         status: row.cells[4].firstChild.value
     };
+    console.log('Dati della nuova voce:', newEntry);
 
     try {
+        // Effettua la richiesta POST al server
         const response = await fetch(`/api/projects/${projectId}/history`, {
             method: 'POST',
             headers: {
@@ -471,13 +511,19 @@ async function saveNewHistoryEntry(projectId, row) {
             body: JSON.stringify(newEntry),
         });
 
-        const savedEntry = await handleResponse(response);
-        // Aggiorna solo la riga corrente con i nuovi dati
-        row.setAttribute('data-entry-id', savedEntry.id);
-        for (let i = 0; i < 5; i++) {
-            row.cells[i].textContent = newEntry[Object.keys(newEntry)[i]];
+         if (!response.ok) {
+            throw new Error(`Errore durante il salvataggio: ${response.statusText}`);
         }
-        await updateFilesCell(savedEntry.id);
+
+        const savedEntry = await handleResponse(response);
+
+        if (savedEntry && savedEntry.id) {
+            // Ricarica l'intera tabella della cronologia per aggiornare la UI
+            await fetchProjectHistory(projectId);
+        } else {
+            console.error('Errore: la risposta del server non contiene un ID valido.');
+        }
+
     } catch (error) {
         console.error('Error adding history entry:', error);
     }
@@ -559,6 +605,8 @@ function editHistoryEntry(entryId) {
                     deleteBtn.textContent = 'Delete';
                     deleteBtn.addEventListener('click', () => confirmDelete(entryId));
                     actionsCell.appendChild(deleteBtn);
+
+                    window.location.reload();
                 } else {
                     console.error('Failed to update history entry');
                 }

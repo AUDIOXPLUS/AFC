@@ -191,7 +191,7 @@ th i {
     background-color: #e74c3c;
 }
 
-.edit-btn, .delete-btn {
+.edit-btn, .delete-btn, .set-completed-btn {
     padding: 3px 8px;
     margin-right: 5px;
     border: none;
@@ -211,12 +211,21 @@ th i {
     color: white;
 }
 
+.set-completed-btn {
+    background-color: #27ae60;
+    color: white;
+}
+
 .edit-btn:hover {
     background-color: #2980b9;
 }
 
 .delete-btn:hover {
     background-color: #c0392b;
+}
+
+.set-completed-btn:hover {
+    background-color: #219a52;
 }
 
 /* New styles for input elements in the table */
