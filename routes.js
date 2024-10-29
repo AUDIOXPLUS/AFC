@@ -494,7 +494,24 @@ router.get('/api/projects/:projectId/files', checkAuthentication, (req, res) => 
     });
 });
 
+// Endpoint per visualizzare un file
+router.get('/api/files/:fileId/view', checkAuthentication, (req, res) => {
+    const { fileId } = req.params;
+    
+    req.db.get('SELECT * FROM project_files WHERE id = ?', [fileId], (err, file) => {
+        if (err) {
+            console.error('Error fetching file:', err);
+            return res.status(500).json({ error: 'Failed to fetch file' });
+        }
+        if (!file) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+        
+        res.sendFile(path.resolve(file.filepath));
+    });
+});
 
+// Endpoint per scaricare un file
 router.get('/api/files/:fileId/download', checkAuthentication, (req, res) => {
     const { fileId } = req.params;
     

@@ -193,6 +193,11 @@ async function updateFilesCell(entryId) {
         
         const fileNameSpan = document.createElement('span');
         fileNameSpan.textContent = file.filename;
+        fileNameSpan.style.cursor = 'pointer';
+        fileNameSpan.style.textDecoration = 'underline';
+        fileNameSpan.addEventListener('click', () => {
+            window.open(`/api/files/${file.id}/view`, '_blank');
+        });
         fileItem.appendChild(fileNameSpan);
         
         const downloadBtn = document.createElement('button');
@@ -308,6 +313,11 @@ function displayProjectHistory(history) {
             
             const fileNameSpan = document.createElement('span');
             fileNameSpan.textContent = file.filename;
+            fileNameSpan.style.cursor = 'pointer';
+            fileNameSpan.style.textDecoration = 'underline';
+            fileNameSpan.addEventListener('click', () => {
+                window.open(`/api/files/${file.id}/view`, '_blank');
+            });
             fileItem.appendChild(fileNameSpan);
             
             const downloadBtn = document.createElement('button');
@@ -461,6 +471,14 @@ function addHistoryEntry(projectId) {
             input.name = field;
             input.style.backgroundColor = '#ffff99';
             cell.appendChild(input);
+        } else if (field === 'description') {
+            const textarea = document.createElement('textarea');
+            textarea.name = field;
+            textarea.style.backgroundColor = '#ffff99';
+            textarea.style.width = '100%';
+            textarea.style.minHeight = '100px';
+            textarea.style.resize = 'vertical';
+            cell.appendChild(textarea);
         } else {
             const input = document.createElement('input');
             input.type = 'text';
@@ -555,6 +573,12 @@ function editHistoryEntry(entryId) {
                     }
                     input.appendChild(option);
                 });
+            } else if (i === 2) { // Campo description
+                input = document.createElement('textarea');
+                input.value = historyData.description;
+                input.style.width = '100%';
+                input.style.minHeight = '100px';
+                input.style.resize = 'vertical';
             } else {
                 input = document.createElement('input');
                 input.type = i === 0 ? 'date' : 'text';
