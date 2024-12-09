@@ -1,16 +1,58 @@
 // Funzioni per la gestione della cronologia del progetto
 
+/**
+ * Verifica se un file è compatibile con OnlyOffice
+ * @param {string} filename - Nome del file da verificare
+ * @returns {boolean} - true se il file è compatibile, false altrimenti
+ */
+window.isOnlyOfficeCompatible = function(filename) {
+    const supportedExtensions = [
+        '.docx', '.doc', '.odt', '.rtf', '.txt',
+        '.xlsx', '.xls', '.ods',
+        '.pptx', '.ppt', '.odp'
+    ];
+    const extension = filename.toLowerCase().substring(filename.lastIndexOf('.'));
+    return supportedExtensions.includes(extension);
+};
+
+/**
+ * Normalizza il percorso del file per l'URL di OnlyOffice
+ * @param {string} filepath - Percorso completo del file
+ * @returns {string} - Percorso normalizzato
+ */
+window.normalizeFilePath = function(filepath) {
+    // Trova l'indice di 'uploads' nel percorso
+    const uploadsIndex = filepath.indexOf('uploads');
+    if (uploadsIndex === -1) return filepath;
+    
+    // Prendi la parte del percorso dopo 'uploads'
+    const relativePath = filepath.slice(uploadsIndex);
+    
+    // Sostituisci tutti i backslash con forward slash
+    return relativePath.split('\\').join('/');
+};
+
+/**
+ * Recupera la cronologia del progetto e la ordina per data in ordine decrescente.
+ * @param {number} projectId - L'ID del progetto.
+ */
 window.fetchProjectHistory = async function(projectId) {
     try {
         const response = await fetch(`/api/projects/${projectId}/history?includeUserName=true`);
         const history = await window.handleResponse(response);
-        console.log('Project History:', history);
+        // Ordina la cronologia per data in ordine decrescente
+        history.sort((a, b) => new Date(b.date) - new Date(a.date));
+        console.log('Cronologia del Progetto:', history);
         window.displayProjectHistory(history);
     } catch (error) {
-        console.error('Error fetching project history:', error);
+        console.error('Errore nel recuperare la cronologia del progetto:', error);
     }
 };
 
+/**
+ * Visualizza la cronologia del progetto nella tabella HTML.
+ * @param {Array} history - Array di oggetti che rappresentano le voci della cronologia.
+ */
 window.displayProjectHistory = function(history) {
     const tableBody = document.getElementById('history-table').getElementsByTagName('tbody')[0];
     tableBody.innerHTML = '';
@@ -19,12 +61,14 @@ window.displayProjectHistory = function(history) {
         const row = tableBody.insertRow();
         row.setAttribute('data-entry-id', entry.id);
 
+        // Inserisce le celle della tabella con i dati della cronologia
         row.insertCell(0).textContent = entry.date;
         row.insertCell(1).textContent = entry.phase;
         row.insertCell(2).textContent = entry.description;
         row.insertCell(3).textContent = entry.assigned_to;
         row.insertCell(4).textContent = entry.status;
 
+        // Gestisce la cella dei file associati alla voce della cronologia
         const filesCell = row.insertCell(5);
         const fileUploadForm = document.createElement('form');
         fileUploadForm.className = 'file-upload-form';
@@ -44,13 +88,14 @@ window.displayProjectHistory = function(history) {
                     body: formData
                 });
                 await window.handleResponse(response);
-                await window.updateFilesCell(entry.id);
+                window.updateFilesCell(entry.id);
             } catch (error) {
-                console.error('Error uploading file:', error);
+                console.error('Errore nel caricare il file:', error);
             }
         });
         filesCell.appendChild(fileUploadForm);
 
+        // Recupera e visualizza i file associati alla voce della cronologia
         const files = await window.fetchEntryFiles(entry.id);
         const fileList = document.createElement('div');
         fileList.className = 'file-list';
@@ -63,7 +108,12 @@ window.displayProjectHistory = function(history) {
             fileNameSpan.style.cursor = 'pointer';
             fileNameSpan.style.textDecoration = 'underline';
             fileNameSpan.addEventListener('click', () => {
-                window.open(`/api/files/${file.id}/view`, '_blank');
+                if (window.isOnlyOfficeCompatible(file.filename)) {
+                    const normalizedPath = window.normalizeFilePath(file.filepath);
+                    window.open(`http://localhost:3000/onlyoffice/editor?filePath=${normalizedPath}`, '_blank');
+                } else {
+                    window.open(`/api/files/${file.id}/view`, '_blank');
+                }
             });
             fileItem.appendChild(fileNameSpan);
             
@@ -86,6 +136,7 @@ window.displayProjectHistory = function(history) {
             });
             fileItem.appendChild(deleteBtn);
             
+            // Gestisce il blocco e lo sblocco dei file
             if (file.locked_by) {
                 const unlockBtn = document.createElement('button');
                 unlockBtn.className = 'unlock-btn';
@@ -124,6 +175,7 @@ window.displayProjectHistory = function(history) {
         });
         filesCell.appendChild(fileList);
 
+        // Gestisce le azioni della riga della cronologia
         const actionsCell = row.insertCell(6);
         const editBtn = document.createElement('button');
         editBtn.className = 'edit-btn';
@@ -163,14 +215,15 @@ window.displayProjectHistory = function(history) {
                 if (response.ok) {
                     row.cells[3].textContent = 'Completed';
                 } else {
-                    console.error('Failed to update history entry');
+                    console.error('Errore nell\'aggiornare la voce della cronologia');
                 }
             } catch (error) {
-                console.error('Error updating history entry:', error);
+                console.error('Errore durante l\'aggiornamento della voce della cronologia:', error);
             }
         });
         actionsCell.appendChild(setCompletedBtn);
 
+        // Imposta il colore di sfondo basato sul membro assegnato
         const assignedMember = window.teamMembers.find(member => member.name === entry.assigned_to);
         if (assignedMember) {
             row.style.backgroundColor = assignedMember.color;
@@ -178,16 +231,25 @@ window.displayProjectHistory = function(history) {
     });
 };
 
+/**
+ * Recupera i file associati a una voce della cronologia.
+ * @param {number} entryId - L'ID della voce della cronologia.
+ * @returns {Array} - Array di oggetti che rappresentano i file.
+ */
 window.fetchEntryFiles = async function(entryId) {
     try {
         const response = await fetch(`/api/projects/${projectId}/files?historyId=${entryId}`);
         return await window.handleResponse(response);
     } catch (error) {
-        console.error('Error fetching files:', error);
+        console.error('Errore nel recuperare i file:', error);
         return [];
     }
 };
 
+/**
+ * Aggiorna la cella dei file nella riga della cronologia dopo un'operazione.
+ * @param {number} entryId - L'ID della voce della cronologia.
+ */
 window.updateFilesCell = async function(entryId) {
     const files = await window.fetchEntryFiles(entryId);
     const row = document.querySelector(`tr[data-entry-id='${entryId}']`);
@@ -216,7 +278,7 @@ window.updateFilesCell = async function(entryId) {
             await window.handleResponse(response);
             window.updateFilesCell(entryId);
         } catch (error) {
-            console.error('Error uploading file:', error);
+            console.error('Errore nel caricare il file:', error);
         }
     });
     filesCell.appendChild(fileUploadForm);
@@ -232,7 +294,12 @@ window.updateFilesCell = async function(entryId) {
         fileNameSpan.style.cursor = 'pointer';
         fileNameSpan.style.textDecoration = 'underline';
         fileNameSpan.addEventListener('click', () => {
-            window.open(`/api/files/${file.id}/view`, '_blank');
+            if (window.isOnlyOfficeCompatible(file.filename)) {
+                const normalizedPath = window.normalizeFilePath(file.filepath);
+                window.open(`http://localhost:3000/onlyoffice/editor?filePath=${normalizedPath}`, '_blank');
+            } else {
+                window.open(`/api/files/${file.id}/view`, '_blank');
+            }
         });
         fileItem.appendChild(fileNameSpan);
         
@@ -251,10 +318,11 @@ window.updateFilesCell = async function(entryId) {
         deleteBtn.appendChild(deleteIcon);
         deleteBtn.addEventListener('click', async () => {
             await window.deleteFile(file.id);
-            window.updateFilesCell(entryId);
+            window.updateFilesCell(entry.id);
         });
         fileItem.appendChild(deleteBtn);
         
+        // Gestisce il blocco e lo sblocco dei file
         if (file.locked_by) {
             const unlockBtn = document.createElement('button');
             unlockBtn.className = 'unlock-btn';
@@ -268,7 +336,7 @@ window.updateFilesCell = async function(entryId) {
 
             unlockBtn.addEventListener('click', async () => {
                 await window.unlockFile(file.id);
-                window.updateFilesCell(entryId);
+                window.updateFilesCell(entry.id);
             });
             fileItem.appendChild(unlockBtn);
             
@@ -284,7 +352,7 @@ window.updateFilesCell = async function(entryId) {
             lockBtn.appendChild(lockIcon);
             lockBtn.addEventListener('click', async () => {
                 await window.lockFile(file.id);
-                window.updateFilesCell(entryId);
+                window.updateFilesCell(entry.id);
             });
             fileItem.appendChild(lockBtn);
         }
@@ -294,6 +362,10 @@ window.updateFilesCell = async function(entryId) {
     filesCell.appendChild(fileList);
 };
 
+/**
+ * Apre il modulo per aggiungere una nuova voce alla cronologia del progetto.
+ * @param {number} projectId - L'ID del progetto.
+ */
 window.addHistoryEntry = function(projectId) {
     const tableBody = document.getElementById('history-table').getElementsByTagName('tbody')[0];
     const newRow = tableBody.insertRow(0);
@@ -352,6 +424,11 @@ window.addHistoryEntry = function(projectId) {
     actionsCell.appendChild(saveBtn);
 };
 
+/**
+ * Salva una nuova voce nella cronologia del progetto.
+ * @param {number} projectId - L'ID del progetto.
+ * @param {HTMLTableRowElement} row - La riga della tabella che contiene i dati della nuova voce.
+ */
 window.saveNewHistoryEntry = async function(projectId, row) {
     const newEntry = {
         date: row.cells[0].firstChild.value,
@@ -384,10 +461,14 @@ window.saveNewHistoryEntry = async function(projectId, row) {
         }
 
     } catch (error) {
-        console.error('Error adding history entry:', error);
+        console.error('Errore nell\'aggiungere la voce della cronologia:', error);
     }
 };
 
+/**
+ * Apre il modulo per modificare una voce esistente nella cronologia del progetto.
+ * @param {number} entryId - L'ID della voce della cronologia da modificare.
+ */
 window.editHistoryEntry = function(entryId) {
     const row = document.querySelector(`tr[data-entry-id='${entryId}']`);
     if (row) {
@@ -402,7 +483,7 @@ window.editHistoryEntry = function(entryId) {
 
         for (let i = 0; i < 5; i++) {
             let input;
-            if (i === 3) {
+            if (i === 3) { // Campo 'assigned_to'
                 input = document.createElement('select');
                 window.teamMembers.forEach(member => {
                     const option = document.createElement('option');
@@ -413,13 +494,13 @@ window.editHistoryEntry = function(entryId) {
                     }
                     input.appendChild(option);
                 });
-            } else if (i === 2) {
+            } else if (i === 2) { // Campo 'description'
                 input = document.createElement('textarea');
                 input.value = historyData.description;
                 input.style.width = '100%';
                 input.style.minHeight = '100px';
                 input.style.resize = 'vertical';
-            } else {
+            } else { // Campi 'date', 'phase', 'status'
                 input = document.createElement('input');
                 input.type = i === 0 ? 'date' : 'text';
                 input.value = historyData[Object.keys(historyData)[i]];
@@ -470,24 +551,32 @@ window.editHistoryEntry = function(entryId) {
 
                     window.location.reload();
                 } else {
-                    console.error('Failed to update history entry');
+                    console.error('Errore nell\'aggiornare la voce della cronologia');
                 }
             } catch (error) {
-                console.error('Error updating history entry:', error);
+                console.error('Errore durante l\'aggiornamento della voce della cronologia:', error);
             }
         });
         actionsCell.appendChild(saveBtn);
     } else {
-        console.error('Row not found for entryId:', entryId);
+        console.error('Row non trovata per entryId:', entryId);
     }
 };
 
+/**
+ * Conferma l'eliminazione di una voce della cronologia.
+ * @param {number} entryId - L'ID della voce della cronologia da eliminare.
+ */
 window.confirmDelete = function(entryId) {
     if (confirm("Are you sure you want to delete this history entry?")) {
         window.deleteHistoryEntry(entryId);
     }
 };
 
+/**
+ * Elimina una voce della cronologia del progetto.
+ * @param {number} entryId - L'ID della voce della cronologia da eliminare.
+ */
 window.deleteHistoryEntry = async function(entryId) {
     try {
         const response = await fetch(`/api/projects/${projectId}/history/${entryId}`, {
@@ -500,18 +589,26 @@ window.deleteHistoryEntry = async function(entryId) {
             row.remove();
         }
     } catch (error) {
-        console.error('Error deleting history entry:', error);
+        console.error('Errore nell\'eliminare la voce della cronologia:', error);
     }
 };
 
+/**
+ * Scarica un file associato a una voce della cronologia.
+ * @param {number} fileId - L'ID del file da scaricare.
+ */
 window.downloadFile = function(fileId) {
     try {
         window.location.href = `/api/files/${fileId}/download`;
     } catch (error) {
-        console.error('Error downloading file:', error);
+        console.error('Errore nel scaricare il file:', error);
     }
 };
 
+/**
+ * Blocca un file per prevenire modifiche simultanee.
+ * @param {number} fileId - L'ID del file da bloccare.
+ */
 window.lockFile = async function(fileId) {
     try {
         const response = await fetch(`/api/files/${fileId}/lock`, {
@@ -519,10 +616,14 @@ window.lockFile = async function(fileId) {
         });
         await window.handleResponse(response);
     } catch (error) {
-        console.error('Error locking file:', error);
+        console.error('Errore nel bloccare il file:', error);
     }
 };
 
+/**
+ * Sblocca un file precedentemente bloccato.
+ * @param {number} fileId - L'ID del file da sbloccare.
+ */
 window.unlockFile = async function(fileId) {
     console.log('Chiamata a unlockFile con fileId:', fileId);
     try {
@@ -540,6 +641,10 @@ window.unlockFile = async function(fileId) {
     }
 };
 
+/**
+ * Elimina un file associato a una voce della cronologia.
+ * @param {number} fileId - L'ID del file da eliminare.
+ */
 window.deleteFile = async function(fileId) {
     try {
         const response = await fetch(`/api/files/${fileId}`, {
@@ -547,6 +652,6 @@ window.deleteFile = async function(fileId) {
         });
         await window.handleResponse(response);
     } catch (error) {
-        console.error('Error deleting file:', error);
+        console.error('Errore nell\'eliminare il file:', error);
     }
 };
