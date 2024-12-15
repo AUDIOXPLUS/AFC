@@ -1,22 +1,40 @@
-// Inizializzazione dell'applicazione
+// Step 3: Minimize changes and adapt app.js to the original structure
+
 console.log('Applicazione di gestione aziendale avviata');
 
-// Gestione autenticazione
-const loginForm = document.getElementById('loginForm');
-const message = document.getElementById('message');
+const express = require('express');
+const bodyParser = require('body-parser');
+const session = require('express-session');
+const path = require('path');
 
-loginForm.addEventListener('submit', function(event) {
-    event.preventDefault();
-    const username = document.getElementById('username').value;
-    const password = document.getElementById('password').value;
+const app = express();
+const PORT = 3000;
 
-    // Simulazione autenticazione
-    if (username === 'admin' && password === 'admin') {
-        message.textContent = 'Login effettuato con successo!';
-        message.style.color = 'green';
-        window.location.href = 'dashboard.html';
-    } else {
-        message.textContent = 'Credenziali non valide.';
-        message.style.color = 'red';
-    }
+// Middleware
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+
+// Session setup
+app.use(
+  session({
+    secret: 'your-secret-key',
+    resave: false,
+    saveUninitialized: true,
+  })
+);
+
+// Serve static files
+app.use(express.static(path.join(__dirname)));
+
+// Routes
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'login.html'));
+});
+
+// Placeholder for other routes and logic (adapted to the original)
+// Front-end logic has been moved to login.html
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`Server is running on http://localhost:${PORT}`);
 });

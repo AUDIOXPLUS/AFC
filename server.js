@@ -11,7 +11,7 @@ const app = express();
 const routes = require('./routes');
 
 // Definisci la tua chiave segreta JWT
-const jwtSecret = 'GiiwDtKWCOKlYHguq6Nf0KkPHVuaru8M';// Assicurati che corrisponda a quella configurata in OnlyOffice
+const jwtSecret = 'MDQ879SA5Lw8wnGxJ2TTPK5IFTIX2KZ7';// Assicurati che corrisponda a quella configurata in OnlyOffice
 
 // Inizializzazione del database
 const db = new sqlite3.Database('./database/AFC.db', (err) => {

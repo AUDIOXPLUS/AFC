@@ -4,7 +4,8 @@
   <meta charset="UTF-8" />
   <title>OnlyOffice Editor</title>
   <!-- Includi l'SDK di OnlyOffice -->
-  <script type="text/javascript" src="http://localhost/web-apps/apps/api/documents/api.js"></script>
+  <script type="text/javascript" src="http://localhost:8081/web-apps/apps/api/documents/api.js"></script>
+
   
   <!-- Aggiungi il seguente blocco di stile -->
   <style>
@@ -36,6 +37,8 @@
     }
 
     var filePath = getParameterByName('filePath');
+    console.log('File richiesto per l\'editor:', filePath);
+
 
     if (!filePath) {
       alert('Parametro filePath mancante nell\'URL');
