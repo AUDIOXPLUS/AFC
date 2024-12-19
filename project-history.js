@@ -646,10 +646,22 @@ window.unlockFile = async function(fileId) {
  * @param {number} fileId - L'ID del file da eliminare.
  */
 window.deleteFile = async function(fileId) {
+    if (!confirm("Are you sure you want to delete this file?")) {
+        return;
+    }
+
     try {
-        const response = await fetch(`/api/files/${fileId}`, {
-            method: 'DELETE'
+        const response = await fetch(`/api/api/files/${fileId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            }
         });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error: ${response.status}`);
+        }
+        
         await window.handleResponse(response);
     } catch (error) {
         console.error('Errore nell\'eliminare il file:', error);

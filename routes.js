@@ -4,6 +4,14 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs-extra');
 
+// Funzione per convertire il path da Windows a Docker
+function convertWindowsPathToDocker(windowsPath) {
+    if (windowsPath.includes('C:\\Users\\Francesco\\AFC-V3\\')) {
+        return windowsPath.split('AFC-V3\\')[1].replace(/\\/g, '/');
+    }
+    return windowsPath.replace(/\\/g, '/');
+}
+
 // Configurazione multer per il caricamento dei file
 const uploadsDir = path.join(__dirname, 'uploads');
 fs.ensureDirSync(uploadsDir);
@@ -23,11 +31,10 @@ const upload = multer({ storage: storage });
 
 // Middleware di autenticazione migliorato
 function checkAuthentication(req, res, next) {
-    console.log('checkAuthentication chiamato per', req.path);
     if (req.session && req.session.user) {
         return next();
     } else {
-        if (req.path.startsWith('/api/')) {
+        if (req.path.startsWith('/')) {
             res.status(401).json({ error: 'Utente non autenticato' });
         } else {
             res.redirect('/login.html');
@@ -37,8 +44,8 @@ function checkAuthentication(req, res, next) {
 
 // Endpoint per il login
 router.post('/login', (req, res) => {
+    console.log('Tentativo di accesso ricevuto:', req.body);
     const { username, password } = req.body;
-    console.log(`Tentativo di login con username: ${username}`);
 
     const query = 'SELECT * FROM users WHERE username = ? AND password = ?';
     req.db.get(query, [username, password], (err, row) => {
@@ -59,7 +66,7 @@ router.post('/login', (req, res) => {
 });
 
 // Endpoint per ottenere i progetti
-router.get('/api/projects', (req, res) => {
+router.get('/projects', (req, res) => {
     const query = 'SELECT * FROM projects';
     req.db.all(query, [], (err, rows) => {
         if (err) {
@@ -71,7 +78,7 @@ router.get('/api/projects', (req, res) => {
 });
 
 // Endpoint per ottenere un singolo progetto
-router.get('/api/projects/:id', (req, res) => {
+router.get('/projects/:id', (req, res) => {
     const projectId = req.params.id;
     const query = 'SELECT * FROM projects WHERE id = ?';
     req.db.get(query, [projectId], (err, row) => {
@@ -88,7 +95,7 @@ router.get('/api/projects/:id', (req, res) => {
 });
 
 // Endpoint per ottenere le fasi di un progetto
-router.get('/api/projects/:id/phases', (req, res) => {
+router.get('/projects/:id/phases', (req, res) => {
     const projectId = req.params.id;
     const query = 'SELECT * FROM phases WHERE project_id = ?';
     req.db.all(query, [projectId], (err, rows) => {
@@ -101,7 +108,7 @@ router.get('/api/projects/:id/phases', (req, res) => {
 });
 
 // Endpoint per ottenere la cronologia di un progetto
-router.get('/api/projects/:id/history', (req, res) => {
+router.get('/projects/:id/history', (req, res) => {
     const projectId = req.params.id;
     const query = 'SELECT * FROM project_history WHERE project_id = ?';
     req.db.all(query, [projectId], (err, rows) => {
@@ -114,7 +121,7 @@ router.get('/api/projects/:id/history', (req, res) => {
 });
 
 // Endpoint per aggiungere un progetto
-router.post('/api/projects', (req, res) => {
+router.post('/projects', (req, res) => {
     const { factory, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, status } = req.body;
     const query = `INSERT INTO projects (factory, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, status) 
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
@@ -128,7 +135,7 @@ router.post('/api/projects', (req, res) => {
 });
 
 // Endpoint per aggiornare un progetto
-router.put('/api/projects/:id', (req, res) => {
+router.put('/projects/:id', (req, res) => {
     const { factory, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, status } = req.body;
     const query = `UPDATE projects SET factory = ?, modelNumber = ?, factoryModelNumber = ?, productKind = ?, client = ?, startDate = ?, endDate = ?, status = ? WHERE id = ?`;
     req.db.run(query, [factory, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, status, req.params.id], function(err) {
@@ -141,7 +148,7 @@ router.put('/api/projects/:id', (req, res) => {
 });
 
 // Endpoint per eliminare un progetto
-router.delete('/api/projects/:id', (req, res) => {
+router.delete('/projects/:id', (req, res) => {
     const query = `DELETE FROM projects WHERE id = ?`;
     req.db.run(query, req.params.id, function(err) {
         if (err) {
@@ -153,7 +160,7 @@ router.delete('/api/projects/:id', (req, res) => {
 });
 
 // Endpoint per ottenere i membri del team
-router.get('/api/team-members', (req, res) => {
+router.get('/team-members', (req, res) => {
     const query = 'SELECT id, name, role, email, color, username FROM users';
     req.db.all(query, [], (err, rows) => {
         if (err) {
@@ -165,7 +172,7 @@ router.get('/api/team-members', (req, res) => {
 });
 
 // Endpoint per aggiungere un membro del team
-router.post('/api/team-members', (req, res) => {
+router.post('/team-members', (req, res) => {
     const { name, role, email, color, username, password } = req.body;
     const query = `INSERT INTO users (name, role, email, color, username, password) VALUES (?, ?, ?, ?, ?, ?)`;
     req.db.run(query, [name, role, email, color, username, password], function(err) {
@@ -178,7 +185,7 @@ router.post('/api/team-members', (req, res) => {
 });
 
 // Endpoint per aggiornare un membro del team
-router.put('/api/team-members/:id', (req, res) => {
+router.put('/team-members/:id', (req, res) => {
     const { name, role, email, color } = req.body;
     const userId = req.params.id;
 
@@ -204,7 +211,7 @@ router.put('/api/team-members/:id', (req, res) => {
 });
 
 // Endpoint per ottenere i privilegi di un membro del team
-router.get('/api/team-members/:id/privileges', (req, res) => {
+router.get('/team-members/:id/privileges', (req, res) => {
     const userId = req.params.id;
     const query = `SELECT p.page, p.action 
                    FROM privileges p
@@ -227,7 +234,7 @@ router.get('/api/team-members/:id/privileges', (req, res) => {
 });
 
 // Endpoint per aggiornare i privilegi di un membro del team
-router.put('/api/team-members/:id/privileges', (req, res) => {
+router.put('/team-members/:id/privileges', (req, res) => {
     const userId = req.params.id;
     const { privileges } = req.body;
 
@@ -298,7 +305,7 @@ router.put('/api/team-members/:id/privileges', (req, res) => {
 });
 
 // Endpoint per ottenere i dettagli di un singolo membro del team
-router.get('/api/team-members/:id', (req, res) => {
+router.get('/team-members/:id', (req, res) => {
     const userId = req.params.id;
     const query = 'SELECT id, name, role, email, color, username FROM users WHERE id = ?';
 
@@ -316,7 +323,7 @@ router.get('/api/team-members/:id', (req, res) => {
 });
 
 // Endpoint per ottenere l'utente della sessione con ID
-router.get('/api/session-user', (req, res) => {
+router.get('/session-user', (req, res) => {
     if (req.session && req.session.user) {
         res.json({ 
             id: req.session.user.id, 
@@ -329,11 +336,11 @@ router.get('/api/session-user', (req, res) => {
 });
 
 // Endpoint per aggiungere una voce alla cronologia del progetto
-router.post('/api/projects/:id/history', (req, res) => {
+router.post('/projects/:id/history', (req, res) => {
     const projectId = req.params.id;
     const { date, phase, description, assigned_To, status } = req.body;
 
-    console.log('Dati ricevuti per la nuova voce di cronologia:', req.body); // Aggiungi un log per verificare i dati
+    console.log('Dati ricevuti per la nuova voce di cronologia:', req.body);
 
     const query = `INSERT INTO project_history (project_id, date, phase, description, assigned_to, status) 
                    VALUES (?, ?, ?, ?, ?, ?)`;
@@ -348,7 +355,7 @@ router.post('/api/projects/:id/history', (req, res) => {
 });
 
 // Endpoint per aggiornare una voce della cronologia del progetto
-router.put('/api/projects/:projectId/history/:historyId', (req, res) => {
+router.put('/projects/:projectId/history/:historyId', (req, res) => {
     const { projectId, historyId } = req.params;
     const { date, phase, description, assignedTo, status } = req.body;
 
@@ -367,7 +374,7 @@ router.put('/api/projects/:projectId/history/:historyId', (req, res) => {
     });
 });
 
-router.delete('/api/projects/:projectId/history/:entryId', (req, res) => {
+router.delete('/projects/:projectId/history/:entryId', (req, res) => {
     const { projectId, entryId } = req.params;
 
     // Prima otteniamo i file associati alla voce di cronologia
@@ -415,7 +422,7 @@ router.delete('/api/projects/:projectId/history/:entryId', (req, res) => {
 });
 
 // Endpoint per ottenere tutte le attività
-router.get('/api/tasks', (req, res) => {
+router.get('/tasks', (req, res) => {
     const query = `
         SELECT 
             ph.id, 
@@ -440,11 +447,15 @@ router.get('/api/tasks', (req, res) => {
 });
 
 // File Management Endpoints
-router.post('/api/projects/:projectId/files', checkAuthentication, upload.single('file'), (req, res) => {
+router.post('/projects/:projectId/files', checkAuthentication, upload.single('file'), (req, res) => {
     const { projectId } = req.params;
     const { file } = req;
     const { historyId } = req.body;
     const uploadedBy = req.session.user.id;
+
+    // Usa il percorso relativo alla directory uploads
+    const normalizedFilePath = `uploads/${projectId}/${path.basename(file.path)}`;
+    console.log('normalizedFilePath:', normalizedFilePath);
 
     const query = `INSERT INTO project_files (project_id, history_id, filename, filepath, uploaded_by) VALUES (?, ?, ?, ?, ?)`;
     
@@ -452,7 +463,7 @@ router.post('/api/projects/:projectId/files', checkAuthentication, upload.single
         projectId,
         historyId,
         file.originalname,
-        file.path,
+        normalizedFilePath,
         uploadedBy
     ], function(err) {
         if (err) {
@@ -462,12 +473,12 @@ router.post('/api/projects/:projectId/files', checkAuthentication, upload.single
         res.status(201).json({
             id: this.lastID,
             filename: file.originalname,
-            filepath: file.path
+            filepath: normalizedFilePath
         });
     });
 });
 
-router.get('/api/projects/:projectId/files', checkAuthentication, (req, res) => {
+router.get('/projects/:projectId/files', checkAuthentication, (req, res) => {
     const { projectId } = req.params;
     const { historyId } = req.query;
 
@@ -495,7 +506,7 @@ router.get('/api/projects/:projectId/files', checkAuthentication, (req, res) => 
 });
 
 // Endpoint per visualizzare un file
-router.get('/api/files/:fileId/view', checkAuthentication, (req, res) => {
+router.get('/files/:fileId/view', checkAuthentication, (req, res) => {
     const { fileId } = req.params;
     
     req.db.get('SELECT * FROM project_files WHERE id = ?', [fileId], (err, file) => {
@@ -507,12 +518,18 @@ router.get('/api/files/:fileId/view', checkAuthentication, (req, res) => {
             return res.status(404).json({ error: 'File not found' });
         }
         
-        res.sendFile(path.resolve(file.filepath));
+        // Converti il path Windows in path Docker
+        const dockerPath = convertWindowsPathToDocker(file.filepath);
+        const filePath = path.join('/usr/src/app', dockerPath);
+        console.log('Original filepath:', file.filepath);
+        console.log('Converted Docker path:', filePath);
+        
+        res.sendFile(filePath);
     });
 });
 
 // Endpoint per scaricare un file
-router.get('/api/files/:fileId/download', checkAuthentication, (req, res) => {
+router.get('/files/:fileId/download', checkAuthentication, (req, res) => {
     const { fileId } = req.params;
     
     req.db.get('SELECT * FROM project_files WHERE id = ?', [fileId], (err, file) => {
@@ -524,11 +541,15 @@ router.get('/api/files/:fileId/download', checkAuthentication, (req, res) => {
             return res.status(404).json({ error: 'File not found' });
         }
         
-        res.download(file.filepath, file.filename);
+        // Converti il path Windows in path Docker
+        const dockerPath = convertWindowsPathToDocker(file.filepath);
+        const filePath = path.join('/usr/src/app', dockerPath);
+        
+        res.download(filePath, file.filename);
     });
 });
 
-router.post('/api/files/:fileId/lock', checkAuthentication, (req, res) => {
+router.post('/files/:fileId/lock', checkAuthentication, (req, res) => {
     const { fileId } = req.params;
     const userId = req.session.user.id;
     
@@ -607,7 +628,9 @@ router.delete('/api/files/:fileId', checkAuthentication, (req, res) => {
                 return res.status(500).json({ error: 'Failed to delete file' });
             }
             
-            fs.remove(file.filepath)
+            // Usa il percorso relativo alla root del container
+            const filePath = path.join('/usr/src/app', file.filepath);
+            fs.remove(filePath)
                 .then(() => {
                     res.json({ message: 'File deleted successfully' });
                 })

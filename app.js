@@ -1,40 +1,85 @@
-// Step 3: Minimize changes and adapt app.js to the original structure
-
 console.log('Applicazione di gestione aziendale avviata');
 
 const express = require('express');
-const bodyParser = require('body-parser');
 const session = require('express-session');
+const bodyParser = require('body-parser');
 const path = require('path');
+const routes = require('./routes');
+const sqlite3 = require('sqlite3').verbose();
 
 const app = express();
 const PORT = 3000;
 
+// Usa il percorso assoluto per il database
+const dbPath = path.join(__dirname, 'database', 'AFC.db');
+console.log('Percorso database:', dbPath);
+
+// Inizializza il database
+const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
+    if (err) {
+        console.error('Errore di connessione al database:', err);
+        console.error('Dettagli errore:', err.message);
+        process.exit(1);
+    } else {
+        console.log('Connessione al database riuscita');
+        // Aggiunto test di connessione
+        db.get('SELECT 1;', (err, row) => {
+            if (err) {
+                console.error('Errore nel test di connessione:', err);
+            } else {
+                console.log('Test di connessione riuscito:', row);
+            }
+        });
+    }
+});
+
 // Middleware
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-
-// Session setup
-app.use(
-  session({
-    secret: 'your-secret-key',
+app.use(session({
+    secret: process.env.JWT_SECRET || 'default-secret',
     resave: false,
     saveUninitialized: true,
-  })
-);
+}));
 
-// Serve static files
-app.use(express.static(path.join(__dirname)));
-
-// Routes
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'login.html'));
+// Passa il database alle rotte
+app.use((req, res, next) => {
+    req.db = db;
+    next();
 });
 
-// Placeholder for other routes and logic (adapted to the original)
-// Front-end logic has been moved to login.html
+// Aggiunge le rotte con prefisso
+app.use('/api', routes);
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+// Serve file statici
+app.use(express.static(path.join(__dirname)));
+
+// Gestione graceful shutdown
+process.on('SIGTERM', () => {
+    console.log('Ricevuto segnale SIGTERM, chiusura in corso...');
+    db.close((err) => {
+        if (err) {
+            console.error('Errore durante la chiusura del database:', err);
+        } else {
+            console.log('Database chiuso correttamente');
+        }
+        process.exit(0);
+    });
+});
+
+process.on('SIGINT', () => {
+    console.log('Ricevuto segnale SIGINT, chiusura in corso...');
+    db.close((err) => {
+        if (err) {
+            console.error('Errore durante la chiusura del database:', err);
+        } else {
+            console.log('Database chiuso correttamente');
+        }
+        process.exit(0);
+    });
+});
+
+// Avvio del server
+const server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server in esecuzione su http://0.0.0.0:${PORT}`);
 });

@@ -10,11 +10,11 @@ const http = require('http');
 const app = express();
 const routes = require('./routes');
 
-// Definisci la tua chiave segreta JWT
-const jwtSecret = 'MDQ879SA5Lw8wnGxJ2TTPK5IFTIX2KZ7';// Assicurati che corrisponda a quella configurata in OnlyOffice
+// Definisci la tua chiave segreta JWT (deve corrispondere a quella in OnlyOffice)
+const jwtSecret = 'MDQ879SA5Lw8wnGxJ2TTPK5IFTIX2KZ7';
 
 // Inizializzazione del database
-const db = new sqlite3.Database('./database/AFC.db', (err) => {
+const db = new sqlite3.Database(path.join(__dirname, 'database', 'AFC.db'), (err) => {
     if (err) {
         console.error('Errore di connessione al database:', err);
     } else {
@@ -35,14 +35,14 @@ app.use(session({
     cookie: { secure: false }
 }));
 
-// Serve i file caricati, inclusi quelli nelle sottocartelle
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Imposta la directory degli uploads tramite variabile d'ambiente o percorso di default
+const uploadsDir = process.env.UPLOADS_DIR || path.join(__dirname, 'uploads');
 
 // Elenco dei file protetti
 const protectedFiles = ['/project-details.html', '/role-selection.html'];
 
 // Middleware per proteggere i file specifici
-app.use(function(req, res, next) {
+app.use((req, res, next) => {
     if (protectedFiles.includes(req.path)) {
         console.log(`Richiesta per file protetto: ${req.path}`);
         if (req.session && req.session.user) {
@@ -57,17 +57,33 @@ app.use(function(req, res, next) {
 
 // Middleware per passare l'istanza del database alle rotte
 app.use((req, res, next) => {
+    console.log('Richiesta ricevuta:', req.method, req.path);
     req.db = db;
     next();
 });
 
-// Servire file statici
-app.use(express.static(path.join(__dirname)));
-
 // Utilizzo delle rotte
-app.use('/', routes);
+app.use('/api', routes);
+console.log('Routes file loaded successfully');
+
+// Servire file statici
+app.use(express.static(__dirname));
 
 // -------------------- Integrazione OnlyOffice --------------------
+
+// Funzione per normalizzare i percorsi dei file
+function normalizeFilePath(filePath) {
+    // Rimuove eventuali riferimenti alla directory uploads duplicati
+    let normalized = filePath.replace(/^uploads[\/\\]/, '');
+    normalized = normalized.replace(/\\/g, '/');
+    
+    // Log per debug
+    console.log('Normalizzazione percorso:');
+    console.log('Input:', filePath);
+    console.log('Output:', normalized);
+    
+    return normalized;
+}
 
 // Rotta per servire la pagina dell'editor di OnlyOffice
 app.get('/onlyoffice/editor', (req, res) => {
@@ -77,138 +93,174 @@ app.get('/onlyoffice/editor', (req, res) => {
 // Endpoint per fornire la configurazione per OnlyOffice
 app.get('/onlyoffice/config', (req, res) => {
     const filePathParam = req.query.filePath;
-    console.log('filePathParam:', filePathParam); // Aggiungi questo log
+    console.log('Config - filePathParam ricevuto:', filePathParam);
+
     if (!filePathParam) {
         res.status(400).send('Parametro filePath mancante');
         return;
     }
 
-    // Normalizza il percorso per la validazione
-    const normalizedPath = path.normalize(filePathParam);
-    console.log('normalizedPath:', normalizedPath); // Aggiungi questo log
+    const normalizedPath = normalizeFilePath(filePathParam);
+    console.log('Config - normalizedPath:', normalizedPath);
 
-// Construct the correct URL without duplicate 'uploads'
-const filePathForUrl = normalizedPath.replace(/\\/g, '/').replace('uploads/', '');
-    console.log('filePathForUrl:', filePathForUrl); // Aggiungi questo log
-
-    // Assicurati che il percorso rimanga all'interno della cartella 'uploads'
-    const uploadsDir = path.join(__dirname, 'uploads');
-    const fullFilePath = path.join(uploadsDir, filePathForUrl.replace('uploads/', '')); // Rimuovi la ripetizione della directory 'uploads'
-    console.log('fullFilePath:', fullFilePath); // Aggiungi questo log
-
-    if (!fullFilePath.startsWith(uploadsDir)) {
-        res.status(400).send('Percorso del file non valido');
-        return;
-    }
-
-    // Utilizza 'host.docker.internal' per riferirti all'host da Docker su Windows
     const serverAddress = 'host.docker.internal';
-    const port = 3000; // Assicurati che questa sia la porta corretta
-    const documentUrl = `${req.protocol}://${serverAddress}:${port}/uploads/${filePathForUrl}`;
-    console.log('documentUrl:', documentUrl); // Aggiungi questo log
+    const port = process.env.PORT || 3000;
+    
+    // Costruzione URL del documento
+    const documentUrl = `${req.protocol}://${serverAddress}:${port}/uploads/${normalizedPath}`;
+    console.log('Config - documentUrl:', documentUrl);
 
-    // Costruisci la callbackUrl utilizzando 'host.docker.internal'
-    const callbackUrl = `${req.protocol}://${serverAddress}:${port}/onlyoffice/callback?filePath=${encodeURIComponent(filePathForUrl)}`;
-    console.log('callbackUrl:', callbackUrl); // Aggiungi questo log
+    // Costruzione URL di callback
+    const callbackUrl = `${req.protocol}://${serverAddress}:${port}/onlyoffice/callback?filePath=${encodeURIComponent(normalizedPath)}`;
+    console.log('Config - callbackUrl:', callbackUrl);
 
-    // Genera un identificatore univoco per il documento
     const documentKey = Math.random().toString(36).substring(2) + Date.now().toString();
-    console.log('documentKey:', documentKey); // Aggiungi questo log
-
-    // Costruisci la configurazione per l'editor OnlyOffice
+    
     const config = {
         document: {
-            fileType: path.extname(filePathForUrl).substring(1), // Ottieni l'estensione senza il punto
+            fileType: path.extname(normalizedPath).substring(1),
             key: documentKey,
-            title: path.basename(filePathForUrl),
-            url: documentUrl,
+            title: path.basename(normalizedPath),
+            url: documentUrl
         },
         editorConfig: {
             callbackUrl: callbackUrl,
             user: {
                 id: req.session && req.session.user ? req.session.user.id : 'guest',
-                name: req.session && req.session.user ? req.session.user.name : 'Guest',
+                name: req.session && req.session.user ? req.session.user.name : 'Guest'
             },
-            // Altre impostazioni dell'editor
         },
     };
 
-    // Ottieni il timestamp corrente in UTC
     const currentTimeInSeconds = Math.floor(Date.now() / 1000);
-    console.log('currentTimeInSeconds:', currentTimeInSeconds); // Aggiungi questo log
-
-    // Includi 'iat' nel payload
     const payload = {
         ...config,
         iat: currentTimeInSeconds,
     };
 
-    // Genera il token JWT senza aggiungere automaticamente 'iat'
     const token = jwt.sign(payload, jwtSecret, { noTimestamp: true });
-    console.log('Token JWT generato:', token); // Aggiungi questo log
-
-    // Aggiungi il token alla configurazione
     config.token = token;
 
-    // Log per debug
-    console.log('Token JWT generato:', token);
-    console.log('Configurazione inviata al client:', JSON.stringify(config, null, 2));
-
-    // Rispondi con la configurazione in formato JSON
+    console.log('Config - Configurazione completa:', JSON.stringify(config, null, 2));
     res.json(config);
 });
 
 // Endpoint per gestire il callback di OnlyOffice
 app.post('/onlyoffice/callback', (req, res) => {
     const filePathParam = req.query.filePath;
+    console.log('Callback - filePathParam ricevuto:', filePathParam);
+
     if (!filePathParam) {
+        console.error('Callback - Parametro filePath mancante');
         res.status(400).send('Parametro filePath mancante');
         return;
     }
 
-    // Normalizza e valida il percorso del file
-    const filePath = path.normalize(filePathParam);
+    // Normalizza il percorso del file
+    const normalizedPath = normalizeFilePath(filePathParam);
+    console.log('Callback - normalizedPath:', normalizedPath);
 
-    // Assicurati che il percorso rimanga all'interno della cartella 'uploads'
-    const uploadsDir = path.join(__dirname, 'uploads');
-    const fullFilePath = path.join(uploadsDir, filePath);
+    // Costruisci il percorso completo del file
+    const fullFilePath = path.join(uploadsDir, normalizedPath);
+    console.log('Callback - fullFilePath:', fullFilePath);
 
+    // Verifica che il percorso sia all'interno della directory uploads
     if (!fullFilePath.startsWith(uploadsDir)) {
+        console.error('Callback - Tentativo di accesso non autorizzato al percorso:', fullFilePath);
         res.status(400).send('Percorso del file non valido');
         return;
     }
 
     const status = req.body.status;
-    const downloadUrl = req.body.url;
+    let downloadUrl = req.body.url;
+    console.log('Callback - status:', status);
+    console.log('Callback - downloadUrl originale:', downloadUrl);
 
-    // Stato 2 o 3 indica che il documento è stato salvato o chiuso con modifiche
+    // Status 2 o 3 indicano che il documento è stato modificato
     if (status === 2 || status === 3) {
-        // Crea la directory se non esiste
-        fs.mkdirSync(path.dirname(fullFilePath), { recursive: true });
+        // Modifica l'URL per utilizzare il nome del container invece di localhost
+        downloadUrl = downloadUrl.replace('localhost:8081', 'onlyoffice-document-server');
+        console.log('Callback - downloadUrl modificato:', downloadUrl);
 
+        // Assicurati che la directory esista
+        fs.mkdirSync(path.dirname(fullFilePath), { recursive: true });
+        console.log('Callback - Directory creata:', path.dirname(fullFilePath));
+
+        // Crea il write stream per salvare il file
         const fileStream = fs.createWriteStream(fullFilePath);
+        console.log('Callback - Write stream creato per:', fullFilePath);
+
+        // Scarica il file modificato
         http.get(downloadUrl, (response) => {
+            if (response.statusCode !== 200) {
+                console.error('Callback - Errore nella risposta HTTP:', response.statusCode);
+                fileStream.close();
+                return res.status(500).send('Errore durante il download del documento');
+            }
+
             response.pipe(fileStream);
             fileStream.on('finish', () => {
                 fileStream.close();
-                console.log(`Documento ${filePath} aggiornato salvato con successo.`);
+                console.log('Callback - File salvato con successo:', fullFilePath);
                 res.json({ error: 0 });
             });
         }).on('error', (err) => {
+            fileStream.close();
             fs.unlink(fullFilePath, () => {});
-            console.error('Errore durante il download del documento:', err.message);
+            console.error('Callback - Errore durante il download:', err.message);
             res.status(500).send('Errore durante il download del documento');
         });
     } else {
-        // Per altri stati, rispondi comunque con error: 0
+        console.log('Callback - Nessuna modifica necessaria, status:', status);
         res.json({ error: 0 });
     }
 });
 
 // -------------------- Fine Integrazione OnlyOffice --------------------
 
+// Endpoint per la visualizzazione dei file
+app.get('/api/files/:id/view', (req, res) => {
+    const fileId = req.params.id;
+    console.log('Richiesta di visualizzazione file con ID:', fileId);
+
+    db.get('SELECT filePath FROM files WHERE id = ?', [fileId], (err, row) => {
+        if (err || !row) {
+            console.error('Errore durante il recupero del percorso del file:', err);
+            return res.status(404).send('File non trovato');
+        }
+
+        let filePath = row.filePath;
+        console.log('filePath recuperato dal db:', filePath);
+
+        // Normalizziamo il percorso
+        let normalizedPath = path.normalize(filePath);
+
+        // Rimuoviamo il prefisso Windows completo (C:\Users\Francesco\AFC-V3\)
+        normalizedPath = normalizedPath.replace(/^([A-Za-z]:[\\/]+Users[\\/]+Francesco[\\/]+AFC-V3[\\/]+)/i, '');
+
+        // Rimuove eventuali slash iniziali
+        normalizedPath = normalizedPath.replace(/^([\\/]+)/, '');
+
+        // Ora normalizedPath dovrebbe iniziare da uploads/... 
+        // In caso non dovesse, assicurarsi che contenga la cartella uploads
+        // (Se i file sono sempre in uploads va bene così)
+
+        const absolutePath = path.join(__dirname, normalizedPath);
+        console.log('absolutePath:', absolutePath);
+
+        res.sendFile(absolutePath, { root: __dirname }, (err) => {
+            if (err) {
+                console.error('Errore durante l\'invio del file:', err);
+                res.status(404).send('File non trovato');
+            } else {
+                console.log('File inviato con successo');
+            }
+        });
+    });
+});
+
 // Avvio del server
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server avviato sulla porta ${PORT} su tutte le interfacce`);
 });

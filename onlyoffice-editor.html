@@ -6,7 +6,6 @@
   <!-- Includi l'SDK di OnlyOffice -->
   <script type="text/javascript" src="http://localhost:8081/web-apps/apps/api/documents/api.js"></script>
 
-  
   <!-- Aggiungi il seguente blocco di stile -->
   <style>
     /* Assicura che html e body occupino il 100% dell'altezza */
@@ -25,7 +24,7 @@
   </style>
 </head>
 <body>
-  <div id="editor"></div> <!-- Rimosso lo stile inline -->
+  <div id="editor"></div>
 
   <script type="text/javascript">
     // Funzione per ottenere i parametri dalla query string
@@ -36,9 +35,9 @@
       return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
     }
 
+    // Ottieni il percorso del file dalla query string
     var filePath = getParameterByName('filePath');
     console.log('File richiesto per l\'editor:', filePath);
-
 
     if (!filePath) {
       alert('Parametro filePath mancante nell\'URL');
@@ -47,11 +46,26 @@
       fetch('/onlyoffice/config?filePath=' + encodeURIComponent(filePath))
         .then(function(response) {
           if (!response.ok) {
-            throw new Error('Errore nella risposta del server');
+            throw new Error('Errore nella risposta del server: ' + response.status);
           }
           return response.json();
         })
         .then(function(config) {
+          console.log('Configurazione ricevuta:', config);
+          
+          // Aggiungi gestione eventi per il salvataggio
+          config.events = {
+            onRequestSaveAs: function(event) {
+              console.log('Richiesta salvataggio come:', event);
+            },
+            onSave: function(event) {
+              console.log('Documento salvato:', event);
+            },
+            onError: function(event) {
+              console.error('Errore nell\'editor:', event);
+            }
+          };
+
           // Inizializza l'editor OnlyOffice con la configurazione ricevuta
           var docEditor = new DocsAPI.DocEditor("editor", config);
         })

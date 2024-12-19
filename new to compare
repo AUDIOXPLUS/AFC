@@ -1,40 +1,45 @@
-// Step 3: Minimize changes and adapt app.js to the original structure
+version: '3.9'
 
-console.log('Applicazione di gestione aziendale avviata');
+services:
+  afcv3:
+    container_name: afcv3-backend
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    environment:
+      NODE_ENV: development
+      ONLYOFFICE_URL: http://localhost:8081
+      UPLOADS_DIR: /usr/src/app/uploads # Percorso nel container
+    ports:
+      - 3000:3000
+    volumes:
+      - ./uploads:/usr/src/app/uploads # Monta la directory uploads dal sistema host
+      - ./database:/usr/src/app/database # Monta il database come volume
+    depends_on:
+      - onlyoffice-document-server
+    restart: unless-stopped
 
-const express = require('express');
-const bodyParser = require('body-parser');
-const session = require('express-session');
-const path = require('path');
+  onlyoffice-document-server:
+    image: onlyoffice/documentserver:latest
+    container_name: onlyoffice-document-server
+    ports:
+      - "8081:80"
+    volumes:
+      - ./uploads:/var/www/onlyoffice/Data
+      - logs:/var/log/onlyoffice
+      - redis:/var/lib/redis
+      - rabbitmq:/var/lib/rabbitmq
+    environment:
+      - JWT_ENABLED=true
+      - JWT_SECRET=MDQ879SA5Lw8wnGxJ2TTPK5IFTIX2KZ7
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
 
-const app = express();
-const PORT = 3000;
-
-// Middleware
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-
-// Session setup
-app.use(
-  session({
-    secret: 'your-secret-key',
-    resave: false,
-    saveUninitialized: true,
-  })
-);
-
-// Serve static files
-app.use(express.static(path.join(__dirname)));
-
-// Routes
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'login.html'));
-});
-
-// Placeholder for other routes and logic (adapted to the original)
-// Front-end logic has been moved to login.html
-
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
-});
+volumes:
+  logs:
+  redis:
+  rabbitmq:
