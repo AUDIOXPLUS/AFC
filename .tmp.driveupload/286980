@@ -1,0 +1,10 @@
+[2024-12-19T21:35:12.303] [WARN] [localhost] [docId] [userId] nodeJS - Express server starting...
+[2024-12-19T21:35:12.306] [WARN] [localhost] [docId] [userId] nodeJS - Failed to subscribe to plugin folder updates. When changing the list of plugins, you must restart the server. https://nodejs.org/docs/latest/api/fs.html#fs_availability
+[2024-12-19T21:35:12.313] [WARN] [localhost] [docId] [userId] nodeJS - notifyLicenseExpiration(): expiration date is not defined
+[2024-12-19T21:35:12.313] [WARN] [localhost] [docId] [userId] nodeJS - notifyLicenseExpiration(): expiration date is not defined
+[2024-12-19T21:35:12.480] [WARN] [localhost] [docId] [userId] nodeJS - Express server listening on port 8000 in production-linux mode. Version: 8.2.0. Build: 143
+[2024-12-19T21:35:36.362] [WARN] [localhost] [docId] [userId] nodeJS - Express server starting...
+[2024-12-19T21:35:36.364] [WARN] [localhost] [docId] [userId] nodeJS - Failed to subscribe to plugin folder updates. When changing the list of plugins, you must restart the server. https://nodejs.org/docs/latest/api/fs.html#fs_availability
+[2024-12-19T21:35:36.368] [WARN] [localhost] [docId] [userId] nodeJS - notifyLicenseExpiration(): expiration date is not defined
+[2024-12-19T21:35:36.368] [WARN] [localhost] [docId] [userId] nodeJS - notifyLicenseExpiration(): expiration date is not defined
+[2024-12-19T21:35:36.505] [WARN] [localhost] [docId] [userId] nodeJS - Express server listening on port 8000 in production-linux mode. Version: 8.2.0. Build: 143

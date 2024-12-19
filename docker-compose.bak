@@ -1,0 +1,43 @@
+services:
+  afcv3:
+    container_name: afcv3-backend
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    environment:
+      NODE_ENV: development
+      ONLYOFFICE_URL: http://localhost:8081
+      UPLOADS_DIR: /usr/src/app/uploads
+    ports:
+      - 3000:3000
+    volumes:
+      - ./uploads:/usr/src/app/uploads
+      - ./database:/usr/src/app/database # Monta il database come volume
+    depends_on:
+      - onlyoffice-document-server
+    restart: unless-stopped
+
+  onlyoffice-document-server:
+    image: onlyoffice/documentserver:latest
+    container_name: onlyoffice-document-server
+    ports:
+      - "8081:80"
+    volumes:
+      - ./uploads:/var/www/onlyoffice/Data
+      - logs:/var/log/onlyoffice
+      - redis:/var/lib/redis
+      - rabbitmq:/var/lib/rabbitmq
+    environment:
+      - JWT_ENABLED=true
+      - JWT_SECRET=MDQ879SA5Lw8wnGxJ2TTPK5IFTIX2KZ7
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  logs:
+  redis:
+  rabbitmq:

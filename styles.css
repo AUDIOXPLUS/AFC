@@ -1,0 +1,427 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f0f0f0;
+}
+
+header {
+    background-color: #2c3e50;
+    color: white;
+    padding: 10px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+nav {
+    display: flex;
+    align-items: center;
+}
+
+.logo {
+    font-size: 28px;
+    font-weight: bold;
+    margin-right: 20px;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    display: inline-block; /* Ensure the logo is inline */
+}
+
+nav ul {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+}
+
+nav ul li {
+    margin-right: 20px;
+}
+
+nav ul li a {
+    color: #a0b3c6;
+    text-decoration: none;
+    padding: 10px;
+    display: block;
+    font-size: 14px;
+    transition: color 0.3s ease;
+}
+
+nav ul li a:hover, nav ul li a.active {
+    color: white;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+}
+
+.user-info span {
+    margin-right: 10px;
+}
+
+.user-info a {
+    color: #3498db;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.user-info a:hover {
+    color: #2980b9;
+}
+
+main {
+    padding: 20px;
+}
+
+h1 {
+    margin-bottom: 20px;
+    color: #2c3e50;
+}
+
+.filters {
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    background-color: white;
+    padding: 10px;
+    border-radius: 5px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    flex-wrap: wrap;
+}
+
+.filters label {
+    margin-right: 5px;
+    font-size: 12px;
+    color: #555;
+}
+
+.filters select, .filters button, .filters input {
+    margin-right: 15px;
+    padding: 5px 10px;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+.filters button {
+    background-color: #3498db;
+    color: white;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.filters button:hover {
+    background-color: #2980b9;
+}
+
+#search-projects {
+    flex-grow: 1;
+    margin-right: 0;
+}
+
+.table-actions {
+    margin-bottom: 15px;
+}
+
+.add-btn {
+    background-color: #2ecc71;
+    color: black; /* Changed text color to black */
+    border: none;
+    padding: 8px 15px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s ease;
+}
+
+.add-btn:hover {
+    background-color: #27ae60;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+th, td {
+    border: 1px solid #e0e0e0;
+    padding: 8px;
+    text-align: left;
+    font-size: 12px;
+}
+
+th {
+    background-color: #f5f5f5;
+    font-weight: bold;
+    color: #333;
+    cursor: pointer;
+}
+
+th i {
+    margin-left: 5px;
+    color: #999;
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 5px;
+}
+
+.status-dot.yellow {
+    background-color: #f1c40f;
+}
+
+.status-dot.green {
+    background-color: #2ecc71;
+}
+
+.status-dot.red {
+    background-color: #e74c3c;
+}
+
+.edit-btn, .delete-btn, .set-completed-btn {
+    padding: 3px 8px;
+    margin-right: 5px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    transition: background-color 0.3s ease;
+}
+
+.edit-btn {
+    background-color: #3498db;
+    color: white;
+}
+
+.delete-btn {
+    background-color: #e74c3c;
+    color: white;
+}
+
+.set-completed-btn {
+    background-color: #27ae60;
+    color: white;
+}
+
+.edit-btn:hover {
+    background-color: #2980b9;
+}
+
+.delete-btn:hover {
+    background-color: #c0392b;
+}
+
+.set-completed-btn:hover {
+    background-color: #219a52;
+}
+
+/* New styles for input elements in the table */
+table input[type="text"], table input[type="date"] {
+    border: none;
+    width: 100%;
+    box-sizing: border-box;
+    resize: none; /* Disabilita il ridimensionamento */
+    min-width: 0; /* Assicurati che non ci sia una larghezza minima */
+}
+
+/* Highlighted input style */
+.highlighted-input {
+    background-color: #e0f7fa; /* Light cyan background */
+}
+
+/* Stili per la pagina di login */
+.login-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: #f0f0f0;
+}
+
+.login-form {
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    width: 300px;
+}
+
+.login-form h1 {
+    margin-bottom: 20px;
+    font-size: 24px;
+    color: #2c3e50;
+    text-align: center;
+}
+
+.login-form label {
+    display: block;
+    margin-bottom: 5px;
+    color: #555;
+}
+
+.login-form input[type="text"],
+.login-form input[type="password"] {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+.login-form button {
+    width: 100%;
+    padding: 10px;
+    background-color: #3498db;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.login-form button:hover {
+    background-color: #2980b9;
+}
+
+/* New styles for project details page */
+.project-summary {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.summary-left, .summary-right {
+    width: 48%;
+    background-color: white;
+    padding: 15px;
+    border-radius: 5px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.summary-left h2, .summary-right h2 {
+    color: #2c3e50;
+    margin-bottom: 10px;
+}
+
+.phase-item {
+    background-color: #f8f9fa;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 3px;
+}
+
+.phase-item h3 {
+    margin: 0 0 5px 0;
+    color: #34495e;
+}
+
+.project-history {
+    background-color: white;
+    padding: 15px;
+    border-radius: 5px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.project-history h2 {
+    color: #2c3e50;
+    margin-bottom: 10px;
+}
+
+#history-table th, #history-table td {
+    padding: 10px;
+}
+
+#history-table tr {
+    transition: background-color 0.3s ease;
+}
+
+#history-table tr:hover {
+    background-color: rgba(255, 255, 255, 0.7);
+}
+
+/* Styles for team member color selection */
+.color-picker {
+    width: 30px;
+    height: 30px;
+    border: none;
+    padding: 0;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+/* File management styles */
+.file-upload-form {
+    display: inline-block;
+    margin: 2px 0;
+}
+
+.file-upload-form input[type="file"] {
+    font-size: 12px;
+    max-width: 200px;
+}
+
+.file-upload-form button {
+    background-color: #3498db;
+    color: white;
+    border: none;
+    padding: 3px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+}
+
+.file-list {
+    margin-top: 4px;
+}
+
+.file-item {
+    display: flex;
+    align-items: center;
+    font-size: 12px;
+    margin: 2px 0;
+}
+
+.file-item button {
+    padding: 2px 6px;
+    margin-left: 4px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+}
+
+.download-btn {
+    background-color: #27ae60;
+    color: white;
+}
+
+.lock-btn {
+    background-color: #e67e22;
+    color: white;
+}
+
+.unlock-btn {
+    background-color: #3498db;
+    color: white;
+}
+
+.locked-by {
+    font-size: 11px;
+    color: #e74c3c;
+    font-style: italic;
+    margin-left: 4px;
+}

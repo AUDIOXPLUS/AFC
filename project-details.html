@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Details</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo">AFC</div>
+            <ul>
+                <li><a href="projects.html">Projects</a></li>
+                <li><a href="users.html">Team Members</a></li>
+                <li><a href="tasks.html">My Tasks</a></li>
+                <li><a href="#">Clients</a></li>
+                <li><a href="#">Product Kinds</a></li>
+                <li><a href="#">Factories</a></li>
+                <li><a href="#">Configuration</a></li>
+            </ul>
+        </nav>
+        <div class="user-info">
+            <span>Welcome, </span>
+            <a href="#" id="logout">Logout</a>
+        </div>
+    </header>
+    <main>
+        <h1>Project Details: <span id="project-model-number"></span></h1>
+        <div class="project-summary">
+            <div class="summary-left">
+                <h2>Project Summary</h2>
+                <div id="project-details"></div>
+            </div>
+            <div class="summary-right">
+                <h2>Phase Summary</h2>
+                <div id="phase-summary"></div>
+            </div>
+        </div>
+        <div class="project-history">
+            <h2>Project History</h2>
+            <div class="table-actions">
+                <button id="add-history-btn" class="add-btn">Add History Entry</button>
+            </div>
+            <table id="history-table">
+                <thead>
+                    <tr>
+                        <th>Date <i class="fas fa-sort"></i></th>
+                        <th>Phase <i class="fas fa-sort"></i></th>
+                        <th>Description <i class="fas fa-sort"></i></th>
+                        <th>Assigned To <i class="fas fa-sort"></i></th>
+                        <th>Status <i class="fas fa-sort"></i></th>
+                        <th>Files</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- History rows will be dynamically inserted here -->
+                </tbody>
+            </table>
+        </div>
+    </main>
+    <!-- Carica prima i file di supporto -->
+    <script src="project-layout.js"></script>
+    <script src="project-history.js"></script>
+    <!-- Carica per ultimo il file principale che dipende dagli altri -->
+    <script src="project-details.js"></script>
+</body>
+</html>

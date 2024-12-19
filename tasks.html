@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Tasks</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo">AFC</div>
+            <ul>
+                <li><a href="projects.html">Projects</a></li>
+                <li><a href="users.html">Team Members</a></li>
+                <li><a href="tasks.html">My Tasks</a></li>
+                <li><a href="#">Clients</a></li>
+                <li><a href="#">Product Kinds</a></li>
+                <li><a href="#">Factories</a></li>
+                <li><a href="#">Configuration</a></li>
+            </ul>
+        </nav>
+        <div class="user-info">
+            <span>Welcome, </span>
+            <a href="#" id="logout">Logout</a>
+        </div>
+    </header>
+    <main>
+        <h1>My Tasks</h1>
+        <div class="task-filter">
+            <input type="text" id="filter-input" placeholder="Filter by user...">
+            <input type="text" id="model-filter" placeholder="Filter by model number...">
+            <input type="text" id="status-filter" placeholder="Filter by status...">
+        </div>
+        <div class="task-history">
+            <table id="task-table">
+                <thead>
+                    <tr>
+                        <th>Model Number</th>
+                        <th>Date <i class="fas fa-sort"></i></th>
+                        <th>Task <i class="fas fa-sort"></i></th>
+                        <th>Assigned To <i class="fas fa-sort"></i></th>
+                        <th>Status <i class="fas fa-sort"></i></th>
+                        <!-- Removed Actions column -->
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Task rows will be dynamically inserted here -->
+                </tbody>
+            </table>
+        </div>
+    </main>
+    <script src="users.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            displayLoggedInUser();
+        });
+    </script>
+    <script src="tasks.js"></script>
+</body>
+</html>

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editor Excel</title>
+    <link rel="stylesheet" href="https://bossanova.uk/jspreadsheet/v4/jexcel.css" type="text/css" />
+    <link rel="stylesheet" href="https://jsuites.net/v4/jsuites.css" type="text/css" />
+    <script src="https://bossanova.uk/jspreadsheet/v4/jexcel.js"></script>
+    <script src="https://jsuites.net/v4/jsuites.js"></script>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .toolbar {
+            margin-bottom: 20px;
+        }
+        .toolbar button {
+            padding: 8px 15px;
+            margin-right: 10px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        .toolbar button:hover {
+            background-color: #45a049;
+        }
+        #sheetSelector {
+            padding: 8px;
+            margin-right: 10px;
+        }
+        .loading {
+            text-align: center;
+            margin-top: 50px;
+            font-size: 18px;
+        }
+        #spreadsheet {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <select id="sheetSelector" style="display: none;"></select>
+        <button onclick="saveChanges()">Salva Modifiche</button>
+    </div>
+    <div id="loading" class="loading">Caricamento del file Excel in corso...</div>
+    <div id="spreadsheet"></div>
+
+    <script>
+        let currentFileId;
+        let currentWorkbook;
+        let jexcelInstance;
+        let currentSheetName;
+
+        async function loadExcel() {
+            const fileId = new URLSearchParams(window.location.search).get('fileId');
+            if (!fileId) {
+                document.getElementById('loading').textContent = 'ID file non specificato';
+                return;
+            }
+            currentFileId = fileId;
+
+            try {
+                const response = await fetch(`/api/files/${fileId}/view`, {
+                    credentials: 'include' // Aggiunto per includere le credenziali
+                });
+                if (!response.ok) throw new Error('Errore nel caricamento del file');
+                
+                const arrayBuffer = await response.arrayBuffer();
+                const data = new Uint8Array(arrayBuffer);
+                currentWorkbook = XLSX.read(data, { type: 'array' });
+
+                const sheetSelector = document.getElementById('sheetSelector');
+                
+                if (currentWorkbook.SheetNames.length > 1) {
+                    sheetSelector.style.display = 'inline-block';
+                    sheetSelector.innerHTML = '';
+                    currentWorkbook.SheetNames.forEach(name => {
+                        const option = document.createElement('option');
+                        option.value = name;
+                        option.textContent = name;
+                        sheetSelector.appendChild(option);
+                    });
+
+                    sheetSelector.onchange = () => {
+                        loadSheet(sheetSelector.value);
+                    };
+                }
+
+                loadSheet(currentWorkbook.SheetNames[0]);
+                document.getElementById('loading').style.display = 'none';
+
+            } catch (error) {
+                console.error('Errore:', error);
+                document.getElementById('loading').textContent = 'Errore nel caricamento del file Excel';
+            }
+        }
+
+        function loadSheet(sheetName) {
+            currentSheetName = sheetName;
+            const worksheet = currentWorkbook.Sheets[sheetName];
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+            
+            if (jexcelInstance) {
+                jexcelInstance.destroy();
+            }
+
+            jexcelInstance = jexcel(document.getElementById('spreadsheet'), {
+                data: jsonData,
+                minDimensions: [10, 10],
+                columnDrag: true,
+                columnResize: true,
+                rowResize: true,
+                rowDrag: true,
+                editable: true,
+                allowInsertRow: true,
+                allowInsertColumn: true,
+                allowDeleteRow: true,
+                allowDeleteColumn: true,
+                contextMenu: true,
+                search: true,
+                pagination: 50
+            });
+        }
+
+        async function saveChanges() {
+            try {
+                // Ottieni i dati dal foglio corrente
+                const data = jexcelInstance.getData();
+                
+                // Aggiorna il foglio nel workbook
+                const ws = XLSX.utils.aoa_to_sheet(data);
+                currentWorkbook.Sheets[currentSheetName] = ws;
+                
+                // Converti il workbook in un blob
+                const wbout = XLSX.write(currentWorkbook, { bookType: 'xlsx', type: 'array' });
+                const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                
+                // Crea un FormData per l'upload
+                const formData = new FormData();
+                formData.append('file', blob, 'updated.xlsx');
+                
+                // Invia il file aggiornato al server
+                const response = await fetch(`/api/files/${currentFileId}/update`, {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'include' // Aggiunto per includere le credenziali
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Errore durante il salvataggio');
+                }
+                
+                alert('Modifiche salvate con successo!');
+                
+            } catch (error) {
+                console.error('Errore durante il salvataggio:', error);
+                alert('Errore durante il salvataggio delle modifiche');
+            }
+        }
+
+        window.onload = loadExcel;
+    </script>
+</body>
+</html>

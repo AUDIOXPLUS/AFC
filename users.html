@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestione Utenti</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <ul>
+                <li><div class="logo">AFC</div></li>
+                <li><a href="projects.html">Projects</a></li>
+                <li><a href="users.html">Team Members</a></li>
+                <li><a href="tasks.html">My Tasks</a></li>
+                <li><a href="#">Clients</a></li>
+                <li><a href="#">Product Kinds</a></li>
+                <li><a href="#">Factories</a></li>
+                <li><a href="#">Configuration</a></li>
+            </ul>
+        </nav>
+        <div class="user-info">
+            <span>Welcome, Admin</span>
+            <a href="#" id="logout">Logout</a>
+        </div>
+    </header>
+    <main>
+        <h2>Team Members</h2>
+        <button id="add-member-btn" class="add-btn">Add New Member</button>
+        <div id="user-management">
+            <table id="team-members-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Role</th>
+                        <th>Email</th>
+                        <th>Color</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Team members will be dynamically inserted here -->
+                </tbody>
+            </table>
+        </div>
+    </main>
+    <script src="users.js"></script>
+</body>
+</html>

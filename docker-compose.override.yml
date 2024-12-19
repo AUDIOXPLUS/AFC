@@ -1,0 +1,11 @@
+services:
+  afcv3:
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - ./uploads:/usr/src/app/uploads
+      - ./database:/usr/src/app/database  # Aggiungiamo il volume del database anche qui
+
+  onlyoffice-document-server:
+    volumes:
+      - ./logs/onlyoffice:/var/log/onlyoffice

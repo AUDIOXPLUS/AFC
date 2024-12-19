@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <title>OnlyOffice Editor</title>
+  <!-- Includi l'SDK di OnlyOffice -->
+  <script type="text/javascript" src="http://localhost:8081/web-apps/apps/api/documents/api.js"></script>
+
+  
+  <!-- Aggiungi il seguente blocco di stile -->
+  <style>
+    /* Assicura che html e body occupino il 100% dell'altezza */
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden; /* Previene lo scorrimento della pagina */
+    }
+
+    /* Assicura che il div dell'editor occupi l'intera altezza disponibile */
+    #editor {
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div id="editor"></div> <!-- Rimosso lo stile inline -->
+
+  <script type="text/javascript">
+    // Funzione per ottenere i parametri dalla query string
+    function getParameterByName(name) {
+      name = name.replace(/[[]/, "\\[").replace(/[\]]/, "\\]");
+      var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"),
+          results = regex.exec(location.search);
+      return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
+    }
+
+    var filePath = getParameterByName('filePath');
+    console.log('File richiesto per l\'editor:', filePath);
+
+
+    if (!filePath) {
+      alert('Parametro filePath mancante nell\'URL');
+    } else {
+      // Richiedi la configurazione dal server
+      fetch('/onlyoffice/config?filePath=' + encodeURIComponent(filePath))
+        .then(function(response) {
+          if (!response.ok) {
+            throw new Error('Errore nella risposta del server');
+          }
+          return response.json();
+        })
+        .then(function(config) {
+          // Inizializza l'editor OnlyOffice con la configurazione ricevuta
+          var docEditor = new DocsAPI.DocEditor("editor", config);
+        })
+        .catch(function(error) {
+          console.error('Errore durante il caricamento della configurazione:', error);
+          alert('Errore durante il caricamento della configurazione: ' + error.message);
+        });
+    }
+  </script>
+</body>
+</html>

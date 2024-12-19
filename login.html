@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="login-container">
+        <form id="loginForm" class="login-form">
+            <h1><span class="logo">AFC</span> Login</h1>
+            <label for="username">Username:</label>
+            <input type="text" id="username" name="username" required>
+            <label for="password">Password:</label>
+            <input type="password" id="password" name="password" required>
+            <button type="submit">Login</button>
+            <p id="message"></p>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            // Esegui il fetch verso la nuova rotta
+            fetch('/api/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username, password })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Errore nella risposta del server: ' + response.status);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    localStorage.setItem('loggedInUser', data.name); // Salva il nome dell'utente
+                    window.location.href = 'projects.html'; // Reindirizza in caso di login riuscito
+                } else {
+                    document.getElementById('message').textContent = data.message; // Mostra il messaggio di errore
+                    document.getElementById('message').style.color = 'red';
+                }
+            })
+            .catch(error => {
+                console.error('Errore:', error);
+                document.getElementById('message').textContent = 'Errore di connessione al server.';
+                document.getElementById('message').style.color = 'red';
+            });
+        });
+    </script>
+</body>
+</html>
