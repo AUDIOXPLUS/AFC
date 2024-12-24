@@ -13,14 +13,28 @@ function convertWindowsPathToDocker(windowsPath) {
 }
 
 // Configurazione multer per il caricamento dei file
-const uploadsDir = path.join(__dirname, 'uploads');
-fs.ensureDirSync(uploadsDir);
+const onlyofficeDir = '/var/www/onlyoffice/Data';
+console.log('Directory OnlyOffice configurata per multer:', onlyofficeDir);
+
+// Assicurati che la directory esista e abbia i permessi corretti
+try {
+    fs.ensureDirSync(onlyofficeDir, { mode: 0o777 });
+    fs.chmodSync(onlyofficeDir, 0o777);
+    const stats = fs.statSync(onlyofficeDir);
+    console.log('Directory OnlyOffice verificata:', {
+        path: onlyofficeDir,
+        mode: stats.mode.toString(8),
+        uid: stats.uid,
+        gid: stats.gid
+    });
+} catch (err) {
+    console.error('Errore nella verifica della directory OnlyOffice:', err);
+}
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        const projectDir = path.join(uploadsDir, req.params.projectId);
-        fs.ensureDirSync(projectDir);
-        cb(null, projectDir);
+        console.log('Directory di destinazione per upload:', onlyofficeDir);
+        cb(null, onlyofficeDir);
     },
     filename: function (req, file, cb) {
         cb(null, Date.now() + '-' + file.originalname);
@@ -388,11 +402,20 @@ router.delete('/projects/:projectId/history/:entryId', (req, res) => {
 
         // Rimuoviamo fisicamente i file dal filesystem
         files.forEach(file => {
-            fs.remove(file.filepath, (err) => {
-                if (err) {
-                    console.error('Errore nell\'eliminazione del file dal filesystem:', err);
-                }
-            });
+            const filePath = path.join('/var/www/onlyoffice/Data', path.basename(file.filepath));
+            console.log('Eliminazione file:', filePath);
+            
+            if (fs.existsSync(filePath)) {
+                fs.remove(filePath, (err) => {
+                    if (err) {
+                        console.error('Errore nell\'eliminazione del file dal filesystem:', err);
+                    } else {
+                        console.log('File eliminato con successo:', filePath);
+                    }
+                });
+            } else {
+                console.warn('File non trovato per eliminazione:', filePath);
+            }
         });
 
         // Poi eliminiamo i file dal database
@@ -453,8 +476,29 @@ router.post('/projects/:projectId/files', checkAuthentication, upload.single('fi
     const { historyId } = req.body;
     const uploadedBy = req.session.user.id;
 
-    // Usa il percorso relativo alla directory uploads
-    const normalizedFilePath = `uploads/${projectId}/${path.basename(file.path)}`;
+    if (!file) {
+        console.error('Nessun file ricevuto nella richiesta');
+        return res.status(400).json({ error: 'Nessun file ricevuto' });
+    }
+
+    // Imposta i permessi del file appena caricato
+    try {
+        fs.chmodSync(file.path, 0o666);
+        const stats = fs.statSync(file.path);
+        console.log('File caricato:', {
+            path: file.path,
+            size: file.size,
+            mode: stats.mode.toString(8),
+            uid: stats.uid,
+            gid: stats.gid
+        });
+    } catch (err) {
+        console.error('Errore nell\'impostare i permessi del file:', err);
+        return res.status(500).json({ error: 'Errore nel salvare il file' });
+    }
+
+    // Usa il percorso relativo per OnlyOffice
+    const normalizedFilePath = path.basename(file.path);
     console.log('normalizedFilePath:', normalizedFilePath);
 
     const query = `INSERT INTO project_files (project_id, history_id, filename, filepath, uploaded_by) VALUES (?, ?, ?, ?, ?)`;
@@ -518,12 +562,17 @@ router.get('/files/:fileId/view', checkAuthentication, (req, res) => {
             return res.status(404).json({ error: 'File not found' });
         }
         
-        // Converti il path Windows in path Docker
-        const dockerPath = convertWindowsPathToDocker(file.filepath);
-        const filePath = path.join('/usr/src/app', dockerPath);
+        // Usa il percorso relativo alla directory uploads
+        const filePath = path.join(__dirname, file.filepath);
         console.log('Original filepath:', file.filepath);
-        console.log('Converted Docker path:', filePath);
+        console.log('File path:', filePath);
         
+        // Verifica che il file esista
+        if (!fs.existsSync(filePath)) {
+            console.error('File non trovato:', filePath);
+            return res.status(404).json({ error: 'File not found' });
+        }
+
         res.sendFile(filePath);
     });
 });
@@ -541,10 +590,17 @@ router.get('/files/:fileId/download', checkAuthentication, (req, res) => {
             return res.status(404).json({ error: 'File not found' });
         }
         
-        // Converti il path Windows in path Docker
-        const dockerPath = convertWindowsPathToDocker(file.filepath);
-        const filePath = path.join('/usr/src/app', dockerPath);
+        // Usa il percorso corretto per OnlyOffice
+        const filePath = path.join('/var/www/onlyoffice/Data', path.basename(file.filepath));
+        console.log('Original filepath:', file.filepath);
+        console.log('File path per OnlyOffice:', filePath);
         
+        // Verifica che il file esista
+        if (!fs.existsSync(filePath)) {
+            console.error('File non trovato:', filePath);
+            return res.status(404).json({ error: 'File not found' });
+        }
+
         res.download(filePath, file.filename);
     });
 });
@@ -579,7 +635,7 @@ router.post('/files/:fileId/lock', checkAuthentication, (req, res) => {
     });
 });
 
-router.post('/api/files/:fileId/unlock', checkAuthentication, (req, res) => {
+router.post('/files/:fileId/unlock', checkAuthentication, (req, res) => {
     const { fileId } = req.params;
     const userId = req.session.user.id;
     
@@ -609,7 +665,7 @@ router.post('/api/files/:fileId/unlock', checkAuthentication, (req, res) => {
     });
 });
 
-router.delete('/api/files/:fileId', checkAuthentication, (req, res) => {
+router.delete('/files/:fileId', checkAuthentication, (req, res) => {
     const { fileId } = req.params;
     
     req.db.get('SELECT * FROM project_files WHERE id = ?', [fileId], (err, file) => {
@@ -628,8 +684,17 @@ router.delete('/api/files/:fileId', checkAuthentication, (req, res) => {
                 return res.status(500).json({ error: 'Failed to delete file' });
             }
             
-            // Usa il percorso relativo alla root del container
-            const filePath = path.join('/usr/src/app', file.filepath);
+            // Usa il percorso corretto per OnlyOffice
+            const filePath = path.join('/var/www/onlyoffice/Data', path.basename(file.filepath));
+            console.log('Original filepath:', file.filepath);
+            console.log('File path per OnlyOffice:', filePath);
+            
+            // Verifica che il file esista
+            if (!fs.existsSync(filePath)) {
+                console.error('File non trovato:', filePath);
+                return res.status(404).json({ error: 'File not found' });
+            }
+
             fs.remove(filePath)
                 .then(() => {
                     res.json({ message: 'File deleted successfully' });
@@ -642,7 +707,7 @@ router.delete('/api/files/:fileId', checkAuthentication, (req, res) => {
     });
 });
 
-router.get('/api/projects/:projectId/history/:historyId/files', checkAuthentication, (req, res) => {
+router.get('/projects/:projectId/history/:historyId/files', checkAuthentication, (req, res) => {
     const { projectId, historyId } = req.params;
     const query = `
         SELECT pf.*, u1.name as uploaded_by_name, u2.name as locked_by_name 

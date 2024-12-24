@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <title>OnlyOffice Editor</title>
   <!-- Includi l'SDK di OnlyOffice -->
-  <script type="text/javascript" src="http://localhost:8081/web-apps/apps/api/documents/api.js"></script>
+  <script type="text/javascript" src="http://192.168.1.148:8081/web-apps/apps/api/documents/api.js"></script>
 
   <!-- Aggiungi il seguente blocco di stile -->
   <style>
@@ -60,6 +60,10 @@
             },
             onSave: function(event) {
               console.log('Documento salvato:', event);
+              // Invia un messaggio alla finestra originale per aggiornare il contenuto
+              if (window.opener) {
+                window.opener.location.reload();
+              }
             },
             onError: function(event) {
               console.error('Errore nell\'editor:', event);

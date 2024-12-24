@@ -127,6 +127,7 @@ window.displayProjectHistory = function(history) {
             
             const deleteBtn = document.createElement('button');
             deleteBtn.className = 'delete-btn';
+            deleteBtn.setAttribute('data-file-id', file.id);
             const deleteIcon = document.createElement('i');
             deleteIcon.className = 'fas fa-trash';
             deleteBtn.appendChild(deleteIcon);
@@ -161,6 +162,7 @@ window.displayProjectHistory = function(history) {
             } else {
                 const lockBtn = document.createElement('button');
                 lockBtn.className = 'lock-btn';
+                lockBtn.setAttribute('data-file-id', file.id);
                 const lockIcon = document.createElement('i');
                 lockIcon.className = 'fas fa-lock';
                 lockBtn.appendChild(lockIcon);
@@ -313,12 +315,13 @@ window.updateFilesCell = async function(entryId) {
         
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'delete-btn';
+        deleteBtn.setAttribute('data-file-id', file.id);
         const deleteIcon = document.createElement('i');
         deleteIcon.className = 'fas fa-trash';
         deleteBtn.appendChild(deleteIcon);
-        deleteBtn.addEventListener('click', async () => {
-            await window.deleteFile(file.id);
-            window.updateFilesCell(entry.id);
+            deleteBtn.addEventListener('click', async () => {
+                await window.deleteFile(file.id);
+                window.updateFilesCell(entryId);
         });
         fileItem.appendChild(deleteBtn);
         
@@ -334,9 +337,9 @@ window.updateFilesCell = async function(entryId) {
             const userId = String(window.currentUserId);
             unlockBtn.disabled = fileLockedBy !== userId;
 
-            unlockBtn.addEventListener('click', async () => {
-                await window.unlockFile(file.id);
-                window.updateFilesCell(entry.id);
+                unlockBtn.addEventListener('click', async () => {
+                    await window.unlockFile(file.id);
+                    window.updateFilesCell(entryId);
             });
             fileItem.appendChild(unlockBtn);
             
@@ -352,7 +355,7 @@ window.updateFilesCell = async function(entryId) {
             lockBtn.appendChild(lockIcon);
             lockBtn.addEventListener('click', async () => {
                 await window.lockFile(file.id);
-                window.updateFilesCell(entry.id);
+                window.updateFilesCell(entryId);
             });
             fileItem.appendChild(lockBtn);
         }
@@ -614,7 +617,16 @@ window.lockFile = async function(fileId) {
         const response = await fetch(`/api/files/${fileId}/lock`, {
             method: 'POST'
         });
+        if (!response.ok) {
+            throw new Error(`HTTP error: ${response.status}`);
+        }
         await window.handleResponse(response);
+        // Trova l'entryId dal DOM risalendo alla riga della tabella
+        const fileItem = document.querySelector(`button[data-file-id="${fileId}"]`).closest('.file-item');
+        const filesCell = fileItem.closest('td');
+        const row = filesCell.closest('tr');
+        const entryId = row.getAttribute('data-entry-id');
+        window.updateFilesCell(entryId);
     } catch (error) {
         console.error('Errore nel bloccare il file:', error);
     }
@@ -633,9 +645,13 @@ window.unlockFile = async function(fileId) {
                 'Content-Type': 'application/json'
             }
         });
-        console.log('Risposta unlock:', response);
         await window.handleResponse(response);
-        console.log('File sbloccato con successo');
+        // Trova l'entryId dal DOM risalendo alla riga della tabella
+        const fileItem = document.querySelector(`button[data-file-id="${fileId}"]`).closest('.file-item');
+        const filesCell = fileItem.closest('td');
+        const row = filesCell.closest('tr');
+        const entryId = row.getAttribute('data-entry-id');
+        window.updateFilesCell(entryId);
     } catch (error) {
         console.error('Errore durante lo sblocco del file:', error);
     }
@@ -651,7 +667,7 @@ window.deleteFile = async function(fileId) {
     }
 
     try {
-        const response = await fetch(`/api/api/files/${fileId}`, {
+        const response = await fetch(`/api/files/${fileId}`, {
             method: 'DELETE',
             headers: {
                 'Content-Type': 'application/json'
@@ -663,6 +679,12 @@ window.deleteFile = async function(fileId) {
         }
         
         await window.handleResponse(response);
+        // Trova l'entryId dal DOM risalendo alla riga della tabella
+        const fileItem = document.querySelector(`button[data-file-id="${fileId}"]`).closest('.file-item');
+        const filesCell = fileItem.closest('td');
+        const row = filesCell.closest('tr');
+        const entryId = row.getAttribute('data-entry-id');
+        window.updateFilesCell(entryId);
     } catch (error) {
         console.error('Errore nell\'eliminare il file:', error);
     }

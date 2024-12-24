@@ -1,35 +1,69 @@
 services:
   afcv3:
+    networks:
+      - afc-network
     container_name: afcv3-backend
     build:
       context: .
       dockerfile: ./Dockerfile
     environment:
       NODE_ENV: production
-      ONLYOFFICE_URL: http://DOMAIN_OR_IP:8081  # Da modificare con il dominio o IP del server
+      ONLYOFFICE_URL: http://onlyoffice-document-server:80
       UPLOADS_DIR: /var/www/onlyoffice/Data
+      SERVER_HOST: afcv3-backend
     ports:
       - 3000:3000
     volumes:
-      - ./uploads:/var/www/onlyoffice/Data
-      - ./database:/usr/src/app/database
+      - type: bind
+        source: ./uploads
+        target: /var/www/onlyoffice/Data
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ./database
+        target: /usr/src/app/database
+        bind:
+          create_host_path: true
+    user: "1000:1000"
     depends_on:
       - onlyoffice-document-server
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     restart: always
 
   onlyoffice-document-server:
+    networks:
+      - afc-network
     image: onlyoffice/documentserver:latest
     container_name: onlyoffice-document-server
     ports:
       - "8081:80"
     volumes:
-      - ./uploads:/var/www/onlyoffice/Data
-      - ./logs/onlyoffice:/var/log/onlyoffice
+      - type: bind
+        source: ./uploads
+        target: /var/www/onlyoffice/Data
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ./logs/onlyoffice
+        target: /var/log/onlyoffice
+        bind:
+          create_host_path: true
       - redis:/var/lib/redis
       - rabbitmq:/var/lib/rabbitmq
+    command: bash -c "chmod -R 777 /var/www/onlyoffice/Data && /usr/local/bin/docker-entrypoint.sh"
     environment:
       - JWT_ENABLED=true
       - JWT_SECRET=MDQ879SA5Lw8wnGxJ2TTPK5IFTIX2KZ7
+      - WOPI_ENABLED=true
+      - FORCE_SAVE_ENABLE=true
+      - FORCE_CACHE_RESET=true
+      - FILE_CACHE_ENABLE=false
+      - GENERATE_FONTS=true
+      - USE_UNAUTHORIZED_STORAGE=true
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/healthcheck"]
       interval: 30s
@@ -40,3 +74,7 @@ services:
 volumes:
   redis:
   rabbitmq:
+
+networks:
+  afc-network:
+    driver: bridge
