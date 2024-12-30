@@ -96,30 +96,52 @@ window.displayProjectHistory = function(history) {
 
         // Gestisce la cella dei file associati alla voce della cronologia
         const filesCell = row.insertCell(5);
-        const fileUploadForm = document.createElement('form');
-        fileUploadForm.className = 'file-upload-form';
-        fileUploadForm.innerHTML = `
-            <input type="file" name="file" required>
-            <input type="hidden" name="historyId" value="${entry.id}">
-            <button type="submit" class="upload-btn">
-                <i class="fas fa-upload"></i>
-            </button>
-        `;
-        fileUploadForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const formData = new FormData(fileUploadForm);
-            try {
-                const response = await fetch(`/api/projects/${projectId}/files`, {
-                    method: 'POST',
-                    body: formData
-                });
-                await window.handleResponse(response);
-                window.updateFilesCell(entry.id);
-            } catch (error) {
-                console.error('Errore nel caricare il file:', error);
+        const uploadContainer = document.createElement('div');
+        uploadContainer.className = 'file-upload-container';
+        
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.name = 'files';
+        fileInput.multiple = true;
+        fileInput.required = true;
+        fileInput.addEventListener('change', async function(e) {
+            if (this.files.length > 0) {
+                // Disabilita l'input durante l'upload
+                this.disabled = true;
+                
+                // Crea un elemento di stato per l'upload
+                const statusDiv = document.createElement('div');
+                statusDiv.className = 'upload-status';
+                statusDiv.textContent = `Caricamento ${this.files.length} file in corso...`;
+                uploadContainer.appendChild(statusDiv);
+
+                const formData = new FormData();
+                
+                // Aggiungiamo ogni file selezionato al FormData
+                for (let i = 0; i < this.files.length; i++) {
+                    formData.append('files', this.files[i]);
+                }
+                formData.append('historyId', entry.id);
+
+                try {
+                    const response = await fetch(`/api/projects/${projectId}/files`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await window.handleResponse(response);
+                    console.log('Upload completato:', result);
+                    window.updateFilesCell(entry.id);
+                } catch (error) {
+                    console.error('Errore nel caricare i files:', error);
+                    statusDiv.textContent = 'Errore durante il caricamento dei file';
+                    statusDiv.style.color = 'red';
+                    // Riabilita l'input in caso di errore
+                    this.disabled = false;
+                }
             }
         });
-        filesCell.appendChild(fileUploadForm);
+        uploadContainer.appendChild(fileInput);
+        filesCell.appendChild(uploadContainer);
 
         // Recupera e visualizza i file associati alla voce della cronologia
         const files = await window.fetchEntryFiles(entry.id);
@@ -287,30 +309,52 @@ window.updateFilesCell = async function(entryId) {
     const filesCell = row.cells[5];
     filesCell.innerHTML = '';
 
-    const fileUploadForm = document.createElement('form');
-    fileUploadForm.className = 'file-upload-form';
-    fileUploadForm.innerHTML = `
-        <input type="file" name="file" required>
-        <input type="hidden" name="historyId" value="${entryId}">
-        <button type="submit" class="upload-btn">
-            <i class="fas fa-upload"></i>
-        </button>
-    `;
-    fileUploadForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const formData = new FormData(fileUploadForm);
-        try {
-            const response = await fetch(`/api/projects/${projectId}/files`, {
-                method: 'POST',
-                body: formData
-            });
-            await window.handleResponse(response);
-            window.updateFilesCell(entryId);
-        } catch (error) {
-            console.error('Errore nel caricare il file:', error);
+    const uploadContainer = document.createElement('div');
+    uploadContainer.className = 'file-upload-container';
+    
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.name = 'files';
+    fileInput.multiple = true;
+    fileInput.required = true;
+    fileInput.addEventListener('change', async function(e) {
+        if (this.files.length > 0) {
+            // Disabilita l'input durante l'upload
+            this.disabled = true;
+            
+            // Crea un elemento di stato per l'upload
+            const statusDiv = document.createElement('div');
+            statusDiv.className = 'upload-status';
+            statusDiv.textContent = `Caricamento ${this.files.length} file in corso...`;
+            uploadContainer.appendChild(statusDiv);
+
+            const formData = new FormData();
+            
+            // Aggiungiamo ogni file selezionato al FormData
+            for (let i = 0; i < this.files.length; i++) {
+                formData.append('files', this.files[i]);
+            }
+            formData.append('historyId', entryId);
+
+            try {
+                const response = await fetch(`/api/projects/${projectId}/files`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await window.handleResponse(response);
+                console.log('Upload completato:', result);
+                window.updateFilesCell(entryId);
+            } catch (error) {
+                console.error('Errore nel caricare i files:', error);
+                statusDiv.textContent = 'Errore durante il caricamento dei file';
+                statusDiv.style.color = 'red';
+                // Riabilita l'input in caso di errore
+                this.disabled = false;
+            }
         }
     });
-    filesCell.appendChild(fileUploadForm);
+    uploadContainer.appendChild(fileInput);
+    filesCell.appendChild(uploadContainer);
 
     const fileList = document.createElement('div');
     fileList.className = 'file-list';
@@ -437,16 +481,22 @@ window.addHistoryEntry = function(projectId) {
     });
 
     const filesCell = newRow.insertCell(5);
-    const fileUploadForm = document.createElement('form');
-    fileUploadForm.className = 'file-upload-form';
-    fileUploadForm.innerHTML = `
-        <input type="file" name="file" disabled>
-        <button type="submit" class="upload-btn" disabled>
-            <i class="fas fa-upload"></i>
-        </button>
-        <span class="upload-note">Save entry first to upload files</span>
-    `;
-    filesCell.appendChild(fileUploadForm);
+    const uploadContainer = document.createElement('div');
+    uploadContainer.className = 'file-upload-container';
+    
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.name = 'files';
+    fileInput.multiple = true;
+    fileInput.disabled = true;
+    
+    const uploadNote = document.createElement('span');
+    uploadNote.className = 'upload-note';
+    uploadNote.textContent = 'Save entry first to upload files';
+    
+    uploadContainer.appendChild(fileInput);
+    uploadContainer.appendChild(uploadNote);
+    filesCell.appendChild(uploadContainer);
 
     const actionsCell = newRow.insertCell(6);
     const saveBtn = document.createElement('button');

@@ -470,54 +470,70 @@ router.get('/tasks', (req, res) => {
 });
 
 // File Management Endpoints
-router.post('/projects/:projectId/files', checkAuthentication, upload.single('file'), (req, res) => {
+router.post('/projects/:projectId/files', checkAuthentication, upload.array('files'), (req, res) => {
     const { projectId } = req.params;
-    const { file } = req;
+    const { files } = req;
     const { historyId } = req.body;
     const uploadedBy = req.session.user.id;
 
-    if (!file) {
+    if (!files || files.length === 0) {
         console.error('Nessun file ricevuto nella richiesta');
         return res.status(400).json({ error: 'Nessun file ricevuto' });
     }
 
-    // Imposta i permessi del file appena caricato
-    try {
-        fs.chmodSync(file.path, 0o666);
-        const stats = fs.statSync(file.path);
-        console.log('File caricato:', {
-            path: file.path,
-            size: file.size,
-            mode: stats.mode.toString(8),
-            uid: stats.uid,
-            gid: stats.gid
-        });
-    } catch (err) {
-        console.error('Errore nell\'impostare i permessi del file:', err);
-        return res.status(500).json({ error: 'Errore nel salvare il file' });
-    }
+    const results = [];
+    let completed = 0;
 
-    // Usa il percorso relativo per OnlyOffice
-    const normalizedFilePath = path.basename(file.path);
-    console.log('normalizedFilePath:', normalizedFilePath);
-
-    const query = `INSERT INTO project_files (project_id, history_id, filename, filepath, uploaded_by) VALUES (?, ?, ?, ?, ?)`;
-    
-    req.db.run(query, [
-        projectId,
-        historyId,
-        file.originalname,
-        normalizedFilePath,
-        uploadedBy
-    ], function(err) {
-        if (err) {
-            console.error('Error uploading file:', err);
-            return res.status(500).json({ error: 'Failed to upload file' });
+    files.forEach(file => {
+        // Imposta i permessi del file appena caricato
+        try {
+            fs.chmodSync(file.path, 0o666);
+            const stats = fs.statSync(file.path);
+            console.log('File caricato:', {
+                path: file.path,
+                size: file.size,
+                mode: stats.mode.toString(8),
+                uid: stats.uid,
+                gid: stats.gid
+            });
+        } catch (err) {
+            console.error('Errore nell\'impostare i permessi del file:', err);
+            return;
         }
-        res.status(201).json({
-            id: this.lastID,
-            filename: file.originalname,
-            filepath: normalizedFilePath
+
+        // Usa il percorso relativo per OnlyOffice
+        const normalizedFilePath = path.basename(file.path);
+        console.log('normalizedFilePath:', normalizedFilePath);
+
+        const query = `INSERT INTO project_files (project_id, history_id, filename, filepath, uploaded_by) VALUES (?, ?, ?, ?, ?)`;
+        
+        req.db.run(query, [
+            projectId,
+            historyId,
+            file.originalname,
+            normalizedFilePath,
+            uploadedBy
+        ], function(err) {
+            completed++;
+            
+            if (err) {
+                console.error('Error uploading file:', err);
+                results.push({
+                    filename: file.originalname,
+                    error: 'Failed to upload file'
+                });
+            } else {
+                results.push({
+                    id: this.lastID,
+                    filename: file.originalname,
+                    filepath: normalizedFilePath
+                });
+            }
+
+            // Quando tutti i file sono stati processati, invia la risposta
+            if (completed === files.length) {
+                res.status(201).json(results);
+            }
         });
     });
 });
