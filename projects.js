@@ -96,10 +96,22 @@ function addProject() {
     const fields = ['factory', 'modelNumber', 'factoryModelNumber', 'productKind', 'client', 'startDate', 'endDate', 'status'];
     fields.forEach((field, index) => {
         const cell = newRow.insertCell(index);
-        const input = document.createElement('input');
-        input.type = index === 5 || index === 6 ? 'date' : 'text';
-        input.style.backgroundColor = '#ffff99'; // Light yellow background
-        cell.appendChild(input);
+        if (index === 7) { // Campo status
+            const select = document.createElement('select');
+            select.style.backgroundColor = '#ffff99';
+            ['In Progress', 'Completed', 'On Hold', 'Archived'].forEach(status => {
+                const option = document.createElement('option');
+                option.value = status;
+                option.textContent = status;
+                select.appendChild(option);
+            });
+            cell.appendChild(select);
+        } else {
+            const input = document.createElement('input');
+            input.type = index === 5 || index === 6 ? 'date' : 'text';
+            input.style.backgroundColor = '#ffff99';
+            cell.appendChild(input);
+        }
     });
 
     const actionsCell = newRow.insertCell(8);
@@ -155,12 +167,27 @@ function editProject(row, projectId) {
 
     // Convert cells to input fields
     for (let i = 0; i < 8; i++) {
-        const input = document.createElement('input');
-        input.type = i === 5 || i === 6 ? 'date' : 'text'; // Date inputs for start and end dates
-        input.value = projectData[Object.keys(projectData)[i]];
-        input.style.backgroundColor = '#ffff99'; // Light yellow background
         cells[i].innerHTML = '';
-        cells[i].appendChild(input);
+        if (i === 7) { // Campo status
+            const select = document.createElement('select');
+            select.style.backgroundColor = '#ffff99';
+            ['In Progress', 'Completed', 'On Hold', 'Archived'].forEach(status => {
+                const option = document.createElement('option');
+                option.value = status;
+                option.textContent = status;
+                if (status === projectData.status) {
+                    option.selected = true;
+                }
+                select.appendChild(option);
+            });
+            cells[i].appendChild(select);
+        } else {
+            const input = document.createElement('input');
+            input.type = i === 5 || i === 6 ? 'date' : 'text';
+            input.value = projectData[Object.keys(projectData)[i]];
+            input.style.backgroundColor = '#ffff99';
+            cells[i].appendChild(input);
+        }
     }
 
     // Change edit button to save button
@@ -177,7 +204,7 @@ function editProject(row, projectId) {
             client: cells[4].firstChild.value,
             startDate: cells[5].firstChild.value,
             endDate: cells[6].firstChild.value,
-            status: cells[7].firstChild.value
+            status: cells[7].firstChild.value // Funziona sia per input che per select
         };
 
         try {
@@ -318,37 +345,91 @@ function enableColumnSorting() {
 
 // Function to enable live filtering
 function enableLiveFiltering() {
-    const filterInputs = document.querySelectorAll('.filters input[type="text"]');
-    const tableRows = document.getElementById('projects-table').getElementsByTagName('tbody')[0].rows;
-
-    const filterIndices = [0, 1, 3, 4, 7];
-
-    filterInputs.forEach(() => {
-        filterInputs.forEach((input) => {
-            input.addEventListener('input', function() {
-                const filterValues = Array.from(filterInputs).map(input => input.value.toLowerCase().trim());
-
-                Array.from(tableRows).forEach(row => {
-                    let isMatch = true;
-                    for (let i = 0; i < filterValues.length; i++) {
-                        const filterValue = filterValues[i];
-                        const cellIndex = filterIndices[i];
-                        const cell = row.cells[cellIndex];
-
-                        if (cell) {
-                            const cellText = cell.textContent.toLowerCase().trim();
-                            if (filterValue && !cellText.includes(filterValue)) {
-                                isMatch = false;
-                                break;
-                            }
-                        } else {
-                            isMatch = false;
-                            break;
-                        }
-                    }
-                    row.style.display = isMatch ? '' : 'none';
-                });
-            });
-        });
+    // Gestione dropdown status
+    const statusDropdownBtn = document.getElementById('status-dropdown-btn');
+    const statusDropdown = document.getElementById('status-filter');
+    const statusCheckboxes = statusDropdown.querySelectorAll('input[type="checkbox"]');
+    
+    // Apertura/chiusura dropdown
+    statusDropdownBtn.addEventListener('click', function() {
+        statusDropdown.classList.toggle('show');
     });
+
+    // Chiudi dropdown quando si clicca fuori
+    document.addEventListener('click', function(event) {
+        if (!event.target.matches('#status-dropdown-btn') && !event.target.closest('.dropdown-content')) {
+            statusDropdown.classList.remove('show');
+        }
+    });
+
+    // Gestione filtri testo
+    const textFilterInputs = document.querySelectorAll('.filters input[type="text"]');
+    const tableRows = document.getElementById('projects-table').getElementsByTagName('tbody')[0].rows;
+    const filterIndices = [0, 1, 3, 4, 7]; // Indici delle colonne da filtrare
+
+    // Funzione per aggiornare il display degli stati selezionati
+    function updateStatusDisplay() {
+        const selectedCheckboxes = Array.from(statusCheckboxes).filter(cb => cb.checked);
+        const statusDisplay = document.getElementById('status-display');
+        
+        if (selectedCheckboxes.length === 0) {
+            statusDisplay.value = '';
+            return;
+        }
+
+        const abbreviations = selectedCheckboxes.map(cb => cb.getAttribute('data-abbr'));
+        statusDisplay.value = abbreviations.join(',');
+    }
+
+    // Funzione per applicare i filtri
+    function applyFilters() {
+        const textFilterValues = Array.from(textFilterInputs).map(input => input.value.toLowerCase().trim());
+        const selectedStatuses = Array.from(statusCheckboxes)
+            .filter(cb => cb.checked)
+            .map(cb => cb.value);
+
+        updateStatusDisplay();
+
+        Array.from(tableRows).forEach(row => {
+            let isMatch = true;
+
+            // Controllo filtri testo
+            for (let i = 0; i < textFilterValues.length - 1; i++) { // -1 perché escludiamo l'ultimo che era per lo status
+                const filterValue = textFilterValues[i];
+                const cellIndex = filterIndices[i];
+                const cell = row.cells[cellIndex];
+
+                if (cell && filterValue) {
+                    const cellText = cell.textContent.toLowerCase().trim();
+                    if (!cellText.includes(filterValue)) {
+                        isMatch = false;
+                        break;
+                    }
+                }
+            }
+
+            // Controllo filtro status
+            if (isMatch && selectedStatuses.length > 0) {
+                const statusCell = row.cells[7];
+                const statusText = statusCell.textContent.trim();
+                if (!selectedStatuses.includes(statusText)) {
+                    isMatch = false;
+                }
+            }
+
+            row.style.display = isMatch ? '' : 'none';
+        });
+    }
+
+    // Event listeners per i filtri
+    textFilterInputs.forEach(input => {
+        input.addEventListener('input', applyFilters);
+    });
+
+    statusCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', applyFilters);
+    });
+
+    // Inizializza il display degli stati
+    updateStatusDisplay();
 }
