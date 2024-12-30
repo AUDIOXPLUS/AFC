@@ -562,15 +562,27 @@ router.get('/files/:fileId/view', checkAuthentication, (req, res) => {
             return res.status(404).json({ error: 'File not found' });
         }
         
-        // Usa il percorso relativo alla directory uploads
-        const filePath = path.join(__dirname, file.filepath);
+        // Prima prova il percorso in OnlyOffice Data
+        let filePath = path.join('/var/www/onlyoffice/Data', path.basename(file.filepath));
         console.log('Original filepath:', file.filepath);
-        console.log('File path:', filePath);
+        console.log('Provo percorso OnlyOffice:', filePath);
         
-        // Verifica che il file esista
+        // Se il file non esiste in OnlyOffice Data, prova il percorso originale
         if (!fs.existsSync(filePath)) {
-            console.error('File non trovato:', filePath);
-            return res.status(404).json({ error: 'File not found' });
+            console.log('File non trovato in OnlyOffice Data, provo percorso originale');
+            // Se il filepath inizia con 'uploads/', lo cerco nella root dell'app
+            if (file.filepath.startsWith('uploads/')) {
+                filePath = path.join(__dirname, file.filepath);
+            } else {
+                // Altrimenti uso il filepath così com'è (potrebbe essere un percorso assoluto)
+                filePath = file.filepath;
+            }
+            console.log('Provo percorso alternativo:', filePath);
+            
+            if (!fs.existsSync(filePath)) {
+                console.error('File non trovato in nessun percorso');
+                return res.status(404).json({ error: 'File not found' });
+            }
         }
 
         res.sendFile(filePath);
@@ -616,8 +628,8 @@ router.post('/files/:fileId/lock', checkAuthentication, (req, res) => {
         if (!file) {
             return res.status(404).json({ error: 'File not found' });
         }
-        if (file.locked_by && file.locked_by !== userId) {
-            return res.status(403).json({ error: 'File is locked by another user' });
+        if (file.locked_by) {
+            return res.status(403).json({ error: 'File is already locked' });
         }
         
         const query = `

@@ -110,7 +110,8 @@ window.displayProjectHistory = function(history) {
             fileNameSpan.addEventListener('click', () => {
                 if (window.isOnlyOfficeCompatible(file.filename)) {
                     const normalizedPath = window.normalizeFilePath(file.filepath);
-                    window.open(`http://localhost:3000/onlyoffice/editor?filePath=${normalizedPath}`, '_blank');
+                    //window.open(`http://localhost:3000/onlyoffice/editor?filePath=${normalizedPath}`, '_blank');
+                    window.open(`http://185.250.144.219:3000/onlyoffice/editor?filePath=${normalizedPath}`, '_blank');
                 } else {
                     window.open(`/api/files/${file.id}/view`, '_blank');
                 }
@@ -298,7 +299,8 @@ window.updateFilesCell = async function(entryId) {
         fileNameSpan.addEventListener('click', () => {
             if (window.isOnlyOfficeCompatible(file.filename)) {
                 const normalizedPath = window.normalizeFilePath(file.filepath);
-                window.open(`http://localhost:3000/onlyoffice/editor?filePath=${normalizedPath}`, '_blank');
+                //window.open(`http://localhost:3000/onlyoffice/editor?filePath=${normalizedPath}`, '_blank');
+                window.open(`http://185.250.144.219:3000/onlyoffice/editor?filePath=${normalizedPath}`, '_blank');
             } else {
                 window.open(`/api/files/${file.id}/view`, '_blank');
             }

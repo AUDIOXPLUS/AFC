@@ -173,15 +173,14 @@ app.get('/onlyoffice/config', (req, res) => {
     console.log('Config - filePathParam ricevuto:', filePathParam);
 
     if (!filePathParam) {
-        res.status(400).send('Parametro filePath mancante');
-        return;
+        return res.status(400).send('Parametro filePath mancante');
     }
 
     const normalizedPath = normalizeFilePath(filePathParam);
     console.log('Config - normalizedPath:', normalizedPath);
 
-    // Utilizziamo la variabile d'ambiente SERVER_HOST se disponibile, altrimenti usiamo l'IP del server
-    const serverAddress = process.env.SERVER_HOST || '192.168.1.148';
+    // Qui la modifica: fallback su 'localhost' invece di '192.168.1.148'
+    const serverAddress = process.env.SERVER_HOST || 'localhost';
     const port = process.env.PORT || 3000;
     
     // Costruzione URL del documento
@@ -245,8 +244,7 @@ app.post('/onlyoffice/callback', async (req, res) => {
 
     if (!filePathParam) {
         console.error('Callback - Parametro filePath mancante');
-        res.status(400).send('Parametro filePath mancante');
-        return;
+        return res.status(400).send('Parametro filePath mancante');
     }
 
     // Normalizza il percorso del file
@@ -260,8 +258,7 @@ app.post('/onlyoffice/callback', async (req, res) => {
     // Verifica che il percorso sia all'interno della directory uploads
     if (!fullFilePath.startsWith(uploadsDir)) {
         console.error('Callback - Tentativo di accesso non autorizzato al percorso:', fullFilePath);
-        res.status(400).send('Percorso del file non valido');
-        return;
+        return res.status(400).send('Percorso del file non valido');
     }
 
     console.log('Callback - Corpo della richiesta:', JSON.stringify(req.body, null, 2));
@@ -298,7 +295,7 @@ app.post('/onlyoffice/callback', async (req, res) => {
                 console.log('Callback - File eliminato:', fullFilePath);
             }
             // Forza il refresh del documento
-            const serverAddress = process.env.SERVER_HOST || '192.168.1.148';
+            const serverAddress = process.env.SERVER_HOST || 'localhost';
             const port = process.env.PORT || 3000;
             const documentUrl = `http://${serverAddress}:${port}/uploads/${normalizedPath}`;
             
@@ -328,15 +325,18 @@ app.post('/onlyoffice/callback', async (req, res) => {
             });
         } catch (err) {
             console.error('Callback - Errore durante l\'eliminazione:', err.message);
-            res.status(500).send('Errore durante l\'eliminazione del documento');
+            return res.status(500).send('Errore durante l\'eliminazione del documento');
         }
     }
     // Status 2 o 3 indicano che il documento è stato modificato
     else if (status === 2 || status === 3) {
         console.log('Callback - Documento modificato, procedo con il salvataggio');
         try {
-            // Modifica l'URL per utilizzare il nome del container invece di localhost
-            downloadUrl = downloadUrl.replace(/localhost:8081|192\.168\.1\.148:8081/, 'onlyoffice-document-server');
+            // Modifica l'URL per utilizzare il nome del container invece di localhost, etc.
+            downloadUrl = downloadUrl.replace(
+                /localhost:8081|192\.168\.1\.148:8081|185\.250\.144\.219:8081/,
+                'onlyoffice-document-server'
+            );
             console.log('Callback - downloadUrl modificato:', downloadUrl);
 
             // Crea la directory se non esiste
@@ -404,7 +404,6 @@ app.post('/onlyoffice/callback', async (req, res) => {
                             fs.chmodSync(fullFilePath, 0o666);
                             // Imposta il proprietario del file a node:node (uid:gid del container)
                             try {
-                                // Imposta il proprietario a node:node
                                 const nodeUser = process.getuid();
                                 const nodeGroup = process.getgid();
                                 fs.chownSync(fullFilePath, nodeUser, nodeGroup);
@@ -451,7 +450,7 @@ app.post('/onlyoffice/callback', async (req, res) => {
             res.json({ error: 0 });
         } catch (err) {
             console.error('Callback - Errore durante il salvataggio:', err.message);
-            res.status(500).send('Errore durante il salvataggio del documento');
+            return res.status(500).send('Errore durante il salvataggio del documento');
         }
     } else {
         console.log('Callback - Nessuna modifica necessaria, status:', status);
@@ -477,17 +476,11 @@ app.get('/api/files/:id/view', (req, res) => {
 
         // Normalizziamo il percorso
         let normalizedPath = path.normalize(filePath);
-
         // Rimuoviamo il prefisso Windows completo (C:\Users\Francesco\AFC-V3\)
         normalizedPath = normalizedPath.replace(/^([A-Za-z]:[\\/]+Users[\\/]+Francesco[\\/]+AFC-V3[\\/]+)/i, '');
-
         // Rimuove eventuali slash iniziali
         normalizedPath = normalizedPath.replace(/^([\\/]+)/, '');
-
         // Ora normalizedPath dovrebbe iniziare da uploads/... 
-        // In caso non dovesse, assicurarsi che contenga la cartella uploads
-        // (Se i file sono sempre in uploads va bene così)
-
         const absolutePath = path.join(__dirname, normalizedPath);
         console.log('absolutePath:', absolutePath);
 

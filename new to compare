@@ -1,45 +1,74 @@
-version: '3.9'
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <title>OnlyOffice Editor</title>
 
-services:
-  afcv3:
-    container_name: afcv3-backend
-    build:
-      context: .
-      dockerfile: ./Dockerfile
-    environment:
-      NODE_ENV: development
-      ONLYOFFICE_URL: http://localhost:8081
-      UPLOADS_DIR: /usr/src/app/uploads # Percorso nel container
-    ports:
-      - 3000:3000
-    volumes:
-      - ./uploads:/usr/src/app/uploads # Monta la directory uploads dal sistema host
-      - ./database:/usr/src/app/database # Monta il database come volume
-    depends_on:
-      - onlyoffice-document-server
-    restart: unless-stopped
+  <!-- 1) Carichiamo il config prima di tutto -->
+  <script src="config.js"></script>
 
-  onlyoffice-document-server:
-    image: onlyoffice/documentserver:latest
-    container_name: onlyoffice-document-server
-    ports:
-      - "8081:80"
-    volumes:
-      - ./uploads:/var/www/onlyoffice/Data
-      - logs:/var/log/onlyoffice
-      - redis:/var/lib/redis
-      - rabbitmq:/var/lib/rabbitmq
-    environment:
-      - JWT_ENABLED=true
-      - JWT_SECRET=MDQ879SA5Lw8wnGxJ2TTPK5IFTIX2KZ7
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/healthcheck"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
+  <!-- 2) Usiamo APP_CONFIG.DOCS_URL per caricare api.js dinamicamente -->
+  <script type="text/javascript">
+    (function() {
+      var script = document.createElement('script');
+      script.src = window.APP_CONFIG.DOCS_URL + '/web-apps/apps/api/documents/api.js';
+      document.head.appendChild(script);
+    })();
+  </script>
 
-volumes:
-  logs:
-  redis:
-  rabbitmq:
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0; 
+      padding: 0;
+      overflow: hidden;
+    }
+    #editor {
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div id="editor"></div>
+
+  <script type="text/javascript">
+    // Funzione per ottenere i parametri dalla query string
+    function getParameterByName(name) {
+      name = name.replace(/[[]/, "\\[").replace(/[\]]/, "\\]");
+      var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"),
+          results = regex.exec(location.search);
+      return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
+    }
+
+    // Ottieni il percorso del file dalla query string
+    var filePath = getParameterByName('filePath');
+    console.log('File richiesto per l\'editor:', filePath);
+
+    if (!filePath) {
+      alert('Parametro filePath mancante nell\'URL');
+    } else {
+      // Richiedi la configurazione dal server (usa BASE_URL invece di scrivere localhost o ip pubblico)
+      var configUrl = window.APP_CONFIG.BASE_URL + '/onlyoffice/config?filePath=' + encodeURIComponent(filePath);
+      console.log('Chiamo configUrl:', configUrl);
+
+      fetch(configUrl)
+        .then(function(response) {
+          if (!response.ok) {
+            throw new Error('Errore nella risposta del server: ' + response.status);
+          }
+          return response.json();
+        })
+        .then(function(config) {
+          console.log('Configurazione ricevuta:', config);
+          // ...
+          var docEditor = new DocsAPI.DocEditor("editor", config);
+        })
+        .catch(function(error) {
+          console.error('Errore durante il caricamento della configurazione:', error);
+          alert('Errore durante il caricamento della configurazione: ' + error.message);
+        });
+    }
+  </script>
+</body>
+</html>

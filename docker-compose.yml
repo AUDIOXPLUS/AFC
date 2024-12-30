@@ -1,3 +1,5 @@
+version: "3.7"
+
 services:
   afcv3:
     container_name: afcv3-backend
@@ -6,10 +8,12 @@ services:
       dockerfile: ./Dockerfile
     environment:
       NODE_ENV: development
-      ONLYOFFICE_URL: http://localhost:8081  # Questo URL è usato dal frontend per caricare l'editor
+      SERVER_HOST: afcv3-backend        # <--- IMPORTANTE: usiamo il nome di rete Docker
+      PORT: 3000
+      ONLYOFFICE_URL: http://localhost:8081  # usato dal frontend/JS per caricare l'editor
       UPLOADS_DIR: /var/www/onlyoffice/Data
     ports:
-      - 3000:3000
+      - "3000:3000"
     volumes:
       - ./uploads:/var/www/onlyoffice/Data
       - ./database:/usr/src/app/database
@@ -21,7 +25,7 @@ services:
     image: onlyoffice/documentserver:latest
     container_name: onlyoffice-document-server
     ports:
-      - "8081:80"  # Espone la porta 80 del container sulla 8081 dell'host
+      - "8081:80"  # Espone la porta 80 del container su 8081 dell'host
     volumes:
       - ./uploads:/var/www/onlyoffice/Data
       - logs:/var/log/onlyoffice
@@ -41,11 +45,3 @@ volumes:
   logs:
   redis:
   rabbitmq:
-
-# Note sui flussi di comunicazione:
-# 1. Frontend -> OnlyOffice: usa ONLYOFFICE_URL (http://localhost:8081)
-#    - Questo URL è usato dal browser dell'utente per caricare l'editor
-#
-# 2. Backend -> OnlyOffice: usa il nome del container (onlyoffice-document-server)
-#    - Questo è usato nel callback quando OnlyOffice ha un file modificato da salvare
-#    - Il backend deve comunicare con OnlyOffice all'interno della rete Docker
