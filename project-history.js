@@ -64,7 +64,33 @@ window.displayProjectHistory = function(history) {
         // Inserisce le celle della tabella con i dati della cronologia
         row.insertCell(0).textContent = entry.date;
         row.insertCell(1).textContent = entry.phase;
-        row.insertCell(2).textContent = entry.description;
+        // Crea una cella per la descrizione
+        const descCell = row.insertCell(2);
+        
+        // Funzione per convertire URL in link cliccabili
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        const description = entry.description;
+        
+        if (urlRegex.test(description)) {
+            // Se ci sono URL nel testo, li convertiamo in link
+            const parts = description.split(urlRegex);
+            parts.forEach((part, index) => {
+                if (urlRegex.test(part)) {
+                    // Se è un URL, crea un link
+                    const link = document.createElement('a');
+                    link.href = part;
+                    link.textContent = part;
+                    link.target = '_blank'; // Apre in una nuova tab
+                    descCell.appendChild(link);
+                } else {
+                    // Se è testo normale, aggiungilo come nodo di testo
+                    descCell.appendChild(document.createTextNode(part));
+                }
+            });
+        } else {
+            // Se non ci sono URL, mostra il testo normalmente
+            descCell.textContent = description;
+        }
         row.insertCell(3).textContent = entry.assigned_to;
         row.insertCell(4).textContent = entry.status;
 
@@ -500,8 +526,11 @@ window.editHistoryEntry = function(entryId) {
                     input.appendChild(option);
                 });
             } else if (i === 2) { // Campo 'description'
+                // Per il campo description, manteniamo il testo originale inclusi i link
                 input = document.createElement('textarea');
-                input.value = historyData.description;
+                // Otteniamo il testo originale dalla cella, che potrebbe contenere link HTML
+                const descriptionText = cells[2].textContent || cells[2].innerText;
+                input.value = descriptionText;
                 input.style.width = '100%';
                 input.style.minHeight = '100px';
                 input.style.resize = 'vertical';
