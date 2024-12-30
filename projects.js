@@ -25,6 +25,9 @@ function initializeDashboard() {
     enableLiveFiltering();
 }
 
+// Variabile globale per mantenere il riferimento alle funzioni di filtering
+let filteringApi = null;
+
 // Function to fetch project data from the backend
 async function fetchProjects() {
     console.log('Fetching projects...');
@@ -36,6 +39,11 @@ async function fetchProjects() {
         const projects = await response.json();
         console.log('Projects fetched:', projects);
         displayProjects(projects);
+        
+        // Riapplica i filtri dopo aver caricato i progetti
+        if (filteringApi && typeof filteringApi.applyFilters === 'function') {
+            filteringApi.applyFilters();
+        }
     } catch (error) {
         console.error('Error fetching projects:', error);
     }
@@ -345,6 +353,8 @@ function enableColumnSorting() {
 
 // Function to enable live filtering
 function enableLiveFiltering() {
+    // Oggetto per esporre funzioni pubbliche
+    const publicApi = {};
     // Gestione dropdown status
     const statusDropdownBtn = document.getElementById('status-dropdown-btn');
     const statusDropdown = document.getElementById('status-filter');
@@ -381,6 +391,15 @@ function enableLiveFiltering() {
         statusDisplay.value = abbreviations.join(',');
     }
 
+    // Funzione per salvare i filtri nel localStorage
+    function saveFilters(textFilterValues, selectedStatuses) {
+        const filters = {
+            text: textFilterValues,
+            status: selectedStatuses
+        };
+        localStorage.setItem('projectFilters', JSON.stringify(filters));
+    }
+
     // Funzione per applicare i filtri
     function applyFilters() {
         const textFilterValues = Array.from(textFilterInputs).map(input => input.value.toLowerCase().trim());
@@ -388,6 +407,9 @@ function enableLiveFiltering() {
             .filter(cb => cb.checked)
             .map(cb => cb.value);
 
+        // Salva i filtri nel localStorage
+        saveFilters(textFilterValues, selectedStatuses);
+        
         updateStatusDisplay();
 
         Array.from(tableRows).forEach(row => {
@@ -421,6 +443,27 @@ function enableLiveFiltering() {
         });
     }
 
+    // Funzione per caricare e applicare i filtri salvati
+    function loadSavedFilters() {
+        const savedFilters = localStorage.getItem('projectFilters');
+        if (savedFilters) {
+            const filters = JSON.parse(savedFilters);
+            
+            // Applica i filtri di testo
+            textFilterInputs.forEach((input, index) => {
+                input.value = filters.text[index] || '';
+            });
+            
+            // Applica i filtri di stato
+            statusCheckboxes.forEach(checkbox => {
+                checkbox.checked = filters.status.includes(checkbox.value);
+            });
+            
+            // Applica i filtri
+            applyFilters();
+        }
+    }
+
     // Event listeners per i filtri
     textFilterInputs.forEach(input => {
         input.addEventListener('input', applyFilters);
@@ -430,6 +473,15 @@ function enableLiveFiltering() {
         checkbox.addEventListener('change', applyFilters);
     });
 
-    // Inizializza il display degli stati
+    // Carica i filtri salvati e inizializza il display degli stati
+    loadSavedFilters();
     updateStatusDisplay();
+
+    // Espone le funzioni necessarie
+    publicApi.applyFilters = applyFilters;
+    
+    // Salva il riferimento globale
+    filteringApi = publicApi;
+    
+    return publicApi;
 }
