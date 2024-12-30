@@ -43,6 +43,20 @@
             <div class="table-actions">
                 <button id="add-history-btn" class="add-btn">Add History Entry</button>
             </div>
+            <div class="filters">
+                <input type="text" id="phase-filter" placeholder="Phase">
+                <input type="text" id="assigned-to-filter" placeholder="Assigned to">
+                <div class="status-dropdown">
+                    <input type="text" id="status-display" readonly placeholder="Status">
+                    <button id="status-dropdown-btn">▼</button>
+                    <div id="status-filter" class="dropdown-content">
+                        <label><input type="checkbox" value="In Progress" data-abbr="IP"> In Progress</label>
+                        <label><input type="checkbox" value="Completed" data-abbr="CO"> Completed</label>
+                        <label><input type="checkbox" value="On Hold" data-abbr="OH"> On Hold</label>
+                        <label><input type="checkbox" value="Archived" data-abbr="AR"> Archived</label>
+                    </div>
+                </div>
+            </div>
             <table id="history-table">
                 <thead>
                     <tr>

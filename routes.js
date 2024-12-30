@@ -450,6 +450,7 @@ router.get('/tasks', (req, res) => {
         SELECT 
             ph.id, 
             ph.project_id AS projectId, 
+            p.factory,
             p.modelNumber, 
             ph.date, 
             ph.description, 

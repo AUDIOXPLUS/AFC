@@ -1,12 +1,11 @@
 let teamMembers = [];
 
+// Variabile globale per mantenere il riferimento alle funzioni di filtering
+let filteringApi = null;
+
 document.addEventListener('DOMContentLoaded', async function() {
     await fetchTeamMembers();
     await fetchTasks();
-
-    document.getElementById('filter-input').addEventListener('input', filterTasks);
-    document.getElementById('model-filter').addEventListener('input', filterTasks);
-    document.getElementById('status-filter').addEventListener('input', filterTasks);
 
     // Enable column resizing
     enableColumnResizing();
@@ -16,6 +15,9 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // Enable column sorting
     enableColumnSorting();
+
+    // Enable live filtering
+    enableLiveFiltering();
 });
 
 async function fetchTeamMembers() {
@@ -52,11 +54,12 @@ function displayTasks(tasks) {
 
         const row = tableBody.insertRow();
         row.setAttribute('data-task-id', task.id);
-        row.insertCell(0).innerHTML = `<a href="project-details.html?id=${task.projectId}">${task.modelNumber}</a>`;
-        row.insertCell(1).textContent = task.date;
-        row.insertCell(2).textContent = task.description;
-        row.insertCell(3).textContent = task.assignedTo;
-        row.insertCell(4).textContent = task.status;
+        row.insertCell(0).textContent = task.factory;
+        row.insertCell(1).innerHTML = `<a href="project-details.html?id=${task.projectId}">${task.modelNumber}</a>`;
+        row.insertCell(2).textContent = task.date;
+        row.insertCell(3).textContent = task.description;
+        row.insertCell(4).textContent = task.assignedTo;
+        row.insertCell(5).textContent = task.status;
 
         // Applica il colore di sfondo in base all'utente assegnato
         const assignedMember = teamMembers.find(member => member.name === task.assignedTo);
@@ -64,25 +67,150 @@ function displayTasks(tasks) {
             row.style.backgroundColor = assignedMember.color;
         }
     });
+
+    // Riapplica i filtri dopo aver caricato i task
+    if (filteringApi && typeof filteringApi.applyFilters === 'function') {
+        filteringApi.applyFilters();
+    }
 }
 
-function filterTasks() {
-    const userFilterValue = document.getElementById('filter-input').value.toLowerCase();
-    const modelFilterValue = document.getElementById('model-filter').value.toLowerCase();
-    const statusFilterValue = document.getElementById('status-filter').value.toLowerCase();
-    const rows = document.querySelectorAll('#task-table tbody tr');
-
-    rows.forEach(row => {
-        const assignedTo = row.cells[3].textContent.toLowerCase();
-        const modelNumber = row.cells[0].textContent.toLowerCase();
-        const status = row.cells[4].textContent.toLowerCase();
-
-        const matchesUser = assignedTo.includes(userFilterValue);
-        const matchesModel = modelNumber.includes(modelFilterValue);
-        const matchesStatus = status.includes(statusFilterValue);
-
-        row.style.display = matchesUser && matchesModel && matchesStatus ? '' : 'none';
+// Function to enable live filtering
+function enableLiveFiltering() {
+    // Oggetto per esporre funzioni pubbliche
+    const publicApi = {};
+    
+    // Gestione dropdown status
+    const statusDropdownBtn = document.getElementById('status-dropdown-btn');
+    const statusDropdown = document.getElementById('status-filter');
+    const statusCheckboxes = statusDropdown.querySelectorAll('input[type="checkbox"]');
+    
+    // Apertura/chiusura dropdown
+    statusDropdownBtn.addEventListener('click', function() {
+        statusDropdown.classList.toggle('show');
     });
+
+    // Chiudi dropdown quando si clicca fuori
+    document.addEventListener('click', function(event) {
+        if (!event.target.matches('#status-dropdown-btn') && !event.target.closest('.dropdown-content')) {
+            statusDropdown.classList.remove('show');
+        }
+    });
+
+    // Gestione filtri testo
+    const textFilterInputs = [
+        document.getElementById('filter-input'),
+        document.getElementById('factory-filter'),
+        document.getElementById('model-filter')
+    ];
+    const tableRows = document.getElementById('task-table').getElementsByTagName('tbody')[0].rows;
+
+    // Funzione per aggiornare il display degli stati selezionati
+    function updateStatusDisplay() {
+        const selectedCheckboxes = Array.from(statusCheckboxes).filter(cb => cb.checked);
+        const statusDisplay = document.getElementById('status-display');
+        
+        if (selectedCheckboxes.length === 0) {
+            statusDisplay.value = '';
+            return;
+        }
+
+        const abbreviations = selectedCheckboxes.map(cb => cb.getAttribute('data-abbr'));
+        statusDisplay.value = abbreviations.join(',');
+    }
+
+    // Funzione per salvare i filtri nel localStorage
+    function saveFilters(textFilterValues, selectedStatuses) {
+        const filters = {
+            text: textFilterValues,
+            status: selectedStatuses
+        };
+        localStorage.setItem('taskFilters', JSON.stringify(filters));
+    }
+
+    // Funzione per applicare i filtri
+    function applyFilters() {
+        const textFilterValues = textFilterInputs.map(input => input.value.toLowerCase().trim());
+        const selectedStatuses = Array.from(statusCheckboxes)
+            .filter(cb => cb.checked)
+            .map(cb => cb.value);
+
+        // Salva i filtri nel localStorage
+        saveFilters(textFilterValues, selectedStatuses);
+        
+        updateStatusDisplay();
+
+        Array.from(tableRows).forEach(row => {
+            let isMatch = true;
+
+            // Controllo filtro utente
+            if (textFilterValues[0] && !row.cells[4].textContent.toLowerCase().includes(textFilterValues[0])) {
+                isMatch = false;
+            }
+
+            // Controllo filtro factory
+            if (isMatch && textFilterValues[1] && !row.cells[0].textContent.toLowerCase().includes(textFilterValues[1])) {
+                isMatch = false;
+            }
+
+            // Controllo filtro model number
+            if (isMatch && textFilterValues[2] && !row.cells[1].textContent.toLowerCase().includes(textFilterValues[2])) {
+                isMatch = false;
+            }
+
+            // Controllo filtro status
+            if (isMatch && selectedStatuses.length > 0) {
+                const statusCell = row.cells[5];
+                const statusText = statusCell.textContent.trim();
+                if (!selectedStatuses.includes(statusText)) {
+                    isMatch = false;
+                }
+            }
+
+            row.style.display = isMatch ? '' : 'none';
+        });
+    }
+
+    // Funzione per caricare e applicare i filtri salvati
+    function loadSavedFilters() {
+        const savedFilters = localStorage.getItem('taskFilters');
+        if (savedFilters) {
+            const filters = JSON.parse(savedFilters);
+            
+            // Applica i filtri di testo
+            textFilterInputs.forEach((input, index) => {
+                input.value = filters.text[index] || '';
+            });
+            
+            // Applica i filtri di stato
+            statusCheckboxes.forEach(checkbox => {
+                checkbox.checked = filters.status.includes(checkbox.value);
+            });
+            
+            // Applica i filtri
+            applyFilters();
+        }
+    }
+
+    // Event listeners per i filtri
+    textFilterInputs.forEach(input => {
+        input.addEventListener('input', applyFilters);
+    });
+
+    statusCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', applyFilters);
+    });
+
+    // Carica i filtri salvati e inizializza il display degli stati
+    loadSavedFilters();
+    updateStatusDisplay();
+
+    // Espone le funzioni necessarie
+    publicApi.applyFilters = applyFilters;
+    
+    // Salva il riferimento globale
+    filteringApi = publicApi;
+    
+    return publicApi;
 }
 
 function handleResponse(response) {

@@ -1,3 +1,144 @@
+// Variabile globale per mantenere il riferimento alle funzioni di filtering
+let filteringApi = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Enable live filtering
+    enableLiveFiltering();
+});
+
+// Function to enable live filtering
+function enableLiveFiltering() {
+    // Oggetto per esporre funzioni pubbliche
+    const publicApi = {};
+    
+    // Gestione dropdown status
+    const statusDropdownBtn = document.getElementById('status-dropdown-btn');
+    const statusDropdown = document.getElementById('status-filter');
+    const statusCheckboxes = statusDropdown.querySelectorAll('input[type="checkbox"]');
+    
+    // Apertura/chiusura dropdown
+    statusDropdownBtn.addEventListener('click', function() {
+        statusDropdown.classList.toggle('show');
+    });
+
+    // Chiudi dropdown quando si clicca fuori
+    document.addEventListener('click', function(event) {
+        if (!event.target.matches('#status-dropdown-btn') && !event.target.closest('.dropdown-content')) {
+            statusDropdown.classList.remove('show');
+        }
+    });
+
+    // Gestione filtri testo
+    const textFilterInputs = [
+        document.getElementById('phase-filter'),
+        document.getElementById('assigned-to-filter')
+    ];
+    const tableRows = document.getElementById('history-table').getElementsByTagName('tbody')[0].rows;
+
+    // Funzione per aggiornare il display degli stati selezionati
+    function updateStatusDisplay() {
+        const selectedCheckboxes = Array.from(statusCheckboxes).filter(cb => cb.checked);
+        const statusDisplay = document.getElementById('status-display');
+        
+        if (selectedCheckboxes.length === 0) {
+            statusDisplay.value = '';
+            return;
+        }
+
+        const abbreviations = selectedCheckboxes.map(cb => cb.getAttribute('data-abbr'));
+        statusDisplay.value = abbreviations.join(',');
+    }
+
+    // Funzione per salvare i filtri nel localStorage
+    function saveFilters(textFilterValues, selectedStatuses) {
+        const filters = {
+            text: textFilterValues,
+            status: selectedStatuses
+        };
+        localStorage.setItem('historyFilters', JSON.stringify(filters));
+    }
+
+    // Funzione per applicare i filtri
+    function applyFilters() {
+        const textFilterValues = textFilterInputs.map(input => input.value.toLowerCase().trim());
+        const selectedStatuses = Array.from(statusCheckboxes)
+            .filter(cb => cb.checked)
+            .map(cb => cb.value);
+
+        // Salva i filtri nel localStorage
+        saveFilters(textFilterValues, selectedStatuses);
+        
+        updateStatusDisplay();
+
+        Array.from(tableRows).forEach(row => {
+            let isMatch = true;
+
+            // Controllo filtro phase
+            if (textFilterValues[0] && !row.cells[1].textContent.toLowerCase().includes(textFilterValues[0])) {
+                isMatch = false;
+            }
+
+            // Controllo filtro assigned to
+            if (isMatch && textFilterValues[1] && !row.cells[3].textContent.toLowerCase().includes(textFilterValues[1])) {
+                isMatch = false;
+            }
+
+            // Controllo filtro status
+            if (isMatch && selectedStatuses.length > 0) {
+                const statusCell = row.cells[4];
+                const statusText = statusCell.textContent.trim();
+                if (!selectedStatuses.includes(statusText)) {
+                    isMatch = false;
+                }
+            }
+
+            row.style.display = isMatch ? '' : 'none';
+        });
+    }
+
+    // Funzione per caricare e applicare i filtri salvati
+    function loadSavedFilters() {
+        const savedFilters = localStorage.getItem('historyFilters');
+        if (savedFilters) {
+            const filters = JSON.parse(savedFilters);
+            
+            // Applica i filtri di testo
+            textFilterInputs.forEach((input, index) => {
+                input.value = filters.text[index] || '';
+            });
+            
+            // Applica i filtri di stato
+            statusCheckboxes.forEach(checkbox => {
+                checkbox.checked = filters.status.includes(checkbox.value);
+            });
+            
+            // Applica i filtri
+            applyFilters();
+        }
+    }
+
+    // Event listeners per i filtri
+    textFilterInputs.forEach(input => {
+        input.addEventListener('input', applyFilters);
+    });
+
+    statusCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', applyFilters);
+    });
+
+    // Carica i filtri salvati e inizializza il display degli stati
+    loadSavedFilters();
+    updateStatusDisplay();
+
+    // Espone le funzioni necessarie
+    publicApi.applyFilters = applyFilters;
+    
+    // Salva il riferimento globale
+    filteringApi = publicApi;
+    
+    return publicApi;
+}
+
 // Funzioni per la gestione della cronologia del progetto
 
 /**
@@ -279,6 +420,11 @@ window.displayProjectHistory = function(history) {
         if (assignedMember) {
             row.style.backgroundColor = assignedMember.color;
         }
+
+        // Riapplica i filtri dopo aver aggiunto la riga
+        if (filteringApi && typeof filteringApi.applyFilters === 'function') {
+            filteringApi.applyFilters();
+        }
     });
 };
 
@@ -391,9 +537,9 @@ window.updateFilesCell = async function(entryId) {
         const deleteIcon = document.createElement('i');
         deleteIcon.className = 'fas fa-trash';
         deleteBtn.appendChild(deleteIcon);
-            deleteBtn.addEventListener('click', async () => {
-                await window.deleteFile(file.id);
-                window.updateFilesCell(entryId);
+        deleteBtn.addEventListener('click', async () => {
+            await window.deleteFile(file.id);
+            window.updateFilesCell(entryId);
         });
         fileItem.appendChild(deleteBtn);
         
@@ -409,9 +555,9 @@ window.updateFilesCell = async function(entryId) {
             const userId = String(window.currentUserId);
             unlockBtn.disabled = fileLockedBy !== userId;
 
-                unlockBtn.addEventListener('click', async () => {
-                    await window.unlockFile(file.id);
-                    window.updateFilesCell(entryId);
+            unlockBtn.addEventListener('click', async () => {
+                await window.unlockFile(file.id);
+                window.updateFilesCell(entryId);
             });
             fileItem.appendChild(unlockBtn);
             
@@ -471,6 +617,16 @@ window.addHistoryEntry = function(projectId) {
             textarea.style.minHeight = '100px';
             textarea.style.resize = 'vertical';
             cell.appendChild(textarea);
+        } else if (field === 'status') {
+            const select = document.createElement('select');
+            select.style.backgroundColor = '#ffff99';
+            ['In Progress', 'Completed', 'On Hold', 'Archived'].forEach(status => {
+                const option = document.createElement('option');
+                option.value = status;
+                option.textContent = status;
+                select.appendChild(option);
+            });
+            cell.appendChild(select);
         } else {
             const input = document.createElement('input');
             input.type = 'text';
@@ -516,7 +672,7 @@ window.saveNewHistoryEntry = async function(projectId, row) {
         phase: row.cells[1].firstChild.value,
         description: row.cells[2].firstChild.value,
         assigned_to: row.cells[3].querySelector('select').value,
-        status: row.cells[4].firstChild.value
+        status: row.cells[4].querySelector('select').value
     };
     console.log('Dati della nuova voce:', newEntry);
 
@@ -575,6 +731,17 @@ window.editHistoryEntry = function(entryId) {
                     }
                     input.appendChild(option);
                 });
+            } else if (i === 4) { // Campo 'status'
+                input = document.createElement('select');
+                ['In Progress', 'Completed', 'On Hold', 'Archived'].forEach(status => {
+                    const option = document.createElement('option');
+                    option.value = status;
+                    option.textContent = status;
+                    if (status === historyData.status) {
+                        option.selected = true;
+                    }
+                    input.appendChild(option);
+                });
             } else if (i === 2) { // Campo 'description'
                 // Per il campo description, manteniamo il testo originale inclusi i link
                 input = document.createElement('textarea');
@@ -584,7 +751,7 @@ window.editHistoryEntry = function(entryId) {
                 input.style.width = '100%';
                 input.style.minHeight = '100px';
                 input.style.resize = 'vertical';
-            } else { // Campi 'date', 'phase', 'status'
+            } else { // Campi 'date', 'phase'
                 input = document.createElement('input');
                 input.type = i === 0 ? 'date' : 'text';
                 input.value = historyData[Object.keys(historyData)[i]];
