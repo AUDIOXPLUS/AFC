@@ -540,6 +540,11 @@ table input[type="text"], table input[type="date"] {
     margin-bottom: 10px;
 }
 
+/* Rimuove il testo mantenendo solo il pulsante */
+input[type="file"] {
+    width: 90px;
+}
+
 .upload-status {
     margin-top: 5px;
     padding: 5px;

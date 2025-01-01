@@ -246,16 +246,14 @@ window.displayProjectHistory = function(history) {
 
         const setCompletedBtn = document.createElement('button');
         setCompletedBtn.className = 'set-completed-btn';
-        setCompletedBtn.textContent = 'Set Completed';
+        setCompletedBtn.textContent = 'Completed';
         setCompletedBtn.addEventListener('click', async () => {
-            row.style.backgroundColor = '#f0f0f0';
-            
             const updatedEntry = {
                 date: entry.date,
                 phase: entry.phase,
                 description: entry.description,
-                assignedTo: 'Completed',
-                status: entry.status
+                assignedTo: entry.assigned_to,
+                status: 'Completed'
             };
 
             try {
@@ -268,7 +266,7 @@ window.displayProjectHistory = function(history) {
                 });
 
                 if (response.ok) {
-                    row.cells[3].textContent = 'Completed';
+                    window.location.reload();
                 } else {
                     console.error('Errore nell\'aggiornare la voce della cronologia');
                 }
@@ -278,10 +276,14 @@ window.displayProjectHistory = function(history) {
         });
         actionsCell.appendChild(setCompletedBtn);
 
-        // Imposta il colore di sfondo basato sul membro assegnato
-        const assignedMember = window.teamMembers.find(member => member.name === entry.assigned_to);
-        if (assignedMember) {
-            row.style.backgroundColor = assignedMember.color;
+        // Imposta il colore di sfondo basato sullo stato o sul membro assegnato
+        if (entry.status === 'Completed') {
+            row.style.backgroundColor = '#f0f0f0';
+        } else {
+            const assignedMember = window.teamMembers.find(member => member.name === entry.assigned_to);
+            if (assignedMember) {
+                row.style.backgroundColor = assignedMember.color;
+            }
         }
 
         // Riapplica i filtri dopo aver aggiunto la riga
