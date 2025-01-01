@@ -473,6 +473,12 @@ window.addHistoryEntry = function(projectId) {
             input.type = 'date';
             input.name = field;
             input.style.backgroundColor = '#ffff99';
+            // Imposta automaticamente la data odierna
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            input.value = `${year}-${month}-${day}`;
             cell.appendChild(input);
         } else if (field === 'description') {
             const textarea = document.createElement('textarea');
