@@ -47,8 +47,7 @@
                 <input type="text" id="phase-filter" placeholder="Phase">
                 <input type="text" id="assigned-to-filter" placeholder="Assigned to">
                 <div class="status-dropdown">
-                    <input type="text" id="status-display" readonly placeholder="Status">
-                    <button id="status-dropdown-btn">▼</button>
+                    <button id="status-dropdown-btn">Status</button>
                     <div id="status-filter" class="dropdown-content">
                         <label><input type="checkbox" value="In Progress" data-abbr="IP"> In Progress</label>
                         <label><input type="checkbox" value="Completed" data-abbr="CO"> Completed</label>
@@ -75,10 +74,8 @@
             </table>
         </div>
     </main>
-    <!-- Carica prima i file di supporto -->
+    <script src="project-details.js"></script>
     <script src="project-layout.js"></script>
     <script src="project-history.js"></script>
-    <!-- Carica per ultimo il file principale che dipende dagli altri -->
-    <script src="project-details.js"></script>
 </body>
 </html>

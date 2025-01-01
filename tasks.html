@@ -28,14 +28,15 @@
     </header>
     <main>
         <h1>My Tasks</h1>
-        <div class="task-filter">
-            <input type="text" id="filter-input" placeholder="Filter by user...">
-            <input type="text" id="factory-filter" placeholder="Filter by factory...">
-            <input type="text" id="model-filter" placeholder="Filter by model number...">
-            <div class="status-dropdown">
-                <input type="text" id="status-display" readonly placeholder="Status">
-                <button id="status-dropdown-btn">▼</button>
-                <div id="status-filter" class="dropdown-content">
+        <div class="filters">
+            <input type="text" id="filter-input" placeholder="User">
+            <input type="text" id="factory-filter" placeholder="Factory">
+            <input type="text" id="model-filter" placeholder="Model n">
+<div class="status-dropdown">
+<button id="status-dropdown-btn">
+    Status
+</button>
+    <div id="status-filter" class="dropdown-content">
                     <label><input type="checkbox" value="In Progress" data-abbr="IP"> In Progress</label>
                     <label><input type="checkbox" value="Completed" data-abbr="CO"> Completed</label>
                     <label><input type="checkbox" value="On Hold" data-abbr="OH"> On Hold</label>

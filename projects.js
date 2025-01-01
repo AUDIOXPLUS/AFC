@@ -380,15 +380,15 @@ function enableLiveFiltering() {
     // Funzione per aggiornare il display degli stati selezionati
     function updateStatusDisplay() {
         const selectedCheckboxes = Array.from(statusCheckboxes).filter(cb => cb.checked);
-        const statusDisplay = document.getElementById('status-display');
+        const statusDropdownBtn = document.getElementById('status-dropdown-btn');
         
         if (selectedCheckboxes.length === 0) {
-            statusDisplay.value = '';
+            statusDropdownBtn.textContent = 'Status';
             return;
         }
 
-        const abbreviations = selectedCheckboxes.map(cb => cb.getAttribute('data-abbr'));
-        statusDisplay.value = abbreviations.join(',');
+        const selectedStatuses = selectedCheckboxes.map(cb => cb.getAttribute('data-abbr'));
+        statusDropdownBtn.textContent = selectedStatuses.join(', ');
     }
 
     // Funzione per salvare i filtri nel localStorage

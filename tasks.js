@@ -97,25 +97,22 @@ function enableLiveFiltering() {
     });
 
     // Gestione filtri testo
-    const textFilterInputs = [
-        document.getElementById('filter-input'),
-        document.getElementById('factory-filter'),
-        document.getElementById('model-filter')
-    ];
+    const textFilterInputs = document.querySelectorAll('.filters input[type="text"]');
     const tableRows = document.getElementById('task-table').getElementsByTagName('tbody')[0].rows;
+    const filterIndices = [0, 1, 4]; // Indici delle colonne da filtrare
 
     // Funzione per aggiornare il display degli stati selezionati
     function updateStatusDisplay() {
         const selectedCheckboxes = Array.from(statusCheckboxes).filter(cb => cb.checked);
-        const statusDisplay = document.getElementById('status-display');
+        const statusDropdownBtn = document.getElementById('status-dropdown-btn');
         
         if (selectedCheckboxes.length === 0) {
-            statusDisplay.value = '';
+            statusDropdownBtn.textContent = 'Status';
             return;
         }
 
-        const abbreviations = selectedCheckboxes.map(cb => cb.getAttribute('data-abbr'));
-        statusDisplay.value = abbreviations.join(',');
+        const selectedStatuses = selectedCheckboxes.map(cb => cb.getAttribute('data-abbr'));
+        statusDropdownBtn.textContent = selectedStatuses.join(', ');
     }
 
     // Funzione per salvare i filtri nel localStorage
@@ -129,7 +126,7 @@ function enableLiveFiltering() {
 
     // Funzione per applicare i filtri
     function applyFilters() {
-        const textFilterValues = textFilterInputs.map(input => input.value.toLowerCase().trim());
+        const textFilterValues = Array.from(textFilterInputs).map(input => input.value.toLowerCase().trim());
         const selectedStatuses = Array.from(statusCheckboxes)
             .filter(cb => cb.checked)
             .map(cb => cb.value);
@@ -142,19 +139,19 @@ function enableLiveFiltering() {
         Array.from(tableRows).forEach(row => {
             let isMatch = true;
 
-            // Controllo filtro utente
-            if (textFilterValues[0] && !row.cells[4].textContent.toLowerCase().includes(textFilterValues[0])) {
-                isMatch = false;
-            }
+            // Controllo filtri testo
+            for (let i = 0; i < textFilterValues.length; i++) {
+                const filterValue = textFilterValues[i];
+                const cellIndex = filterIndices[i];
+                const cell = row.cells[cellIndex];
 
-            // Controllo filtro factory
-            if (isMatch && textFilterValues[1] && !row.cells[0].textContent.toLowerCase().includes(textFilterValues[1])) {
-                isMatch = false;
-            }
-
-            // Controllo filtro model number
-            if (isMatch && textFilterValues[2] && !row.cells[1].textContent.toLowerCase().includes(textFilterValues[2])) {
-                isMatch = false;
+                if (cell && filterValue) {
+                    const cellText = cell.textContent.toLowerCase().trim();
+                    if (!cellText.includes(filterValue)) {
+                        isMatch = false;
+                        break;
+                    }
+                }
             }
 
             // Controllo filtro status

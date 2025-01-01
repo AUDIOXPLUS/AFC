@@ -37,9 +37,13 @@
             <input type="text" id="model-filter" placeholder="Model n">
             <input type="text" id="product-kind-filter" placeholder="Product kind">
             <input type="text" id="client-filter" placeholder="Client">
+            
+            
             <div class="status-dropdown">
-                <input type="text" id="status-display" readonly placeholder="Status">
-                <button id="status-dropdown-btn">▼</button>
+                <!--<input type="text" id="status-display" readonly placeholder="Status">-->
+                <button id="status-dropdown-btn">
+                    Status
+                </button>
                 <div id="status-filter" class="dropdown-content">
                     <label><input type="checkbox" value="In Progress" data-abbr="IP"> In Progress</label>
                     <label><input type="checkbox" value="Completed" data-abbr="CO"> Completed</label>
@@ -47,6 +51,8 @@
                     <label><input type="checkbox" value="Archived" data-abbr="AR"> Archived</label>
                 </div>
             </div>
+
+
         </div>
         <table id="projects-table">
             <thead>

@@ -113,15 +113,35 @@ main > .table-actions, main > .add-btn {
     border: 1px solid #ddd;
     border-radius: 3px;
     font-size: 12px;
+    width: 120px; /* Larghezza sufficiente per "Product Kind" */
 }
 
-.filters button {
-    background-color: #3498db;
+.filters button, .dropbtn {
+    background-color: #3498db; /* Colore di sfondo aggiornato per uniformità */
     color: white;
-    border: none;
+    border: 1px solid #ddd; /* Aggiunto bordo per contiguità */
     cursor: pointer;
     transition: background-color 0.3s ease;
+    padding: 10px 20px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
+
+.arrow {
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    display: inline-block;
+    padding: 3px;
+    transform: rotate(45deg);
+    transition: transform 0.3s;
+}
+
+.arrow.up {
+    transform: rotate(-135deg);
+}
+
 
 .filters button:hover {
     background-color: #2980b9;
@@ -132,45 +152,42 @@ main > .table-actions, main > .add-btn {
     position: relative;
     display: inline-flex;
     align-items: center;
-}
-
-#status-display {
-    border: 1px solid #ddd;
-    border-right: none;
-    border-top-right-radius: 0;
-    border-bottom-right-radius: 0;
-    padding: 5px 10px;
-    font-size: 12px;
-    width: 80px;
-    background-color: #fff;
-    cursor: default;
+    z-index: 9998;
 }
 
 #status-dropdown-btn {
     background-color: #fff;
     border: 1px solid #ddd;
-    border-left: none;
     padding: 5px 8px;
     cursor: pointer;
     font-size: 12px;
-    border-top-right-radius: 3px;
-    border-bottom-right-radius: 3px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-width: 80px;
+    color: #333;
 }
 
 .dropdown-content {
     display: none;
     position: absolute;
+    top: 100%;
+    left: 0;
     background-color: #fff;
     min-width: 160px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    z-index: 1000;
+    z-index: 9999;
     border-radius: 3px;
     padding: 5px 0;
+    margin-top: 2px;
+    pointer-events: auto;
 }
 
 .dropdown-content label {
-    display: block;
-    padding: 5px 10px;
+    display: flex;
+    align-items: center;
+    padding: 5px;
     cursor: pointer;
     transition: background-color 0.2s;
 }
