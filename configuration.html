@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configuration</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo">AFC</div>
+            <ul>
+                <li><a href="projects.html">Projects</a></li>
+                <li><a href="users.html">Team Members</a></li>
+                <li><a href="tasks.html">My Tasks</a></li>
+                <li><a href="configuration.html">Configuration</a></li>
+            </ul>
+        </nav>
+        <div class="user-info">
+            <span>Welcome, </span>
+            <a href="#" id="logout">Logout</a>
+        </div>
+    </header>
+
+        <main class="container">
+            <section class="phases-section">
+                <h2>Project Phases</h2>
+                <button id="add-phase-btn" class="add-btn">Add Phase</button>
+                
+                <table id="phases-table" class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Description</th>
+                            <th>Order</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Le fasi verranno inserite qui dinamicamente -->
+                    </tbody>
+                </table>
+            </section>
+        </main>
+
+    <script src="project-layout.js"></script>
+    <script src="phases.js"></script>
+</body>
+</html>

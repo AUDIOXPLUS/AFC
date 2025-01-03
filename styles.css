@@ -311,6 +311,12 @@ th i {
     background-color: #219a52;
 }
 
+/* Stile per i task completati */
+tr.completed {
+    background-color: #e0e0e0;
+    opacity: 0.7;
+}
+
 /* New styles for input elements in the table */
 table input[type="text"], table input[type="date"] {
     border: none;
@@ -460,7 +466,7 @@ table input[type="text"], table input[type="date"] {
 }
 
 #history-table tr:hover {
-    background-color: rgba(255, 255, 255, 0.7);
+    background-color: rgba(255, 255, 255, 0.2) !important;
 }
 
 /* Styles for team member color selection */

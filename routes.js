@@ -80,7 +80,7 @@ router.post('/login', (req, res) => {
 });
 
 // Endpoint per ottenere i progetti
-router.get('/projects', (req, res) => {
+router.get('/projects', checkAuthentication, (req, res) => {
     const query = 'SELECT * FROM projects';
     req.db.all(query, [], (err, rows) => {
         if (err) {
@@ -92,7 +92,7 @@ router.get('/projects', (req, res) => {
 });
 
 // Endpoint per ottenere un singolo progetto
-router.get('/projects/:id', (req, res) => {
+router.get('/projects/:id', checkAuthentication, (req, res) => {
     const projectId = req.params.id;
     const query = 'SELECT * FROM projects WHERE id = ?';
     req.db.get(query, [projectId], (err, row) => {
@@ -109,7 +109,7 @@ router.get('/projects/:id', (req, res) => {
 });
 
 // Endpoint per ottenere le fasi di un progetto
-router.get('/projects/:id/phases', (req, res) => {
+router.get('/projects/:id/phases', checkAuthentication, (req, res) => {
     const projectId = req.params.id;
     const query = 'SELECT * FROM phases WHERE project_id = ?';
     req.db.all(query, [projectId], (err, rows) => {
@@ -122,7 +122,7 @@ router.get('/projects/:id/phases', (req, res) => {
 });
 
 // Endpoint per ottenere la cronologia di un progetto
-router.get('/projects/:id/history', (req, res) => {
+router.get('/projects/:id/history', checkAuthentication, (req, res) => {
     const projectId = req.params.id;
     const query = 'SELECT * FROM project_history WHERE project_id = ?';
     req.db.all(query, [projectId], (err, rows) => {
@@ -135,7 +135,7 @@ router.get('/projects/:id/history', (req, res) => {
 });
 
 // Endpoint per aggiungere un progetto
-router.post('/projects', (req, res) => {
+router.post('/projects', checkAuthentication, (req, res) => {
     const { factory, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, status } = req.body;
     const query = `INSERT INTO projects (factory, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, status) 
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
@@ -149,7 +149,7 @@ router.post('/projects', (req, res) => {
 });
 
 // Endpoint per aggiornare un progetto
-router.put('/projects/:id', (req, res) => {
+router.put('/projects/:id', checkAuthentication, (req, res) => {
     const { factory, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, status } = req.body;
     const query = `UPDATE projects SET factory = ?, modelNumber = ?, factoryModelNumber = ?, productKind = ?, client = ?, startDate = ?, endDate = ?, status = ? WHERE id = ?`;
     req.db.run(query, [factory, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, status, req.params.id], function(err) {
@@ -162,7 +162,7 @@ router.put('/projects/:id', (req, res) => {
 });
 
 // Endpoint per eliminare un progetto
-router.delete('/projects/:id', (req, res) => {
+router.delete('/projects/:id', checkAuthentication, (req, res) => {
     const query = `DELETE FROM projects WHERE id = ?`;
     req.db.run(query, req.params.id, function(err) {
         if (err) {
@@ -173,8 +173,77 @@ router.delete('/projects/:id', (req, res) => {
     });
 });
 
+
+// Endpoint per ottenere le fasi
+router.get('/phases', checkAuthentication, (req, res) => {
+    const query = 'SELECT * FROM phases ORDER BY order_num';
+    req.db.all(query, [], (err, rows) => {
+        if (err) {
+            console.error('Errore nel recupero delle fasi:', err);
+            return res.status(500).send('Errore del server');
+        }
+        res.json(rows);
+    });
+});
+
+// Endpoint per aggiungere una nuova fase
+router.post('/phases', checkAuthentication, (req, res) => {
+    const { name, description, order_num } = req.body; // Modificato 'order' in 'order_num'
+    const query = `INSERT INTO phases (name, description, order_num) VALUES (?, ?, ?)`;
+    req.db.run(query, [name, description, order_num], function(err) {
+        if (err) {
+            console.error('Errore nell\'inserimento della fase:', err);
+            return res.status(500).send('Errore del server');
+        }
+        res.status(201).json({ 
+            id: this.lastID,
+            name,
+            description,
+            order_num
+        });
+    });
+});
+
+// Endpoint per aggiornare una fase
+router.put('/phases/:id', checkAuthentication, (req, res) => {
+    const { name, description, order_num } = req.body; // Modificato 'order' in 'order_num'
+    const phaseId = req.params.id;
+    const query = `UPDATE phases SET name = ?, description = ?, order_num = ? WHERE id = ?`;
+    req.db.run(query, [name, description, order_num, phaseId], function(err) {
+        if (err) {
+            console.error('Errore nell\'aggiornamento della fase:', err);
+            return res.status(500).send('Errore del server');
+        }
+        if (this.changes === 0) {
+            return res.status(404).send('Fase non trovata');
+        }
+        res.status(200).json({
+            id: phaseId,
+            name,
+            description,
+            order_num
+        });
+    });
+});
+
+// Endpoint per eliminare una fase
+router.delete('/phases/:id', checkAuthentication, (req, res) => {
+    const phaseId = req.params.id;
+    const query = `DELETE FROM phases WHERE id = ?`;
+    req.db.run(query, [phaseId], function(err) {
+        if (err) {
+            console.error('Errore nell\'eliminazione della fase:', err);
+            return res.status(500).send('Errore del server');
+        }
+        if (this.changes === 0) {
+            return res.status(404).send('Fase non trovata');
+        }
+        res.status(200).send('Fase eliminata con successo');
+    });
+});
+
 // Endpoint per ottenere i membri del team
-router.get('/team-members', (req, res) => {
+router.get('/team-members', checkAuthentication, (req, res) => {
     const query = 'SELECT id, name, role, email, color, username FROM users';
     req.db.all(query, [], (err, rows) => {
         if (err) {
@@ -186,7 +255,7 @@ router.get('/team-members', (req, res) => {
 });
 
 // Endpoint per aggiungere un membro del team
-router.post('/team-members', (req, res) => {
+router.post('/team-members', checkAuthentication, (req, res) => {
     const { name, role, email, color, username, password } = req.body;
     const query = `INSERT INTO users (name, role, email, color, username, password) VALUES (?, ?, ?, ?, ?, ?)`;
     req.db.run(query, [name, role, email, color, username, password], function(err) {
@@ -199,7 +268,7 @@ router.post('/team-members', (req, res) => {
 });
 
 // Endpoint per aggiornare un membro del team
-router.put('/team-members/:id', (req, res) => {
+router.put('/team-members/:id', checkAuthentication, (req, res) => {
     const { name, role, email, color } = req.body;
     const userId = req.params.id;
 
@@ -225,7 +294,7 @@ router.put('/team-members/:id', (req, res) => {
 });
 
 // Endpoint per ottenere i privilegi di un membro del team
-router.get('/team-members/:id/privileges', (req, res) => {
+router.get('/team-members/:id/privileges', checkAuthentication, (req, res) => {
     const userId = req.params.id;
     const query = `SELECT p.page, p.action 
                    FROM privileges p
@@ -248,7 +317,7 @@ router.get('/team-members/:id/privileges', (req, res) => {
 });
 
 // Endpoint per aggiornare i privilegi di un membro del team
-router.put('/team-members/:id/privileges', (req, res) => {
+router.put('/team-members/:id/privileges', checkAuthentication, (req, res) => {
     const userId = req.params.id;
     const { privileges } = req.body;
 
@@ -319,7 +388,7 @@ router.put('/team-members/:id/privileges', (req, res) => {
 });
 
 // Endpoint per ottenere i dettagli di un singolo membro del team
-router.get('/team-members/:id', (req, res) => {
+router.get('/team-members/:id', checkAuthentication, (req, res) => {
     const userId = req.params.id;
     const query = 'SELECT id, name, role, email, color, username FROM users WHERE id = ?';
 
@@ -350,7 +419,7 @@ router.get('/session-user', (req, res) => {
 });
 
 // Endpoint per aggiungere una voce alla cronologia del progetto
-router.post('/projects/:id/history', (req, res) => {
+router.post('/projects/:id/history', checkAuthentication, (req, res) => {
     const projectId = req.params.id;
     const { date, phase, description, assigned_To, status } = req.body;
 
@@ -369,7 +438,7 @@ router.post('/projects/:id/history', (req, res) => {
 });
 
 // Endpoint per aggiornare una voce della cronologia del progetto
-router.put('/projects/:projectId/history/:historyId', (req, res) => {
+router.put('/projects/:projectId/history/:historyId', checkAuthentication, (req, res) => {
     const { projectId, historyId } = req.params;
     const { date, phase, description, assignedTo, status } = req.body;
 
@@ -388,7 +457,7 @@ router.put('/projects/:projectId/history/:historyId', (req, res) => {
     });
 });
 
-router.delete('/projects/:projectId/history/:entryId', (req, res) => {
+router.delete('/projects/:projectId/history/:entryId', checkAuthentication, (req, res) => {
     const { projectId, entryId } = req.params;
 
     // Prima otteniamo i file associati alla voce di cronologia
@@ -445,7 +514,7 @@ router.delete('/projects/:projectId/history/:entryId', (req, res) => {
 });
 
 // Endpoint per ottenere tutte le attività
-router.get('/tasks', (req, res) => {
+router.get('/tasks', checkAuthentication, (req, res) => {
     const query = `
         SELECT 
             ph.id, 

@@ -1,3 +1,15 @@
+// Carica le fasi all'avvio della pagina
+document.addEventListener('DOMContentLoaded', function() {
+    // Carica le fasi dal server
+    fetch('/api/phases')
+        .then(response => response.json())
+        .then(phases => {
+            window.projectPhases = phases;
+            window.dispatchEvent(new CustomEvent('phasesLoaded', { detail: phases }));
+        })
+        .catch(error => console.error('Errore nel caricare le fasi:', error));
+});
+
 // Variabile globale per mantenere il riferimento alle funzioni di filtering
 let filteringApi = null;
 
@@ -67,7 +79,24 @@ window.displayProjectHistory = function(history) {
 
         // Inserisce le celle della tabella con i dati della cronologia
         row.insertCell(0).textContent = entry.date;
-        row.insertCell(1).textContent = entry.phase;
+        
+        // Trova il nome della fase corrispondente
+        const phaseCell = row.insertCell(1);
+        if (window.projectPhases) {
+            const phase = window.projectPhases.find(p => String(p.id) === String(entry.phase));
+            phaseCell.textContent = phase ? phase.name : entry.phase;
+        } else {
+            // Se le fasi non sono ancora state caricate, aggiungi un listener per l'evento phasesLoaded
+            phaseCell.textContent = entry.phase;
+            window.addEventListener('phasesLoaded', (event) => {
+                const phases = event.detail;
+                const phase = phases.find(p => String(p.id) === String(entry.phase));
+                if (phase) {
+                    phaseCell.textContent = phase.name;
+                }
+            });
+        }
+        
         // Crea una cella per la descrizione
         const descCell = row.insertCell(2);
         
@@ -95,7 +124,9 @@ window.displayProjectHistory = function(history) {
             // Se non ci sono URL, mostra il testo normalmente
             descCell.textContent = description;
         }
-        row.insertCell(3).textContent = entry.assigned_to;
+        // Converti l'ID in nome utente se necessario
+        const assignedMember = window.teamMembers.find(member => String(member.id) === String(entry.assigned_to));
+        row.insertCell(3).textContent = assignedMember ? assignedMember.name : entry.assigned_to;
         row.insertCell(4).textContent = entry.status;
 
         // Gestisce la cella dei file associati alla voce della cronologia
@@ -248,9 +279,10 @@ window.displayProjectHistory = function(history) {
         setCompletedBtn.className = 'set-completed-btn';
         setCompletedBtn.textContent = 'Completed';
         setCompletedBtn.addEventListener('click', async () => {
+            // Mantiene l'ID della fase quando si imposta come completato
             const updatedEntry = {
                 date: entry.date,
-                phase: entry.phase,
+                phase: entry.phase, // Mantiene l'ID della fase originale
                 description: entry.description,
                 assignedTo: entry.assigned_to,
                 status: 'Completed'
@@ -276,9 +308,9 @@ window.displayProjectHistory = function(history) {
         });
         actionsCell.appendChild(setCompletedBtn);
 
-        // Imposta il colore di sfondo basato sullo stato o sul membro assegnato
+        // Imposta il colore di sfondo e la classe per i task completati
         if (entry.status === 'Completed') {
-            row.style.backgroundColor = '#f0f0f0';
+            row.classList.add('completed');
         } else {
             const assignedMember = window.teamMembers.find(member => member.name === entry.assigned_to);
             if (assignedMember) {
@@ -465,6 +497,10 @@ window.addHistoryEntry = function(projectId) {
                 const option = document.createElement('option');
                 option.value = member.id;
                 option.textContent = member.name;
+                // Seleziona l'utente corrente di default
+                if (String(member.id) === window.currentUserId) {
+                    option.selected = true;
+                }
                 select.appendChild(option);
             });
             cell.appendChild(select);
@@ -488,6 +524,30 @@ window.addHistoryEntry = function(projectId) {
             textarea.style.minHeight = '100px';
             textarea.style.resize = 'vertical';
             cell.appendChild(textarea);
+        } else if (field === 'phase') {
+            const select = document.createElement('select');
+            select.style.backgroundColor = '#ffff99';
+            // Verifica se le fasi sono già state caricate
+            if (window.projectPhases) {
+                window.projectPhases.forEach(phase => {
+                    const option = document.createElement('option');
+                    option.value = phase.id;
+                    option.textContent = phase.name;
+                    select.appendChild(option);
+                });
+            } else {
+                // Se le fasi non sono ancora state caricate, aggiungi un listener per l'evento phasesLoaded
+                window.addEventListener('phasesLoaded', (event) => {
+                    const phases = event.detail;
+                    phases.forEach(phase => {
+                        const option = document.createElement('option');
+                        option.value = phase.id;
+                        option.textContent = phase.name;
+                        select.appendChild(option);
+                    });
+                });
+            }
+            cell.appendChild(select);
         } else if (field === 'status') {
             const select = document.createElement('select');
             select.style.backgroundColor = '#ffff99';
@@ -538,11 +598,15 @@ window.addHistoryEntry = function(projectId) {
  * @param {HTMLTableRowElement} row - La riga della tabella che contiene i dati della nuova voce.
  */
 window.saveNewHistoryEntry = async function(projectId, row) {
+    // Ottieni l'ID selezionato e trova il nome corrispondente
+    const selectedUserId = row.cells[3].querySelector('select').value;
+    const selectedMember = window.teamMembers.find(member => String(member.id) === String(selectedUserId));
+    
     const newEntry = {
         date: row.cells[0].firstChild.value,
         phase: row.cells[1].firstChild.value,
         description: row.cells[2].firstChild.value,
-        assigned_to: row.cells[3].querySelector('select').value,
+        assignedTo: parseInt(row.cells[3].querySelector('select').value),
         status: row.cells[4].querySelector('select').value
     };
     console.log('Dati della nuova voce:', newEntry);
@@ -613,6 +677,34 @@ window.editHistoryEntry = function(entryId) {
                     }
                     input.appendChild(option);
                 });
+            } else if (i === 1) { // Campo 'phase'
+                input = document.createElement('select');
+                // Verifica se le fasi sono già state caricate
+                if (window.projectPhases) {
+                    window.projectPhases.forEach(phase => {
+                        const option = document.createElement('option');
+                        option.value = phase.id;
+                        option.textContent = phase.name;
+                        if (phase.name === historyData.phase) {
+                            option.selected = true;
+                        }
+                        input.appendChild(option);
+                    });
+                } else {
+                    // Se le fasi non sono ancora state caricate, aggiungi un listener per l'evento phasesLoaded
+                    window.addEventListener('phasesLoaded', (event) => {
+                        const phases = event.detail;
+                        phases.forEach(phase => {
+                            const option = document.createElement('option');
+                            option.value = phase.id;
+                            option.textContent = phase.name;
+                            if (phase.name === historyData.phase) {
+                                option.selected = true;
+                            }
+                            input.appendChild(option);
+                        });
+                    });
+                }
             } else if (i === 2) { // Campo 'description'
                 // Per il campo description, manteniamo il testo originale inclusi i link
                 input = document.createElement('textarea');
@@ -622,10 +714,10 @@ window.editHistoryEntry = function(entryId) {
                 input.style.width = '100%';
                 input.style.minHeight = '100px';
                 input.style.resize = 'vertical';
-            } else { // Campi 'date', 'phase'
+            } else if (i === 0) { // Campo 'date'
                 input = document.createElement('input');
-                input.type = i === 0 ? 'date' : 'text';
-                input.value = historyData[Object.keys(historyData)[i]];
+                input.type = 'date';
+                input.value = historyData.date;
             }
             input.style.backgroundColor = '#ffff99';
             cells[i].innerHTML = '';

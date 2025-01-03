@@ -25,10 +25,52 @@ document.addEventListener('DOMContentLoaded', async function() {
         return;
     }
 
+    // Funzione per recuperare i dettagli del progetto
+    window.fetchProjectDetails = async function(projectId) {
+        try {
+            const response = await fetch(`/api/projects/${projectId}`);
+            const project = await window.handleResponse(response);
+            
+            // Aggiorna il titolo del progetto
+            document.getElementById('project-model-number').textContent = project.modelNumber;
+            document.title = `Project Details: ${project.modelNumber}`;
+            
+            // Aggiorna il riepilogo del progetto
+            const detailsDiv = document.getElementById('project-details');
+            detailsDiv.innerHTML = `
+                <p><strong>Factory:</strong> ${project.factory || 'N/A'}</p>
+                <p><strong>Model Number:</strong> ${project.modelNumber}</p>
+                <p><strong>Factory Model Number:</strong> ${project.factoryModelNumber || 'N/A'}</p>
+                <p><strong>Product Kind:</strong> ${project.productKind || 'N/A'}</p>
+                <p><strong>Client:</strong> ${project.client || 'N/A'}</p>
+                <p><strong>Start Date:</strong> ${project.startDate || 'N/A'}</p>
+                <p><strong>End Date:</strong> ${project.endDate || 'N/A'}</p>
+                <p><strong>Status:</strong> ${project.status || 'N/A'}</p>
+            `;
+        } catch (error) {
+            console.error('Error fetching project details:', error);
+        }
+    };
+
+    // Funzione per recuperare le fasi del progetto
+    window.fetchProjectPhases = async function() {
+        try {
+            const response = await fetch('/api/phases');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const phases = await response.json();
+            window.projectPhases = phases;
+            window.dispatchEvent(new CustomEvent('phasesLoaded', { detail: phases }));
+        } catch (error) {
+            console.error('Error fetching phases:', error);
+        }
+    };
+
     if (projectId) {
         await window.fetchTeamMembers(); // Assicura che teamMembers sia popolato prima
         await window.fetchProjectDetails(projectId);
-        await window.fetchProjectPhases(projectId);
+        await window.fetchProjectPhases();
     } else {
         console.error('No project ID provided');
     }
@@ -37,11 +79,59 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     // Inizializza le funzionalità della tabella dopo aver caricato la cronologia
     await window.fetchProjectHistory(projectId);
+    window.updatePhaseSummary(); // Aggiungi questa linea
     window.restoreColumnWidths();
     window.enableColumnResizing();
     window.enableColumnSorting();
     enableLiveFiltering();
 });
+
+// Funzione per aggiornare la phase summary con l'ultima entry di ogni fase
+window.updatePhaseSummary = function() {
+    const historyTable = document.getElementById('history-table');
+    if (!historyTable) return;
+
+    const rows = historyTable.getElementsByTagName('tbody')[0].rows;
+    if (rows.length === 0) return;
+
+    // Oggetto per memorizzare l'ultima entry di ogni fase
+    const latestEntries = {};
+
+    // Itera su tutte le righe della tabella
+    for (let i = 0; i < rows.length; i++) {
+        const date = new Date(rows[i].cells[0].textContent.trim());
+        const phase = rows[i].cells[1].textContent.trim();
+        const description = rows[i].cells[2].textContent.trim();
+
+        // Se la fase non esiste o se questa entry è più recente
+        if (!latestEntries[phase] || date > latestEntries[phase].date) {
+            latestEntries[phase] = {
+                date: date,
+                description: description
+            };
+        }
+    }
+
+    // Crea il contenuto HTML per tutte le fasi
+    const phaseSummaryDiv = document.getElementById('phase-summary');
+    if (phaseSummaryDiv) {
+        let htmlContent = '';
+        for (const [phase, entry] of Object.entries(latestEntries)) {
+            htmlContent += `
+                <div class="phase-entry">
+                    <div><strong>${phase}</strong></div>
+                    <div>${entry.description}</div>
+                </div>
+                <hr>
+            `;
+        }
+        
+        // Rimuovi l'ultimo <hr>
+        htmlContent = htmlContent.replace(/<hr>[^<]*$/, '');
+        
+        phaseSummaryDiv.innerHTML = htmlContent;
+    }
+};
 
 // Function to enable live filtering
 function enableLiveFiltering() {
