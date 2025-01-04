@@ -1,5 +1,31 @@
+// Funzione di utilità per gestire gli errori di rete
+function handleNetworkError(error) {
+    console.error('Network error:', error);
+    // Se l'errore è di tipo network (offline) o 401 (non autorizzato)
+    if (!navigator.onLine || (error.response && error.response.status === 401)) {
+        window.location.href = 'login.html';
+    }
+}
+
+// Funzione per gestire le risposte delle API
+window.handleResponse = function(response) {
+    if (response.status === 401) {
+        window.location.href = '/login.html';
+        throw new Error('Unauthorized');
+    }
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+}
+
 // Carica le fasi all'avvio della pagina
 document.addEventListener('DOMContentLoaded', function() {
+    // Verifica lo stato della connessione
+    if (!navigator.onLine) {
+        window.location.href = 'login.html';
+        return;
+    }
     // Carica le fasi dal server
     fetch('/api/phases')
         .then(response => response.json())
@@ -7,7 +33,7 @@ document.addEventListener('DOMContentLoaded', function() {
             window.projectPhases = phases;
             window.dispatchEvent(new CustomEvent('phasesLoaded', { detail: phases }));
         })
-        .catch(error => console.error('Errore nel caricare le fasi:', error));
+        .catch(error => handleNetworkError(error));
 });
 
 // Variabile globale per mantenere il riferimento alle funzioni di filtering
@@ -61,7 +87,7 @@ window.fetchProjectHistory = async function(projectId) {
         console.log('Cronologia del Progetto:', history);
         window.displayProjectHistory(history);
     } catch (error) {
-        console.error('Errore nel recuperare la cronologia del progetto:', error);
+        handleNetworkError(error);
     }
 };
 
@@ -335,7 +361,7 @@ window.fetchEntryFiles = async function(entryId) {
         const response = await fetch(`/api/projects/${projectId}/files?historyId=${entryId}`);
         return await window.handleResponse(response);
     } catch (error) {
-        console.error('Errore nel recuperare i file:', error);
+        handleNetworkError(error);
         return [];
     }
 };
@@ -633,7 +659,7 @@ window.saveNewHistoryEntry = async function(projectId, row) {
         }
 
     } catch (error) {
-        console.error('Errore nell\'aggiungere la voce della cronologia:', error);
+        handleNetworkError(error);
     }
 };
 
@@ -803,7 +829,7 @@ window.deleteHistoryEntry = async function(entryId) {
             row.remove();
         }
     } catch (error) {
-        console.error('Errore nell\'eliminare la voce della cronologia:', error);
+        handleNetworkError(error);
     }
 };
 
@@ -815,7 +841,7 @@ window.downloadFile = function(fileId) {
     try {
         window.location.href = `/api/files/${fileId}/download`;
     } catch (error) {
-        console.error('Errore nel scaricare il file:', error);
+        handleNetworkError(error);
     }
 };
 
@@ -839,7 +865,7 @@ window.lockFile = async function(fileId) {
         const entryId = row.getAttribute('data-entry-id');
         window.updateFilesCell(entryId);
     } catch (error) {
-        console.error('Errore nel bloccare il file:', error);
+        handleNetworkError(error);
     }
 };
 
@@ -864,7 +890,7 @@ window.unlockFile = async function(fileId) {
         const entryId = row.getAttribute('data-entry-id');
         window.updateFilesCell(entryId);
     } catch (error) {
-        console.error('Errore durante lo sblocco del file:', error);
+        handleNetworkError(error);
     }
 };
 
@@ -897,6 +923,6 @@ window.deleteFile = async function(fileId) {
         const entryId = row.getAttribute('data-entry-id');
         window.updateFilesCell(entryId);
     } catch (error) {
-        console.error('Errore nell\'eliminare il file:', error);
+        handleNetworkError(error);
     }
 };

@@ -1,5 +1,19 @@
+// Funzione di utilità per gestire gli errori di rete
+function handleNetworkError(error) {
+    console.error('Network error:', error);
+    // Se l'errore è di tipo network (offline) o 401 (non autorizzato)
+    if (!navigator.onLine || (error.response && error.response.status === 401)) {
+        window.location.href = 'login.html';
+    }
+}
+
 // Aggiunta di un listener per l'evento DOMContentLoaded
 document.addEventListener('DOMContentLoaded', async function() {
+    // Verifica lo stato della connessione
+    if (!navigator.onLine) {
+        window.location.href = 'login.html';
+        return;
+    }
     const urlParams = new URLSearchParams(window.location.search);
     window.projectId = urlParams.get('id'); // Dichiarato come variabile globale
     window.currentUserId = null; // Memorizza l'ID utente corrente per le operazioni sui file
@@ -48,7 +62,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 <p><strong>Status:</strong> ${project.status || 'N/A'}</p>
             `;
         } catch (error) {
-            console.error('Error fetching project details:', error);
+            handleNetworkError(error);
         }
     };
 
@@ -63,7 +77,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             window.projectPhases = phases;
             window.dispatchEvent(new CustomEvent('phasesLoaded', { detail: phases }));
         } catch (error) {
-            console.error('Error fetching phases:', error);
+            handleNetworkError(error);
         }
     };
 

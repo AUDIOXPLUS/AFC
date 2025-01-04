@@ -1,7 +1,22 @@
+// Funzione di utilità per gestire gli errori di rete
+function handleNetworkError(error) {
+    console.error('Network error:', error);
+    // Se l'errore è di tipo network (offline)
+    if (!navigator.onLine) {
+        window.location.href = 'login.html';
+        return;
+    }
+    
+    // Se la risposta contiene uno status 401 (non autorizzato)
+    if (error instanceof Error && error.message.includes('status: 401')) {
+        window.location.href = 'login.html';
+        return;
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM content loaded, initializing dashboard...');
     initializeDashboard();
-    restoreColumnWidths(); // Restore column widths on page load
 });
 
 function initializeDashboard() {
@@ -23,6 +38,72 @@ function initializeDashboard() {
 
     // Enable live filtering
     enableLiveFiltering();
+
+    // Inizializza la gestione della visibilità delle colonne
+    initializeColumnVisibility();
+}
+
+// Funzione per inizializzare la gestione della visibilità delle colonne
+function initializeColumnVisibility() {
+    const table = document.getElementById('projects-table');
+    const checkboxes = document.querySelectorAll('.column-visibility input[type="checkbox"]');
+    
+    // Carica le preferenze salvate
+    const savedVisibility = JSON.parse(localStorage.getItem('columnVisibility')) || {};
+    
+    // Inizializza i checkbox e applica la visibilità iniziale
+    checkboxes.forEach(checkbox => {
+        const columnIndex = parseInt(checkbox.dataset.column);
+        checkbox.checked = savedVisibility[columnIndex] !== false; // Default a true se non salvato
+        
+        // Applica la visibilità iniziale
+        if (!checkbox.checked) {
+            hideColumn(table, columnIndex);
+        }
+        
+        // Aggiungi event listener per i cambiamenti
+        checkbox.addEventListener('change', (e) => {
+            const columnIndex = parseInt(e.target.dataset.column);
+            if (e.target.checked) {
+                showColumn(table, columnIndex);
+            } else {
+                hideColumn(table, columnIndex);
+            }
+            saveColumnVisibility();
+        });
+    });
+}
+
+// Funzione per nascondere una colonna
+function hideColumn(table, columnIndex) {
+    const cells = table.getElementsByTagName('tr');
+    Array.from(cells).forEach(row => {
+        const cell = row.cells[columnIndex];
+        if (cell) {
+            cell.style.display = 'none';
+        }
+    });
+}
+
+// Funzione per mostrare una colonna
+function showColumn(table, columnIndex) {
+    const cells = table.getElementsByTagName('tr');
+    Array.from(cells).forEach(row => {
+        const cell = row.cells[columnIndex];
+        if (cell) {
+            cell.style.display = '';
+        }
+    });
+}
+
+// Funzione per salvare le preferenze di visibilità
+function saveColumnVisibility() {
+    const checkboxes = document.querySelectorAll('.column-visibility input[type="checkbox"]');
+    const visibility = {};
+    checkboxes.forEach(checkbox => {
+        visibility[checkbox.dataset.column] = checkbox.checked;
+    });
+    localStorage.setItem('columnVisibility', JSON.stringify(visibility));
 }
 
 // Variabile globale per mantenere il riferimento alle funzioni di filtering
@@ -45,7 +126,7 @@ async function fetchProjects() {
             filteringApi.applyFilters();
         }
     } catch (error) {
-        console.error('Error fetching projects:', error);
+        handleNetworkError(error);
     }
 }
 
@@ -62,23 +143,27 @@ function displayProjects(projects) {
     projects.forEach(project => {
         const row = tableBody.insertRow();
         row.style.height = 'auto'; // Ensure consistent row height
-        row.insertCell(0).textContent = project.factory;
+        row.insertCell(0).textContent = project.client;
+        row.insertCell(1).textContent = project.productKind;
+        row.insertCell(2).textContent = project.factory;
+        row.insertCell(3).textContent = project.brand;
+        row.insertCell(4).textContent = project.range;
+        row.insertCell(5).textContent = project.line;
         
         // Create a link for the model number
-        const modelNumberCell = row.insertCell(1);
+        const modelNumberCell = row.insertCell(6);
         const modelNumberLink = document.createElement('a');
         modelNumberLink.href = `project-details.html?id=${project.id}`;
         modelNumberLink.textContent = project.modelNumber;
         modelNumberCell.appendChild(modelNumberLink);
         
-        row.insertCell(2).textContent = project.factoryModelNumber;
-        row.insertCell(3).textContent = project.productKind;
-        row.insertCell(4).textContent = project.client;
-        row.insertCell(5).textContent = project.startDate;
-        row.insertCell(6).textContent = project.endDate;
-        row.insertCell(7).textContent = project.status;
+        row.insertCell(7).textContent = project.factoryModelNumber;
+        row.insertCell(8).textContent = project.startDate;
+        row.insertCell(9).textContent = project.endDate;
+        row.insertCell(10).textContent = project.status;
+        row.insertCell(11).textContent = project.priority;
 
-        const actionsCell = row.insertCell(8);
+        const actionsCell = row.insertCell(12);
         const editBtn = document.createElement('button');
         editBtn.className = 'edit-btn';
         editBtn.textContent = 'Edit';
@@ -101,10 +186,10 @@ function addProject() {
     const newRow = tableBody.insertRow(0); // Insert at the beginning
     newRow.style.height = 'auto'; // Ensure consistent row height
 
-    const fields = ['factory', 'modelNumber', 'factoryModelNumber', 'productKind', 'client', 'startDate', 'endDate', 'status'];
+    const fields = ['client', 'productKind', 'factory', 'brand', 'range', 'line', 'modelNumber', 'factoryModelNumber', 'startDate', 'endDate', 'status', 'priority'];
     fields.forEach((field, index) => {
         const cell = newRow.insertCell(index);
-        if (index === 7) { // Campo status
+        if (index === 10) { // Campo status
             const select = document.createElement('select');
             select.style.backgroundColor = '#ffff99';
             ['In Progress', 'Completed', 'On Hold', 'Archived'].forEach(status => {
@@ -116,25 +201,29 @@ function addProject() {
             cell.appendChild(select);
         } else {
             const input = document.createElement('input');
-            input.type = index === 5 || index === 6 ? 'date' : 'text';
+            input.type = index === 8 || index === 9 ? 'date' : 'text';
             input.style.backgroundColor = '#ffff99';
             cell.appendChild(input);
         }
     });
 
-    const actionsCell = newRow.insertCell(8);
+    const actionsCell = newRow.insertCell(12);
     const saveBtn = document.createElement('button');
     saveBtn.textContent = 'Save';
     saveBtn.addEventListener('click', async function() {
         const newProject = {
-            factory: newRow.cells[0].firstChild.value,
-            modelNumber: newRow.cells[1].firstChild.value,
-            factoryModelNumber: newRow.cells[2].firstChild.value,
-            productKind: newRow.cells[3].firstChild.value,
-            client: newRow.cells[4].firstChild.value,
-            startDate: newRow.cells[5].firstChild.value,
-            endDate: newRow.cells[6].firstChild.value,
-            status: newRow.cells[7].firstChild.value
+            client: newRow.cells[0].firstChild.value,
+            productKind: newRow.cells[1].firstChild.value,
+            factory: newRow.cells[2].firstChild.value,
+            brand: newRow.cells[3].firstChild.value,
+            range: newRow.cells[4].firstChild.value,
+            line: newRow.cells[5].firstChild.value,
+            modelNumber: newRow.cells[6].firstChild.value,
+            factoryModelNumber: newRow.cells[7].firstChild.value,
+            startDate: newRow.cells[8].firstChild.value,
+            endDate: newRow.cells[9].firstChild.value,
+            status: newRow.cells[10].firstChild.value,
+            priority: newRow.cells[11].firstChild.value
         };
 
         try {
@@ -153,7 +242,7 @@ function addProject() {
                 console.error('Failed to add project');
             }
         } catch (error) {
-            console.error('Error adding project:', error);
+            handleNetworkError(error);
         }
     });
     actionsCell.appendChild(saveBtn);
@@ -163,20 +252,24 @@ function addProject() {
 function editProject(row, projectId) {
     const cells = row.getElementsByTagName('td');
     const projectData = {
-        factory: cells[0].textContent,
-        modelNumber: cells[1].textContent,
-        factoryModelNumber: cells[2].textContent,
-        productKind: cells[3].textContent,
-        client: cells[4].textContent,
-        startDate: cells[5].textContent,
-        endDate: cells[6].textContent,
-        status: cells[7].textContent
+        client: cells[0].textContent,
+        productKind: cells[1].textContent,
+        factory: cells[2].textContent,
+        brand: cells[3].textContent,
+        range: cells[4].textContent,
+        line: cells[5].textContent,
+        modelNumber: cells[6].textContent,
+        factoryModelNumber: cells[7].textContent,
+        startDate: cells[8].textContent,
+        endDate: cells[9].textContent,
+        status: cells[10].textContent,
+        priority: cells[11].textContent
     };
 
     // Convert cells to input fields
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 12; i++) {
         cells[i].innerHTML = '';
-        if (i === 7) { // Campo status
+        if (i === 10) { // Campo status
             const select = document.createElement('select');
             select.style.backgroundColor = '#ffff99';
             ['In Progress', 'Completed', 'On Hold', 'Archived'].forEach(status => {
@@ -191,7 +284,7 @@ function editProject(row, projectId) {
             cells[i].appendChild(select);
         } else {
             const input = document.createElement('input');
-            input.type = i === 5 || i === 6 ? 'date' : 'text';
+            input.type = i === 8 || i === 9 ? 'date' : 'text';
             input.value = projectData[Object.keys(projectData)[i]];
             input.style.backgroundColor = '#ffff99';
             cells[i].appendChild(input);
@@ -199,20 +292,24 @@ function editProject(row, projectId) {
     }
 
     // Change edit button to save button
-    const actionsCell = cells[8];
+    const actionsCell = cells[12];
     actionsCell.innerHTML = '';
     const saveBtn = document.createElement('button');
     saveBtn.textContent = 'Save';
     saveBtn.addEventListener('click', async function() {
         const updatedProject = {
-            factory: cells[0].firstChild.value,
-            modelNumber: cells[1].firstChild.value,
-            factoryModelNumber: cells[2].firstChild.value,
-            productKind: cells[3].firstChild.value,
-            client: cells[4].firstChild.value,
-            startDate: cells[5].firstChild.value,
-            endDate: cells[6].firstChild.value,
-            status: cells[7].firstChild.value // Funziona sia per input che per select
+            client: cells[0].firstChild.value,
+            productKind: cells[1].firstChild.value,
+            factory: cells[2].firstChild.value,
+            brand: cells[3].firstChild.value,
+            range: cells[4].firstChild.value,
+            line: cells[5].firstChild.value,
+            modelNumber: cells[6].firstChild.value,
+            factoryModelNumber: cells[7].firstChild.value,
+            startDate: cells[8].firstChild.value,
+            endDate: cells[9].firstChild.value,
+            status: cells[10].firstChild.value,
+            priority: cells[11].firstChild.value
         };
 
         try {
@@ -231,7 +328,7 @@ function editProject(row, projectId) {
                 console.error('Failed to update project');
             }
         } catch (error) {
-            console.error('Error updating project:', error);
+            handleNetworkError(error);
         }
     });
     actionsCell.appendChild(saveBtn);
@@ -258,7 +355,7 @@ async function deleteProject(projectId) {
             console.error('Failed to delete project');
         }
     } catch (error) {
-        console.error('Error deleting project:', error);
+        handleNetworkError(error);
     }
 }
 
@@ -375,7 +472,7 @@ function enableLiveFiltering() {
     // Gestione filtri testo
     const textFilterInputs = document.querySelectorAll('.filters input[type="text"]');
     const tableRows = document.getElementById('projects-table').getElementsByTagName('tbody')[0].rows;
-    const filterIndices = [0, 1, 3, 4, 7]; // Indici delle colonne da filtrare
+    const filterIndices = [0, 1, 2, 3, 4, 5, 6, 7, 11]; // Indici delle colonne da filtrare
 
     // Funzione per aggiornare il display degli stati selezionati
     function updateStatusDisplay() {
@@ -432,7 +529,7 @@ function enableLiveFiltering() {
 
             // Controllo filtro status
             if (isMatch && selectedStatuses.length > 0) {
-                const statusCell = row.cells[7];
+                const statusCell = row.cells[10];
                 const statusText = statusCell.textContent.trim();
                 if (!selectedStatuses.includes(statusText)) {
                     isMatch = false;

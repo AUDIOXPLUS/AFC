@@ -136,10 +136,10 @@ router.get('/projects/:id/history', checkAuthentication, (req, res) => {
 
 // Endpoint per aggiungere un progetto
 router.post('/projects', checkAuthentication, (req, res) => {
-    const { factory, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, status } = req.body;
-    const query = `INSERT INTO projects (factory, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, status) 
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-    req.db.run(query, [factory, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, status], function(err) {
+    const { factory, brand, range, line, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, priority, status } = req.body;
+    const query = `INSERT INTO projects (factory, brand, range, line, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, priority, status) 
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    req.db.run(query, [factory, brand, range, line, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, priority, status], function(err) {
         if (err) {
             console.error('Errore nell\'inserimento del progetto:', err);
             return res.status(500).send('Errore del server');
@@ -150,9 +150,9 @@ router.post('/projects', checkAuthentication, (req, res) => {
 
 // Endpoint per aggiornare un progetto
 router.put('/projects/:id', checkAuthentication, (req, res) => {
-    const { factory, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, status } = req.body;
-    const query = `UPDATE projects SET factory = ?, modelNumber = ?, factoryModelNumber = ?, productKind = ?, client = ?, startDate = ?, endDate = ?, status = ? WHERE id = ?`;
-    req.db.run(query, [factory, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, status, req.params.id], function(err) {
+    const { factory, brand, range, line, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, priority, status } = req.body;
+    const query = `UPDATE projects SET factory = ?, brand = ?, range = ?, line = ?, modelNumber = ?, factoryModelNumber = ?, productKind = ?, client = ?, startDate = ?, endDate = ?, priority = ?, status = ? WHERE id = ?`;
+    req.db.run(query, [factory, brand, range, line, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, priority, status, req.params.id], function(err) {
         if (err) {
             console.error('Errore nell\'aggiornamento del progetto:', err);
             return res.status(500).send('Errore del server');

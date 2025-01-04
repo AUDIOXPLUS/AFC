@@ -1,9 +1,23 @@
 let teamMembers = [];
 
+// Funzione di utilità per gestire gli errori di rete
+function handleNetworkError(error) {
+    console.error('Network error:', error);
+    // Se l'errore è di tipo network (offline) o 401 (non autorizzato)
+    if (!navigator.onLine || (error.response && error.response.status === 401)) {
+        window.location.href = 'login.html';
+    }
+}
+
 // Variabile globale per mantenere il riferimento alle funzioni di filtering
 let filteringApi = null;
 
 document.addEventListener('DOMContentLoaded', async function() {
+    // Verifica lo stato della connessione
+    if (!navigator.onLine) {
+        window.location.href = 'login.html';
+        return;
+    }
     await fetchTeamMembers();
     await fetchTasks();
 
@@ -25,7 +39,7 @@ async function fetchTeamMembers() {
         const response = await fetch('/api/team-members');
         teamMembers = await handleResponse(response);
     } catch (error) {
-        console.error('Error fetching team members:', error);
+        handleNetworkError(error);
     }
 }
 
@@ -38,7 +52,7 @@ async function fetchTasks() {
         console.log('Fetched tasks:', tasks);
         displayTasks(tasks);
     } catch (error) {
-        console.error('Error fetching tasks:', error);
+        handleNetworkError(error);
     }
 }
 

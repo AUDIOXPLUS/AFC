@@ -1,4 +1,18 @@
+// Funzione di utilità per gestire gli errori di rete
+function handleNetworkError(error) {
+    console.error('Network error:', error);
+    // Se l'errore è di tipo network (offline) o 401 (non autorizzato)
+    if (!navigator.onLine || (error.response && error.response.status === 401)) {
+        window.location.href = 'login.html';
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
+    // Verifica lo stato della connessione
+    if (!navigator.onLine) {
+        window.location.href = 'login.html';
+        return;
+    }
     initializePhasesPage();
 });
 
@@ -102,7 +116,7 @@ async function saveNewPhase(row) {
             console.error('Failed to add phase');
         }
     } catch (error) {
-        console.error('Error adding phase:', error);
+        handleNetworkError(error);
     }
 }
 
@@ -186,7 +200,7 @@ async function saveEditedPhase(phaseId, row) {
             console.error('Failed to update phase');
         }
     } catch (error) {
-        console.error('Error updating phase:', error);
+        handleNetworkError(error);
     }
 }
 
@@ -211,7 +225,7 @@ async function deletePhase(phaseId) {
             console.error('Failed to delete phase');
         }
     } catch (error) {
-        console.error('Error deleting phase:', error);
+        handleNetworkError(error);
     }
 }
 
@@ -231,7 +245,7 @@ async function fetchPhases() {
         // Emette un evento per notificare che le fasi sono state caricate
         window.dispatchEvent(new CustomEvent('phasesLoaded', { detail: phases }));
     } catch (error) {
-        console.error('Error fetching phases:', error);
+        handleNetworkError(error);
     }
 }
 

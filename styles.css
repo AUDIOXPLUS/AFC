@@ -107,13 +107,40 @@ main > .table-actions, main > .add-btn {
     color: #555;
 }
 
-.filters select, .filters button, .filters input {
-    margin-right: 15px;
-    padding: 5px 10px;
+.filters > input[type="text"] {
+    padding: 5px 8px;
     border: 1px solid #ddd;
     border-radius: 3px;
     font-size: 12px;
-    width: 120px; /* Larghezza sufficiente per "Product Kind" */
+    width: 100px;
+    margin-right: 15px;
+    margin-bottom: 5px;
+}
+
+.filter-group {
+    display: flex;
+    align-items: center;
+    margin-right: 15px;
+    margin-bottom: 5px;
+}
+
+.filter-group input[type="text"] {
+    padding: 5px 8px;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    font-size: 12px;
+    width: 100px;
+}
+
+.column-visibility {
+    display: flex;
+    align-items: center;
+    margin-left: 5px;
+}
+
+.column-visibility input[type="checkbox"] {
+    margin: 0;
+    cursor: pointer;
 }
 
 .filters button, .dropbtn {
@@ -147,12 +174,36 @@ main > .table-actions, main > .add-btn {
     background-color: #2980b9;
 }
 
+/* Stili per i dropdown (status e column visibility) */
+.column-visibility {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    z-index: 9998;
+}
+
+#column-visibility-btn {
+    background-color: #fff;
+    border: 1px solid #ddd;
+    padding: 5px 8px;
+    cursor: pointer;
+    font-size: 12px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-width: 80px;
+    color: #333;
+}
+
 /* Stili per la dropdown dei filtri di stato */
 .status-dropdown {
     position: relative;
     display: inline-flex;
     align-items: center;
     z-index: 9998;
+    margin-right: 15px;
+    margin-bottom: 5px;
 }
 
 #status-dropdown-btn {
@@ -165,8 +216,10 @@ main > .table-actions, main > .add-btn {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    min-width: 80px;
+    width: 100px;
     color: #333;
+    height: 27px;
+    box-sizing: border-box;
 }
 
 .dropdown-content {

@@ -45,7 +45,18 @@
             </section>
         </main>
 
+    <script src="auth.js"></script>
+    <script src="users.js"></script>
     <script src="project-layout.js"></script>
     <script src="phases.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Verifica l'autenticazione prima di procedere
+            const isAuthenticated = await checkAuthStatus();
+            if (isAuthenticated) {
+                displayLoggedInUser();
+            }
+        });
+    </script>
 </body>
 </html>

@@ -30,13 +30,44 @@
             <button id="add-project-btn" class="add-btn">Add Project</button>
         </div>
         <div class="filters">
-            <input type="text" id="factory-filter" placeholder="Factory">
-            <input type="text" id="model-filter" placeholder="Model n">
-            <input type="text" id="product-kind-filter" placeholder="Product kind">
-            <input type="text" id="client-filter" placeholder="Client">
+            <div class="filter-group">
+                <input type="text" id="client-filter" placeholder="Client">
+                <label class="column-visibility"><input type="checkbox" data-column="0" checked></label>
+            </div>
+            <div class="filter-group">
+                <input type="text" id="product-kind-filter" placeholder="Product kind">
+                <label class="column-visibility"><input type="checkbox" data-column="1" checked></label>
+            </div>
+            <div class="filter-group">
+                <input type="text" id="factory-filter" placeholder="Factory">
+                <label class="column-visibility"><input type="checkbox" data-column="2" checked></label>
+            </div>
+            <div class="filter-group">
+                <input type="text" id="brand-filter" placeholder="Brand">
+                <label class="column-visibility"><input type="checkbox" data-column="3" checked></label>
+            </div>
+            <div class="filter-group">
+                <input type="text" id="range-filter" placeholder="Range">
+                <label class="column-visibility"><input type="checkbox" data-column="4" checked></label>
+            </div>
+            <div class="filter-group">
+                <input type="text" id="line-filter" placeholder="Line">
+                <label class="column-visibility"><input type="checkbox" data-column="5" checked></label>
+            </div>
+            <div class="filter-group">
+                <input type="text" id="model-filter" placeholder="Model n">
+                <label class="column-visibility"><input type="checkbox" data-column="6" checked></label>
+            </div>
+            <div class="filter-group">
+                <input type="text" id="factory-model-filter" placeholder="Factory model n">
+                <label class="column-visibility"><input type="checkbox" data-column="7" checked></label>
+            </div>
+            <div class="filter-group">
+                <input type="text" id="priority-filter" placeholder="Priority">
+                <label class="column-visibility"><input type="checkbox" data-column="11" checked></label>
+            </div>
             
-            
-            <div class="status-dropdown">
+            <div class="status-dropdown filter-group">
                 <!--<input type="text" id="status-display" readonly placeholder="Status">-->
                 <button id="status-dropdown-btn">
                     Status
@@ -49,19 +80,22 @@
                 </div>
             </div>
 
-
         </div>
         <table id="projects-table">
             <thead>
                 <tr>
+                    <th>Client <i class="fas fa-sort"></i></th>
+                    <th>Product kind <i class="fas fa-sort"></i></th>
                     <th>Factory <i class="fas fa-sort"></i></th>
+                    <th>Brand <i class="fas fa-sort"></i></th>
+                    <th>Range <i class="fas fa-sort"></i></th>
+                    <th>Line <i class="fas fa-sort"></i></th>
                     <th>Model number <i class="fas fa-sort"></i></th>
                     <th>Factory model number <i class="fas fa-sort"></i></th>
-                    <th>Product kind <i class="fas fa-sort"></i></th>
-                    <th>Client <i class="fas fa-sort"></i></th>
                     <th>Start date <i class="fas fa-sort"></i></th>
                     <th>End date <i class="fas fa-sort"></i></th>
                     <th>Status <i class="fas fa-sort"></i></th>
+                    <th>Priority <i class="fas fa-sort"></i></th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -70,12 +104,18 @@
             </tbody>
         </table>
     </main>
+    <script src="auth.js"></script>
     <script src="users.js"></script>
+    <script src="projects.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            displayLoggedInUser();
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Verifica l'autenticazione prima di procedere
+            const isAuthenticated = await checkAuthStatus();
+            if (isAuthenticated) {
+                displayLoggedInUser();
+                initializeDashboard();
+            }
         });
     </script>
-    <script src="projects.js"></script>
 </body>
 </html>
