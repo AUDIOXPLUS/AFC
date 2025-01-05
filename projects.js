@@ -14,12 +14,12 @@ function handleNetworkError(error) {
     }
 }
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     console.log('DOM content loaded, initializing dashboard...');
-    initializeDashboard();
+    await initializeDashboard();
 });
 
-function initializeDashboard() {
+async function initializeDashboard() {
     document.getElementById('logout').addEventListener('click', function() {
         window.location.href = 'login.html';
     });
@@ -28,7 +28,7 @@ function initializeDashboard() {
     document.getElementById('add-project-btn').addEventListener('click', addProject);
 
     // Initial fetch of projects
-    fetchProjects();
+    await fetchProjects();
 
     // Enable column resizing
     enableColumnResizing();
@@ -101,7 +101,7 @@ function saveColumnVisibility() {
     const checkboxes = document.querySelectorAll('.column-visibility input[type="checkbox"]');
     const visibility = {};
     checkboxes.forEach(checkbox => {
-        visibility[checkbox.dataset.column] = checkbox.checked;
+        visibility[checkbox.datas7et.column] = checkbox.checked;
     });
     localStorage.setItem('columnVisibility', JSON.stringify(visibility));
 }
@@ -119,7 +119,7 @@ async function fetchProjects() {
         }
         const projects = await response.json();
         console.log('Projects fetched:', projects);
-        displayProjects(projects);
+        await displayProjects(projects);
         
         // Riapplica i filtri dopo aver caricato i progetti
         if (filteringApi && typeof filteringApi.applyFilters === 'function') {
@@ -130,8 +130,46 @@ async function fetchProjects() {
     }
 }
 
+// Funzione per recuperare lo status dalla cronologia del progetto
+async function getProjectStatus(projectId) {
+    try {
+        const response = await fetch(`/api/projects/${projectId}/history?includeUserName=true`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const history = await response.json();
+        
+        // Ordina la cronologia per data in ordine decrescente
+        history.sort((a, b) => new Date(b.date) - new Date(a.date));
+        
+        // Se non ci sono entry nella cronologia, ritorna 'No History'
+        if (history.length === 0) {
+            return 'No History';
+        }
+        
+        // Cerca la prima entry non completata
+        const activeEntry = history.find(entry => entry.status !== 'Completed');
+        
+        // Se tutte le entry sono completate, ritorna solo 'Completed'
+        if (!activeEntry) {
+            return 'Completed';
+        }
+        
+        // Se l'entry non completata è "On Hold", ritorna solo "On Hold"
+        if (activeEntry.status === 'On Hold') {
+            return 'On Hold';
+        }
+        
+        // Altrimenti ritorna la descrizione dell'entry non completata
+        return `${activeEntry.description} (${activeEntry.status})`;
+    } catch (error) {
+        console.error('Error fetching project history:', error);
+        return 'Error fetching history'; // Status di default in caso di errore
+    }
+}
+
 // Function to display projects in the table
-function displayProjects(projects) {
+async function displayProjects(projects) {
     console.log('Displaying projects:', projects);
     const tableBody = document.getElementById('projects-table').getElementsByTagName('tbody')[0];
     if (!tableBody) {
@@ -140,7 +178,8 @@ function displayProjects(projects) {
     }
     tableBody.innerHTML = ''; // Clear existing rows
 
-    projects.forEach(project => {
+    // Funzione per creare una riga della tabella
+    const createTableRow = async (project) => {
         const row = tableBody.insertRow();
         row.style.height = 'auto'; // Ensure consistent row height
         row.insertCell(0).textContent = project.client;
@@ -160,7 +199,11 @@ function displayProjects(projects) {
         row.insertCell(7).textContent = project.factoryModelNumber;
         row.insertCell(8).textContent = project.startDate;
         row.insertCell(9).textContent = project.endDate;
-        row.insertCell(10).textContent = project.status;
+        
+        // Recupera e imposta lo status del progetto
+        const status = await getProjectStatus(project.id);
+        row.insertCell(10).textContent = status;
+        
         row.insertCell(11).textContent = project.priority;
 
         const actionsCell = row.insertCell(12);
@@ -176,7 +219,10 @@ function displayProjects(projects) {
         
         actionsCell.appendChild(editBtn);
         actionsCell.appendChild(deleteBtn);
-    });
+    };
+
+    // Crea tutte le righe in modo asincrono
+    await Promise.all(projects.map(project => createTableRow(project)));
     console.log('Projects displayed successfully');
 }
 
@@ -189,17 +235,7 @@ function addProject() {
     const fields = ['client', 'productKind', 'factory', 'brand', 'range', 'line', 'modelNumber', 'factoryModelNumber', 'startDate', 'endDate', 'status', 'priority'];
     fields.forEach((field, index) => {
         const cell = newRow.insertCell(index);
-        if (index === 10) { // Campo status
-            const select = document.createElement('select');
-            select.style.backgroundColor = '#ffff99';
-            ['In Progress', 'Completed', 'On Hold', 'Archived'].forEach(status => {
-                const option = document.createElement('option');
-                option.value = status;
-                option.textContent = status;
-                select.appendChild(option);
-            });
-            cell.appendChild(select);
-        } else {
+            {
             const input = document.createElement('input');
             input.type = index === 8 || index === 9 ? 'date' : 'text';
             input.style.backgroundColor = '#ffff99';
@@ -222,7 +258,7 @@ function addProject() {
             factoryModelNumber: newRow.cells[7].firstChild.value,
             startDate: newRow.cells[8].firstChild.value,
             endDate: newRow.cells[9].firstChild.value,
-            status: newRow.cells[10].firstChild.value,
+            status: 'In Progress', // Status iniziale per nuovo progetto
             priority: newRow.cells[11].firstChild.value
         };
 
@@ -268,27 +304,15 @@ function editProject(row, projectId) {
 
     // Convert cells to input fields
     for (let i = 0; i < 12; i++) {
-        cells[i].innerHTML = '';
-        if (i === 10) { // Campo status
-            const select = document.createElement('select');
-            select.style.backgroundColor = '#ffff99';
-            ['In Progress', 'Completed', 'On Hold', 'Archived'].forEach(status => {
-                const option = document.createElement('option');
-                option.value = status;
-                option.textContent = status;
-                if (status === projectData.status) {
-                    option.selected = true;
-                }
-                select.appendChild(option);
-            });
-            cells[i].appendChild(select);
-        } else {
-            const input = document.createElement('input');
-            input.type = i === 8 || i === 9 ? 'date' : 'text';
-            input.value = projectData[Object.keys(projectData)[i]];
-            input.style.backgroundColor = '#ffff99';
-            cells[i].appendChild(input);
+        if (i === 10) { // Campo status - non modificabile
+            continue; // Salta la cella dello status
         }
+        cells[i].innerHTML = '';
+        const input = document.createElement('input');
+        input.type = i === 8 || i === 9 ? 'date' : 'text';
+        input.value = projectData[Object.keys(projectData)[i]];
+        input.style.backgroundColor = '#ffff99';
+        cells[i].appendChild(input);
     }
 
     // Change edit button to save button
@@ -308,7 +332,7 @@ function editProject(row, projectId) {
             factoryModelNumber: cells[7].firstChild.value,
             startDate: cells[8].firstChild.value,
             endDate: cells[9].firstChild.value,
-            status: cells[10].firstChild.value,
+            status: cells[10].textContent, // Mantiene lo status corrente
             priority: cells[11].firstChild.value
         };
 
@@ -531,8 +555,27 @@ function enableLiveFiltering() {
             if (isMatch && selectedStatuses.length > 0) {
                 const statusCell = row.cells[10];
                 const statusText = statusCell.textContent.trim();
-                if (!selectedStatuses.includes(statusText)) {
-                    isMatch = false;
+                
+                // Gestione speciale per "In Progress"
+                if (selectedStatuses.includes('In Progress')) {
+                    // Se è selezionato "In Progress", la riga deve NON contenere questi status
+                    const excludedStatuses = ['Completed', 'On Hold', 'Archived'];
+                    const hasExcludedStatus = excludedStatuses.some(status => statusText === status);
+                    
+                    // Rimuovi "In Progress" da selectedStatuses per il controllo degli altri status
+                    const otherStatuses = selectedStatuses.filter(s => s !== 'In Progress');
+                    
+                    // La riga corrisponde se:
+                    // - NON ha uno status escluso E non ci sono altri filtri status
+                    // OPPURE
+                    // - NON ha uno status escluso E corrisponde a uno degli altri status selezionati
+                    isMatch = !hasExcludedStatus && 
+                             (otherStatuses.length === 0 || otherStatuses.includes(statusText));
+                } else {
+                    // Per gli altri status, usa il controllo normale
+                    if (!selectedStatuses.includes(statusText)) {
+                        isMatch = false;
+                    }
                 }
             }
 
