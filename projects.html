@@ -62,11 +62,26 @@
                 <input type="text" id="factory-model-filter" placeholder="Factory model n">
                 <label class="column-visibility"><input type="checkbox" data-column="7" checked></label>
             </div>
+            <!-- Aggiunta del filtro 'Assigned to' -->
             <div class="filter-group">
-                <input type="text" id="priority-filter" placeholder="Priority">
+                <input type="text" id="assigned-to-filter" placeholder="Assigned to">
                 <label class="column-visibility"><input type="checkbox" data-column="11" checked></label>
             </div>
+            <!-- Aggiornamento del data-column per 'Priority' -->
+            <div class="filter-group">
+                <input type="text" id="priority-filter" placeholder="Priority">
+                <label class="column-visibility"><input type="checkbox" data-column="12" checked></label>
+            </div>
             
+            <!-- Aggiunta dei filtri per le date -->
+            <div class="filter-group">
+                <input type="date" id="start-date-filter" placeholder="Start date">
+                <label class="column-visibility"><input type="checkbox" data-column="8" checked></label>
+            </div>
+            <div class="filter-group">
+                <input type="date" id="end-date-filter" placeholder="End date">
+                <label class="column-visibility"><input type="checkbox" data-column="9" checked></label>
+            </div>
             <div class="status-dropdown filter-group">
                 <!--<input type="text" id="status-display" readonly placeholder="Status">-->
                 <button id="status-dropdown-btn">
@@ -81,7 +96,8 @@
             </div>
 
         </div>
-        <table id="projects-table">
+        <div class="table-wrapper">
+            <table id="projects-table">
             <thead>
                 <tr>
                     <th>Client <i class="fas fa-sort"></i></th>
@@ -95,6 +111,8 @@
                     <th>Start date <i class="fas fa-sort"></i></th>
                     <th>End date <i class="fas fa-sort"></i></th>
                     <th>Status <i class="fas fa-sort"></i></th>
+                    <!-- Aggiunta della colonna 'Assigned to' -->
+                    <th>Assigned to <i class="fas fa-sort"></i></th>
                     <th>Priority <i class="fas fa-sort"></i></th>
                     <th>Actions</th>
                 </tr>

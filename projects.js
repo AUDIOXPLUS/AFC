@@ -6,7 +6,7 @@ function handleNetworkError(error) {
         window.location.href = 'login.html';
         return;
     }
-    
+
     // Se la risposta contiene uno status 401 (non autorizzato)
     if (error instanceof Error && error.message.includes('status: 401')) {
         window.location.href = 'login.html';
@@ -47,20 +47,20 @@ async function initializeDashboard() {
 function initializeColumnVisibility() {
     const table = document.getElementById('projects-table');
     const checkboxes = document.querySelectorAll('.column-visibility input[type="checkbox"]');
-    
+
     // Carica le preferenze salvate
     const savedVisibility = JSON.parse(localStorage.getItem('columnVisibility')) || {};
-    
+
     // Inizializza i checkbox e applica la visibilità iniziale
     checkboxes.forEach(checkbox => {
         const columnIndex = parseInt(checkbox.dataset.column);
         checkbox.checked = savedVisibility[columnIndex] !== false; // Default a true se non salvato
-        
+
         // Applica la visibilità iniziale
         if (!checkbox.checked) {
             hideColumn(table, columnIndex);
         }
-        
+
         // Aggiungi event listener per i cambiamenti
         checkbox.addEventListener('change', (e) => {
             const columnIndex = parseInt(e.target.dataset.column);
@@ -101,7 +101,7 @@ function saveColumnVisibility() {
     const checkboxes = document.querySelectorAll('.column-visibility input[type="checkbox"]');
     const visibility = {};
     checkboxes.forEach(checkbox => {
-        visibility[checkbox.datas7et.column] = checkbox.checked;
+        visibility[checkbox.dataset.column] = checkbox.checked;
     });
     localStorage.setItem('columnVisibility', JSON.stringify(visibility));
 }
@@ -120,7 +120,7 @@ async function fetchProjects() {
         const projects = await response.json();
         console.log('Projects fetched:', projects);
         await displayProjects(projects);
-        
+
         // Riapplica i filtri dopo aver caricato i progetti
         if (filteringApi && typeof filteringApi.applyFilters === 'function') {
             filteringApi.applyFilters();
@@ -133,38 +133,58 @@ async function fetchProjects() {
 // Funzione per recuperare lo status dalla cronologia del progetto
 async function getProjectStatus(projectId) {
     try {
-        const response = await fetch(`/api/projects/${projectId}/history?includeUserName=true`);
+        const response = await fetch(`/api/projects/${projectId}/history`);
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         const history = await response.json();
-        
+        console.log('Project history:', history); // Debug log
+
         // Ordina la cronologia per data in ordine decrescente
         history.sort((a, b) => new Date(b.date) - new Date(a.date));
-        
-        // Se non ci sono entry nella cronologia, ritorna 'No History'
+        console.log('Sorted history:', history); // Debug log
+
+        // Se non ci sono entry nella cronologia
         if (history.length === 0) {
-            return 'No History';
+            return {
+                status: 'No History',
+                assignedTo: 'Not Assigned'
+            };
         }
-        
+
         // Cerca la prima entry non completata
         const activeEntry = history.find(entry => entry.status !== 'Completed');
-        
-        // Se tutte le entry sono completate, ritorna solo 'Completed'
+
+        // Se tutte le entry sono completate
         if (!activeEntry) {
-            return 'Completed';
+            console.log('All entries completed, using last entry:', history[0]); // Debug log
+            return {
+                status: 'Completed',
+                assignedTo: history[0].assigned_to || 'Not Assigned'
+            };
         }
-        
-        // Se l'entry non completata è "On Hold", ritorna solo "On Hold"
+
+        // Se l'entry non completata è "On Hold"
         if (activeEntry.status === 'On Hold') {
-            return 'On Hold';
+            console.log('Found On Hold entry:', activeEntry); // Debug log
+            return {
+                status: 'On Hold',
+                assignedTo: activeEntry.assigned_to || 'Not Assigned'
+            };
         }
-        
+
         // Altrimenti ritorna la descrizione dell'entry non completata
-        return `${activeEntry.description} (${activeEntry.status})`;
+        console.log('Using active entry:', activeEntry); // Debug log
+        return {
+            status: `${activeEntry.description} (${activeEntry.status})`,
+            assignedTo: activeEntry.assigned_to || 'Not Assigned'
+        };
     } catch (error) {
         console.error('Error fetching project history:', error);
-        return 'Error fetching history'; // Status di default in caso di errore
+        return {
+            status: 'Error fetching history',
+            assignedTo: 'Not Assigned'
+        };
     }
 }
 
@@ -188,35 +208,36 @@ async function displayProjects(projects) {
         row.insertCell(3).textContent = project.brand;
         row.insertCell(4).textContent = project.range;
         row.insertCell(5).textContent = project.line;
-        
-        // Create a link for the model number
+
+        // Crea un link per il model number
         const modelNumberCell = row.insertCell(6);
         const modelNumberLink = document.createElement('a');
         modelNumberLink.href = `project-details.html?id=${project.id}`;
         modelNumberLink.textContent = project.modelNumber;
         modelNumberCell.appendChild(modelNumberLink);
-        
+
         row.insertCell(7).textContent = project.factoryModelNumber;
         row.insertCell(8).textContent = project.startDate;
         row.insertCell(9).textContent = project.endDate;
-        
-        // Recupera e imposta lo status del progetto
-        const status = await getProjectStatus(project.id);
-        row.insertCell(10).textContent = status;
-        
-        row.insertCell(11).textContent = project.priority;
 
-        const actionsCell = row.insertCell(12);
+        // Recupera e imposta lo status del progetto e l'utente assegnato
+        const projectStatus = await getProjectStatus(project.id);
+        row.insertCell(10).textContent = projectStatus.status;
+        row.insertCell(11).textContent = projectStatus.assignedTo;
+
+        row.insertCell(12).textContent = project.priority;
+
+        const actionsCell = row.insertCell(13);
         const editBtn = document.createElement('button');
         editBtn.className = 'edit-btn';
         editBtn.textContent = 'Edit';
         editBtn.addEventListener('click', () => editProject(row, project.id));
-        
+
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'delete-btn';
         deleteBtn.textContent = 'Delete';
         deleteBtn.addEventListener('click', () => confirmDelete(project.id));
-        
+
         actionsCell.appendChild(editBtn);
         actionsCell.appendChild(deleteBtn);
     };
@@ -230,22 +251,46 @@ async function displayProjects(projects) {
 function addProject() {
     const tableBody = document.getElementById('projects-table').getElementsByTagName('tbody')[0];
     const newRow = tableBody.insertRow(0); // Insert at the beginning
-    newRow.style.height = 'auto'; // Ensure consistent row height
+    newRow.classList.add('new-entry-row'); // Aggiungi una classe per lo styling
 
-    const fields = ['client', 'productKind', 'factory', 'brand', 'range', 'line', 'modelNumber', 'factoryModelNumber', 'startDate', 'endDate', 'status', 'priority'];
+    // Definisci i campi con le loro proprietà
+    const fields = [
+        { name: 'client', type: 'text', editable: true },
+        { name: 'productKind', type: 'text', editable: true },
+        { name: 'factory', type: 'text', editable: true },
+        { name: 'brand', type: 'text', editable: true },
+        { name: 'range', type: 'text', editable: true },
+        { name: 'line', type: 'text', editable: true },
+        { name: 'modelNumber', type: 'text', editable: true },
+        { name: 'factoryModelNumber', type: 'text', editable: true },
+        { name: 'startDate', type: 'date', editable: true },
+        { name: 'endDate', type: 'date', editable: true },
+        { name: 'status', type: 'text', editable: false, defaultValue: 'In Progress' },
+        { name: 'assignedTo', type: 'text', editable: false, defaultValue: 'Not Assigned' },
+        { name: 'priority', type: 'text', editable: true }
+    ];
+
+    // Crea le celle con gli input
     fields.forEach((field, index) => {
         const cell = newRow.insertCell(index);
-            {
+        cell.classList.add('input-cell'); // Aggiungi una classe per lo styling
+
+        if (!field.editable) {
+            cell.textContent = field.defaultValue;
+        } else {
             const input = document.createElement('input');
-            input.type = index === 8 || index === 9 ? 'date' : 'text';
-            input.style.backgroundColor = '#ffff99';
+            input.type = field.type;
+            input.name = field.name;
+            input.classList.add('new-entry-input');
             cell.appendChild(input);
         }
     });
 
-    const actionsCell = newRow.insertCell(12);
+    const actionsCell = newRow.insertCell(fields.length);
+    actionsCell.classList.add('actions-cell');
     const saveBtn = document.createElement('button');
     saveBtn.textContent = 'Save';
+    saveBtn.classList.add('save-btn');
     saveBtn.addEventListener('click', async function() {
         const newProject = {
             client: newRow.cells[0].firstChild.value,
@@ -259,7 +304,8 @@ function addProject() {
             startDate: newRow.cells[8].firstChild.value,
             endDate: newRow.cells[9].firstChild.value,
             status: 'In Progress', // Status iniziale per nuovo progetto
-            priority: newRow.cells[11].firstChild.value
+            assignedTo: 'Not Assigned',
+            priority: newRow.cells[12].firstChild.value
         };
 
         try {
@@ -299,13 +345,14 @@ function editProject(row, projectId) {
         startDate: cells[8].textContent,
         endDate: cells[9].textContent,
         status: cells[10].textContent,
-        priority: cells[11].textContent
+        assignedTo: cells[11].textContent,
+        priority: cells[12].textContent
     };
 
     // Convert cells to input fields
-    for (let i = 0; i < 12; i++) {
-        if (i === 10) { // Campo status - non modificabile
-            continue; // Salta la cella dello status
+    for (let i = 0; i < 13; i++) {
+        if (i === 10 || i === 11) { // Campi 'status' e 'assignedTo' - non modificabili
+            continue; // Salta le celle dello status e assignedTo
         }
         cells[i].innerHTML = '';
         const input = document.createElement('input');
@@ -316,7 +363,7 @@ function editProject(row, projectId) {
     }
 
     // Change edit button to save button
-    const actionsCell = cells[12];
+    const actionsCell = cells[13];
     actionsCell.innerHTML = '';
     const saveBtn = document.createElement('button');
     saveBtn.textContent = 'Save';
@@ -333,7 +380,8 @@ function editProject(row, projectId) {
             startDate: cells[8].firstChild.value,
             endDate: cells[9].firstChild.value,
             status: cells[10].textContent, // Mantiene lo status corrente
-            priority: cells[11].firstChild.value
+            assignedTo: cells[11].textContent, // Mantiene l'utente assegnato corrente
+            priority: cells[12].firstChild.value
         };
 
         try {
@@ -495,8 +543,9 @@ function enableLiveFiltering() {
 
     // Gestione filtri testo
     const textFilterInputs = document.querySelectorAll('.filters input[type="text"]');
+    const dateFilterInputs = document.querySelectorAll('.filters input[type="date"]');
     const tableRows = document.getElementById('projects-table').getElementsByTagName('tbody')[0].rows;
-    const filterIndices = [0, 1, 2, 3, 4, 5, 6, 7, 11]; // Indici delle colonne da filtrare
+    const filterIndices = [0, 1, 2, 3, 4, 5, 6, 7, 11, 12]; // Indici delle colonne da filtrare, aggiunto 11 per Assigned to
 
     // Funzione per aggiornare il display degli stati selezionati
     function updateStatusDisplay() {
@@ -513,10 +562,11 @@ function enableLiveFiltering() {
     }
 
     // Funzione per salvare i filtri nel localStorage
-    function saveFilters(textFilterValues, selectedStatuses) {
+    function saveFilters(textFilterValues, selectedStatuses, dateFilterValues) {
         const filters = {
             text: textFilterValues,
-            status: selectedStatuses
+            status: selectedStatuses,
+            dates: dateFilterValues
         };
         localStorage.setItem('projectFilters', JSON.stringify(filters));
     }
@@ -527,9 +577,13 @@ function enableLiveFiltering() {
         const selectedStatuses = Array.from(statusCheckboxes)
             .filter(cb => cb.checked)
             .map(cb => cb.value);
+        const dateFilterValues = {
+            startDate: document.getElementById('start-date-filter').value,
+            endDate: document.getElementById('end-date-filter').value
+        };
 
         // Salva i filtri nel localStorage
-        saveFilters(textFilterValues, selectedStatuses);
+        saveFilters(textFilterValues, selectedStatuses, dateFilterValues);
         
         updateStatusDisplay();
 
@@ -547,6 +601,29 @@ function enableLiveFiltering() {
                     if (!cellText.includes(filterValue)) {
                         isMatch = false;
                         break;
+                    }
+                }
+            }
+
+            // Controllo filtri date
+            if (isMatch) {
+                const startDateFilter = dateFilterValues.startDate;
+                const endDateFilter = dateFilterValues.endDate;
+                
+                if (startDateFilter || endDateFilter) {
+                    const rowStartDate = row.cells[8].textContent.trim();
+                    const rowEndDate = row.cells[9].textContent.trim();
+
+                    if (startDateFilter && rowStartDate) {
+                        if (new Date(rowStartDate) < new Date(startDateFilter)) {
+                            isMatch = false;
+                        }
+                    }
+
+                    if (endDateFilter && rowEndDate) {
+                        if (new Date(rowEndDate) > new Date(endDateFilter)) {
+                            isMatch = false;
+                        }
                     }
                 }
             }
@@ -598,6 +675,12 @@ function enableLiveFiltering() {
             statusCheckboxes.forEach(checkbox => {
                 checkbox.checked = filters.status.includes(checkbox.value);
             });
+
+            // Applica i filtri delle date
+            if (filters.dates) {
+                document.getElementById('start-date-filter').value = filters.dates.startDate || '';
+                document.getElementById('end-date-filter').value = filters.dates.endDate || '';
+            }
             
             // Applica i filtri
             applyFilters();
@@ -607,6 +690,11 @@ function enableLiveFiltering() {
     // Event listeners per i filtri
     textFilterInputs.forEach(input => {
         input.addEventListener('input', applyFilters);
+    });
+
+    // Event listeners per i filtri date
+    dateFilterInputs.forEach(input => {
+        input.addEventListener('change', applyFilters);
     });
 
     statusCheckboxes.forEach(checkbox => {

@@ -124,12 +124,15 @@ main > .table-actions, main > .add-btn {
     margin-bottom: 5px;
 }
 
-.filter-group input[type="text"] {
+.filter-group input[type="text"],
+.filter-group input[type="date"] {
     padding: 5px 8px;
     border: 1px solid #ddd;
     border-radius: 3px;
     font-size: 12px;
     width: 100px;
+    box-sizing: border-box; /* Assicura che padding e bordo siano inclusi nella larghezza */
+    background-color: #fff; /* Imposta lo sfondo bianco come gli altri input */
 }
 
 .column-visibility {
@@ -372,11 +375,21 @@ tr.completed {
 
 /* New styles for input elements in the table */
 table input[type="text"], table input[type="date"] {
-    border: none;
+    border: 1px solid #ddd;
     width: 100%;
     box-sizing: border-box;
     resize: none; /* Disabilita il ridimensionamento */
-    min-width: 0; /* Assicurati che non ci sia una larghezza minima */
+    min-width: 100px; /* Larghezza minima per garantire usabilità */
+    padding: 6px;
+    border-radius: 3px;
+    background-color: #fff;
+}
+
+/* Stile specifico per gli input durante l'inserimento */
+table tr:first-child input[type="text"],
+table tr:first-child input[type="date"] {
+    border: 1px solid #3498db;
+    box-shadow: 0 0 3px rgba(52, 152, 219, 0.3);
 }
 
 /* Highlighted input style */
@@ -611,4 +624,207 @@ input[type="file"] {
     color: #666;
     background-color: #f5f5f5;
     border-radius: 3px;
+}
+
+/* Media queries per dispositivi mobili */
+@media screen and (max-width: 768px) {
+    /* Wrapper per la tabella su mobile */
+    .table-wrapper {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        position: relative;
+        background: white;
+    }
+
+    /* Gestione tabella su mobile */
+    table {
+        width: 100%;
+        white-space: nowrap;
+        border-spacing: 0;
+    }
+
+    /* Gestione colonne e celle su mobile */
+    th, td {
+        min-width: 120px;
+        padding: 10px 8px;
+        box-sizing: border-box;
+        position: relative;
+    }
+
+    /* Stili per la riga di inserimento */
+    .new-entry-row {
+        background-color: #f8f9fa;
+    }
+
+    .new-entry-row td {
+        padding: 4px !important;
+        position: relative;
+    }
+
+    /* Stili per gli input nella riga di inserimento */
+    .new-entry-input {
+        width: 100% !important;
+        min-width: 120px !important;
+        max-width: none !important;
+        padding: 8px !important;
+        margin: 0 !important;
+        font-size: 16px !important;
+        border: 1px solid #3498db !important;
+        border-radius: 3px !important;
+        background-color: #ffff99 !important;
+        box-sizing: border-box !important;
+        box-shadow: 0 0 3px rgba(52, 152, 219, 0.3) !important;
+        display: block !important;
+        height: 40px !important; /* Altezza fissa per garantire allineamento */
+    }
+
+    /* Stili per le celle nella riga di inserimento */
+    .new-entry-row td {
+        min-width: 120px !important;
+        max-width: none !important;
+        width: auto !important;
+        overflow: visible !important;
+        vertical-align: middle !important;
+        height: 40px !important;
+        position: relative !important;
+        padding: 4px !important;
+    }
+
+    /* Assicura che il pulsante Save sia visibile e accessibile */
+    .new-entry-row td:last-child {
+        position: sticky !important;
+        right: 0 !important;
+        background-color: #f8f9fa !important;
+        z-index: 2 !important;
+        box-shadow: -2px 0 5px rgba(0,0,0,0.1) !important;
+        min-width: 80px !important;
+        width: 80px !important;
+        text-align: center !important;
+    }
+
+    /* Stile per il pulsante Save nella riga di inserimento */
+    .save-btn {
+        width: 100% !important;
+        height: 40px !important;
+        margin: 0 !important;
+        padding: 8px !important;
+        font-size: 16px !important;
+        background-color: #2ecc71 !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 3px !important;
+        cursor: pointer !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+        transition: background-color 0.3s ease !important;
+    }
+
+    .save-btn:hover {
+        background-color: #27ae60 !important;
+    }
+
+    .save-btn:active {
+        transform: translateY(1px) !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1) !important;
+    }
+
+    /* Stile per la cella del pulsante Save */
+    .actions-cell {
+        background-color: #f8f9fa !important;
+        position: sticky !important;
+        right: 0 !important;
+        z-index: 2 !important;
+        padding: 4px !important;
+        width: 80px !important;
+        min-width: 80px !important;
+        box-shadow: -2px 0 5px rgba(0,0,0,0.1) !important;
+    }
+
+    /* Aumenta dimensione pulsanti per touch */
+    .edit-btn, .delete-btn, .set-completed-btn {
+        padding: 8px 12px;
+        font-size: 14px;
+        margin: 2px;
+    }
+
+    /* Migliora spaziatura celle */
+    th, td {
+        padding: 10px 8px;
+    }
+
+    /* Ottimizza il pulsante Add Project per mobile */
+    .add-btn {
+        width: 100%;
+        margin: 10px 0;
+        padding: 12px;
+        font-size: 16px;
+        text-align: center;
+    }
+
+    /* Ottimizza i filtri per mobile */
+    .filters {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .filter-group {
+        width: 100%;
+        margin-right: 0;
+        margin-bottom: 8px;
+    }
+
+    .filter-group input[type="text"],
+    .filter-group input[type="date"],
+    #status-dropdown-btn {
+        width: 100%;
+        font-size: 16px;
+        padding: 8px;
+        height: auto;
+    }
+
+    /* Migliora la navigazione su mobile */
+    header {
+        flex-direction: column;
+        padding: 10px;
+    }
+
+    nav {
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    nav ul {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    nav ul li {
+        margin: 5px 0;
+        width: 100%;
+    }
+
+    nav ul li a {
+        width: 100%;
+        text-align: center;
+        padding: 10px;
+    }
+
+    .user-info {
+        width: 100%;
+        justify-content: center;
+        margin-top: 10px;
+    }
+
+    /* Migliora la visibilità dello scroll orizzontale */
+    table::after {
+        content: '';
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        width: 20px;
+        background: linear-gradient(to right, transparent, rgba(0,0,0,0.1));
+        pointer-events: none;
+    }
 }
