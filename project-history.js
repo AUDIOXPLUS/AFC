@@ -521,7 +521,7 @@ window.addHistoryEntry = function(projectId) {
             const select = document.createElement('select');
             window.teamMembers.forEach(member => {
                 const option = document.createElement('option');
-                option.value = member.id;
+                option.value = member.name;
                 option.textContent = member.name;
                 // Seleziona l'utente corrente di default
                 if (String(member.id) === window.currentUserId) {
@@ -624,15 +624,11 @@ window.addHistoryEntry = function(projectId) {
  * @param {HTMLTableRowElement} row - La riga della tabella che contiene i dati della nuova voce.
  */
 window.saveNewHistoryEntry = async function(projectId, row) {
-    // Ottieni l'ID selezionato e trova il nome corrispondente
-    const selectedUserId = row.cells[3].querySelector('select').value;
-    const selectedMember = window.teamMembers.find(member => String(member.id) === String(selectedUserId));
-    
     const newEntry = {
         date: row.cells[0].firstChild.value,
         phase: row.cells[1].firstChild.value,
         description: row.cells[2].firstChild.value,
-        assignedTo: parseInt(row.cells[3].querySelector('select').value),
+        assignedTo: row.cells[3].querySelector('select').value,
         status: row.cells[4].querySelector('select').value
     };
     console.log('Dati della nuova voce:', newEntry);

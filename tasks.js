@@ -113,7 +113,7 @@ function enableLiveFiltering() {
     // Gestione filtri testo
     const textFilterInputs = document.querySelectorAll('.filters input[type="text"]');
     const tableRows = document.getElementById('task-table').getElementsByTagName('tbody')[0].rows;
-    const filterIndices = [0, 1, 4]; // Indici delle colonne da filtrare
+    const filterIndices = [4, 0, 1]; // Indici delle colonne da filtrare: [Assigned To, Factory, Model Number]
 
     // Funzione per aggiornare il display degli stati selezionati
     function updateStatusDisplay() {
