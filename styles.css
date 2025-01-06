@@ -5,6 +5,16 @@ body {
     background-color: #f0f0f0;
 }
 
+/* Classe per indicare che il sistema sta elaborando */
+.processing {
+    cursor: wait !important;
+}
+
+/* Assicura che tutti gli elementi ereditino il cursore wait quando il sistema sta elaborando */
+.processing * {
+    cursor: wait !important;
+}
+
 header {
     background-color: #2c3e50;
     color: white;
@@ -374,12 +384,12 @@ tr.completed {
 }
 
 /* New styles for input elements in the table */
-table input[type="text"], table input[type="date"] {
+table input[type="text"], table input[type="date"], table select {
     border: 1px solid #ddd;
     width: 100%;
     box-sizing: border-box;
     resize: none; /* Disabilita il ridimensionamento */
-    min-width: 100px; /* Larghezza minima per garantire usabilità */
+    min-width: 150px; /* Larghezza minima aumentata per le select */
     padding: 6px;
     border-radius: 3px;
     background-color: #fff;
@@ -387,9 +397,27 @@ table input[type="text"], table input[type="date"] {
 
 /* Stile specifico per gli input durante l'inserimento */
 table tr:first-child input[type="text"],
-table tr:first-child input[type="date"] {
+table tr:first-child input[type="date"],
+table tr:first-child select {
     border: 1px solid #3498db;
     box-shadow: 0 0 3px rgba(52, 152, 219, 0.3);
+}
+
+/* Stile specifico per le select nella tabella */
+table select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 6px center;
+    background-size: 16px;
+    padding-right: 24px;
+}
+
+table select:hover {
+    cursor: pointer;
+    border-color: #3498db;
 }
 
 /* Highlighted input style */
@@ -639,9 +667,10 @@ input[type="file"] {
 
     /* Gestione tabella su mobile */
     table {
-        width: 100%;
-        white-space: nowrap;
+        table-layout: auto;
+        border-collapse: separate;
         border-spacing: 0;
+        min-width: max-content;
     }
 
     /* Gestione colonne e celle su mobile */
@@ -653,14 +682,35 @@ input[type="file"] {
         height: 32px;
     }
 
+    thead {
+        background: #f5f5f5;
+    }
+
+    thead th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: #f5f5f5;
+    }
+
     /* Stili per la riga di inserimento */
     .new-entry-row {
         background-color: #f8f9fa;
+        display: table-row;
     }
 
     .new-entry-row td {
-        padding: 4px !important;
-        position: relative;
+        padding: 4px;
+        background-color: #f8f9fa;
+        border: 1px solid #e0e0e0;
+    }
+
+    /* Rimuove gli stili che potrebbero causare problemi di allineamento */
+    .new-entry-row td,
+    .new-entry-row input,
+    .new-entry-row select {
+        position: static;
+        transform: none;
     }
 
     /* Stili per gli input nella riga di inserimento */

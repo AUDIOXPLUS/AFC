@@ -9,11 +9,18 @@ const fs = require('fs');
 const http = require('http');
 const app = express();
 const routes = require('./routes');
+const backupManager = require('./database/backup-database');
+
+// Inizializza il sistema di backup
+backupManager.setupBackupDirectories();
+
+// Timer per il controllo dell'inattività
+setInterval(backupManager.checkAndConsolidate, 5 * 60 * 1000); // Controlla ogni 5 minuti
 
 // Definisci la tua chiave segreta JWT (deve corrispondere a quella in OnlyOffice)
 const jwtSecret = 'MDQ879SA5Lw8wnGxJ2TTPK5IFTIX2KZ7';
 
-// Inizializzazione del database
+// Inizializzazione del database con wrapper per il backup
 const db = new sqlite3.Database(path.join(__dirname, 'database', 'AFC.db'), (err) => {
     if (err) {
         console.error('Errore di connessione al database:', err);
@@ -21,6 +28,22 @@ const db = new sqlite3.Database(path.join(__dirname, 'database', 'AFC.db'), (err
         console.log('Connessione al database riuscita');
     }
 });
+
+// Estendi l'oggetto database per tracciare le modifiche
+const originalRun = db.run;
+db.run = function(...args) {
+    const callback = args[args.length - 1];
+    if (typeof callback === 'function') {
+        args[args.length - 1] = function(err) {
+            if (!err) {
+                // Se la query è andata a buon fine, esegui il backup istantaneo
+                backupManager.performInstantBackup();
+            }
+            callback.apply(this, arguments);
+        };
+    }
+    return originalRun.apply(this, args);
+};
 
 // Middleware per il parsing delle richieste
 app.use(bodyParser.json());
