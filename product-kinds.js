@@ -76,30 +76,64 @@ function addProductKind() {
     actionsCell.appendChild(cancelBtn);
 }
 
+// Funzione per aggiornare gli ordini nel database
+async function updateOrderNumbers(startingOrder) {
+    try {
+        // Ottiene tutti i product kinds
+        let productKinds = await window.handleFetchWithCursor(fetch('/api/product-kinds'));
+        
+        // Ordina i product kinds per order_num
+        productKinds.sort((a, b) => a.order_num - b.order_num);
+        
+        // Filtra solo quelli che devono essere aggiornati (con ordine >= startingOrder)
+        const toUpdate = productKinds.filter(pk => pk.order_num >= startingOrder);
+        
+        // Aggiorna gli ordini in sequenza
+        for (let i = 0; i < toUpdate.length; i++) {
+            const pk = toUpdate[i];
+            const newOrder = startingOrder + i + 1; // +1 perché startingOrder sarà occupato dal nuovo elemento
+            
+            await window.handleFetchWithCursor(
+                fetch(`/api/product-kinds/${pk.id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        ...pk,
+                        order_num: newOrder
+                    }),
+                })
+            );
+        }
+    } catch (error) {
+        console.error('Errore nell\'aggiornamento degli ordini:', error);
+        throw error;
+    }
+}
+
 // Funzione per salvare un nuovo product kind
 async function saveNewProductKind(row) {
-    // Calcola l'ordine massimo attuale per gestire l'inserimento automatico
-    // Se non viene specificato un ordine, il nuovo elemento verrà aggiunto alla fine
-    const tableBody = document.getElementById('product-kinds-table').getElementsByTagName('tbody')[0];
-    const rows = Array.from(tableBody.rows);
-    const maxOrder = rows.reduce((max, r) => {
-        if (r !== row) {
-            const orderNum = parseInt(r.cells[2].textContent || '0');
-            return Math.max(max, orderNum);
-        }
-        return max;
-    }, 0);
-
-    // Prepara i dati del nuovo product kind con gestione automatica dell'ordine
-    // Se l'utente non specifica un ordine, viene posizionato alla fine della lista
+    const requestedOrder = parseInt(row.cells[2].firstChild.value);
+    
+    // Prepara i dati del nuovo product kind
     const newProductKind = {
         name: row.cells[0].firstChild.value,
         description: row.cells[1].firstChild.value,
-        // Se non viene specificato un ordine, metti il nuovo elemento alla fine
-        order_num: parseInt(row.cells[2].firstChild.value) || maxOrder + 1
+        order_num: requestedOrder
     };
 
     try {
+        // Se è stato specificato un ordine, aggiorna gli ordini esistenti
+        if (requestedOrder) {
+            await updateOrderNumbers(requestedOrder);
+        } else {
+            // Se non è stato specificato un ordine, mettilo alla fine
+            const productKinds = await window.handleFetchWithCursor(fetch('/api/product-kinds'));
+            const maxOrder = Math.max(...productKinds.map(pk => pk.order_num), 0);
+            newProductKind.order_num = maxOrder + 1;
+        }
+
         const savedProductKind = await window.handleFetchWithCursor(
             fetch('/api/product-kinds', {
                 method: 'POST',
@@ -178,28 +212,26 @@ function editProductKind(productKindId) {
 
 // Funzione per salvare un product kind modificato con gestione dell'ordinamento
 async function saveEditedProductKind(productKindId, row) {
-    // Calcola l'ordine massimo attuale per gestire il riordinamento automatico
-    // Se l'ordine viene modificato, tutti gli elementi verranno riallineati automaticamente
-    const tableBody = document.getElementById('product-kinds-table').getElementsByTagName('tbody')[0];
-    const rows = Array.from(tableBody.rows);
-    const maxOrder = rows.reduce((max, r) => {
-        if (r !== row) {
-            const orderNum = parseInt(r.cells[2].textContent || '0');
-            return Math.max(max, orderNum);
-        }
-        return max;
-    }, 0);
-
-    // Prepara i dati aggiornati con gestione automatica dell'ordine
-    // Se l'utente rimuove l'ordine, l'elemento viene spostato alla fine della lista
-    const updatedProductKind = {
-        name: row.cells[0].firstChild.value,
-        description: row.cells[1].firstChild.value,
-        // Se non viene specificato un ordine, metti l'elemento alla fine
-        order_num: parseInt(row.cells[2].firstChild.value) || maxOrder + 1
-    };
-
     try {
+        // Ottieni il product kind corrente
+        const currentProductKind = await window.handleFetchWithCursor(
+            fetch(`/api/product-kinds/${productKindId}`)
+        );
+
+        if (!currentProductKind) {
+            console.error('Product kind non trovato');
+            return;
+        }
+
+        // Prepara i dati aggiornati
+        const updatedProductKind = {
+            id: productKindId,
+            name: row.cells[0].firstChild.value,
+            description: row.cells[1].firstChild.value,
+            order_num: parseInt(row.cells[2].firstChild.value) || currentProductKind.order_num
+        };
+
+        // Salva le modifiche
         const savedProductKind = await window.handleFetchWithCursor(
             fetch(`/api/product-kinds/${productKindId}`, {
                 method: 'PUT',
@@ -249,18 +281,76 @@ function confirmDeleteProductKind(productKindId) {
     }
 }
 
+// Funzione per aggiornare gli ordini dopo l'eliminazione
+async function updateOrdersAfterDelete(deletedOrder) {
+    try {
+        // Ottiene tutti i product kinds
+        let productKinds = await window.handleFetchWithCursor(fetch('/api/product-kinds'));
+        
+        // Ordina i product kinds per order_num
+        productKinds.sort((a, b) => a.order_num - b.order_num);
+        
+        // Filtra solo quelli che devono essere aggiornati (con ordine > deletedOrder)
+        const toUpdate = productKinds.filter(pk => pk.order_num > deletedOrder);
+        
+        // Aggiorna gli ordini in sequenza
+        for (let i = 0; i < toUpdate.length; i++) {
+            const pk = toUpdate[i];
+            const newOrder = deletedOrder + i; // Sposta indietro di una posizione
+            
+            await window.handleFetchWithCursor(
+                fetch(`/api/product-kinds/${pk.id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        ...pk,
+                        order_num: newOrder
+                    }),
+                })
+            );
+        }
+    } catch (error) {
+        console.error('Errore nell\'aggiornamento degli ordini dopo eliminazione:', error);
+        throw error;
+    }
+}
+
 // Funzione per eliminare un product kind
 async function deleteProductKind(productKindId) {
     try {
-        await window.handleFetchWithCursor(
-            fetch(`/api/product-kinds/${productKindId}`, {
-                method: 'DELETE',
-            })
-        );
-        console.log('Product kind deleted successfully');
-        fetchProductKinds(); // Ricarica la lista dei product kinds
+        // Elimina l'elemento
+        const response = await fetch(`/api/product-kinds/${productKindId}`, {
+            method: 'DELETE',
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const responseText = await response.text();
+        
+        if (responseText === 'Product kind eliminato con successo') {
+            // Forza il refresh della tabella
+            const tableBody = document.getElementById('product-kinds-table').getElementsByTagName('tbody')[0];
+            tableBody.innerHTML = '';
+            
+            // Ricarica i dati
+            await fetchProductKinds();
+            
+            // Mostra un feedback visivo temporaneo
+            const feedback = document.createElement('div');
+            feedback.textContent = 'Record eliminato con successo';
+            feedback.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #4CAF50; color: white; padding: 10px; border-radius: 4px; z-index: 1000;';
+            document.body.appendChild(feedback);
+            setTimeout(() => feedback.remove(), 3000); // Rimuove il feedback dopo 3 secondi
+        } else {
+            throw new Error('Errore durante l\'eliminazione del record');
+        }
     } catch (error) {
         handleNetworkError(error);
+        console.error('Errore durante l\'eliminazione:', error);
     }
 }
 
