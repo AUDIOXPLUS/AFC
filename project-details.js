@@ -52,14 +52,14 @@ document.addEventListener('DOMContentLoaded', async function() {
             // Aggiorna il riepilogo del progetto
             const detailsDiv = document.getElementById('project-details');
             detailsDiv.innerHTML = `
-                <p><strong>Factory:</strong> ${project.factory || 'N/A'}</p>
-                <p><strong>Model Number:</strong> ${project.modelNumber}</p>
-                <p><strong>Factory Model Number:</strong> ${project.factoryModelNumber || 'N/A'}</p>
-                <p><strong>Product Kind:</strong> ${project.productKind || 'N/A'}</p>
-                <p><strong>Client:</strong> ${project.client || 'N/A'}</p>
-                <p><strong>Start Date:</strong> ${project.startDate || 'N/A'}</p>
-                <p><strong>End Date:</strong> ${project.endDate || 'N/A'}</p>
-                <p><strong>Status:</strong> ${project.status || 'N/A'}</p>
+                <p><strong>Factory:</strong> ${project.factory || '-'}</p>
+                <p><strong>Model Number:</strong> ${project.modelNumber || '-'}</p>
+                <p><strong>Factory Model Number:</strong> ${project.factoryModelNumber || '-'}</p>
+                <p><strong>Product Kind:</strong> ${project.productKind || '-'}</p>
+                <p><strong>Client:</strong> ${project.client || '-'}</p>
+                <p><strong>Start Date:</strong> ${project.startDate || '-'}</p>
+                <p><strong>End Date:</strong> ${project.endDate || '-'}</p>
+                <p><strong>Status:</strong> ${project.status || '-'}</p>
             `;
         } catch (error) {
             handleNetworkError(error);
@@ -170,34 +170,31 @@ function enableLiveFiltering() {
     
     const statusCheckboxes = statusDropdown.querySelectorAll('input[type="checkbox"]');
     
-    // Apertura/chiusura dropdown
+    // Gestione apertura/chiusura dropdown con miglior controllo degli eventi
     statusDropdownBtn.addEventListener('click', function(event) {
-        console.log('Status dropdown button clicked');
-        console.log('Current dropdown state:', statusDropdown.classList.contains('show'));
-        event.stopPropagation(); // Previene la propagazione dell'evento
-        statusDropdown.classList.toggle('show');
-        console.log('New dropdown state:', statusDropdown.classList.contains('show'));
-        
-        // Forza il repaint del dropdown
-        statusDropdown.style.display = 'none';
-        statusDropdown.offsetHeight; // Trigger reflow
-        statusDropdown.style.display = '';
+        event.stopPropagation();
+        statusDropdown.style.display = statusDropdown.style.display === 'block' ? 'none' : 'block';
+        statusDropdownBtn.classList.toggle('active');
+    });
+
+    // Previene la chiusura quando si clicca dentro il dropdown
+    statusDropdown.addEventListener('click', function(event) {
+        event.stopPropagation();
     });
 
     // Chiudi dropdown quando si clicca fuori
-    document.addEventListener('click', function(event) {
-        console.log('Document clicked, target:', event.target);
-        const dropdown = document.getElementById('status-filter');
-        const isClickOutside = !event.target.matches('#status-dropdown-btn') && 
-                             !event.target.closest('.dropdown-content');
-        
-        console.log('Is click outside:', isClickOutside);
-        console.log('Dropdown state:', dropdown?.classList.contains('show'));
-        
-        if (dropdown && dropdown.classList.contains('show') && isClickOutside) {
-            console.log('Closing dropdown');
-            dropdown.classList.remove('show');
-        }
+    document.addEventListener('click', function() {
+        statusDropdown.style.display = 'none';
+        statusDropdownBtn.classList.remove('active');
+    });
+
+    // Gestione delle checkbox del filtro status
+    statusCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            applyFilters();
+            // Aggiorna immediatamente il display degli stati selezionati
+            updateStatusDisplay();
+        });
     });
 
     // Gestione filtri testo
@@ -208,15 +205,15 @@ function enableLiveFiltering() {
     // Funzione per aggiornare il display degli stati selezionati
     function updateStatusDisplay() {
         const selectedCheckboxes = Array.from(statusCheckboxes).filter(cb => cb.checked);
-        const statusDropdownBtn = document.getElementById('status-dropdown-btn');
         
         if (selectedCheckboxes.length === 0) {
             statusDropdownBtn.textContent = 'Status';
-            return;
+            statusDropdownBtn.classList.remove('filter-active');
+        } else {
+            const selectedStatuses = selectedCheckboxes.map(cb => cb.getAttribute('data-abbr'));
+            statusDropdownBtn.textContent = selectedStatuses.join(', ');
+            statusDropdownBtn.classList.add('filter-active');
         }
-
-        const selectedStatuses = selectedCheckboxes.map(cb => cb.getAttribute('data-abbr'));
-        statusDropdownBtn.textContent = selectedStatuses.join(', ');
     }
 
     // Funzione per salvare i filtri nel localStorage

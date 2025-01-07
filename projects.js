@@ -202,12 +202,16 @@ async function displayProjects(projects) {
     const createTableRow = async (project) => {
         const row = tableBody.insertRow();
         row.style.height = 'auto'; // Ensure consistent row height
-        row.insertCell(0).textContent = project.client;
-        row.insertCell(1).textContent = project.productKind;
-        row.insertCell(2).textContent = project.factory;
-        row.insertCell(3).textContent = project.brand;
-        row.insertCell(4).textContent = project.range;
-        row.insertCell(5).textContent = project.line;
+        
+        // Funzione helper per gestire i valori vuoti
+        const getValueOrDash = (value) => value || '-';
+        
+        row.insertCell(0).textContent = getValueOrDash(project.client);
+        row.insertCell(1).textContent = getValueOrDash(project.productKind);
+        row.insertCell(2).textContent = getValueOrDash(project.factory);
+        row.insertCell(3).textContent = getValueOrDash(project.brand);
+        row.insertCell(4).textContent = getValueOrDash(project.range);
+        row.insertCell(5).textContent = getValueOrDash(project.line);
 
         // Crea un link per il model number
         const modelNumberCell = row.insertCell(6);
@@ -216,9 +220,9 @@ async function displayProjects(projects) {
         modelNumberLink.textContent = project.modelNumber;
         modelNumberCell.appendChild(modelNumberLink);
 
-        row.insertCell(7).textContent = project.factoryModelNumber;
-        row.insertCell(8).textContent = project.startDate;
-        row.insertCell(9).textContent = project.endDate;
+        row.insertCell(7).textContent = getValueOrDash(project.factoryModelNumber);
+        row.insertCell(8).textContent = getValueOrDash(project.startDate);
+        row.insertCell(9).textContent = getValueOrDash(project.endDate);
 
         // Recupera e imposta lo status del progetto e l'utente assegnato
         const projectStatus = await getProjectStatus(project.id);

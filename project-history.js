@@ -227,8 +227,8 @@ window.displayProjectHistory = function(history) {
         }
         // Converti l'ID in nome utente se necessario
         const assignedMember = window.teamMembers.find(member => String(member.id) === String(entry.assigned_to));
-        row.insertCell(3).textContent = assignedMember ? assignedMember.name : entry.assigned_to;
-        row.insertCell(4).textContent = entry.status;
+        row.insertCell(3).textContent = assignedMember ? assignedMember.name : (entry.assigned_to || '-');
+        row.insertCell(4).textContent = entry.status || '-';
 
         // Gestisce la cella dei file associati alla voce della cronologia
         const filesCell = row.insertCell(5);
@@ -288,7 +288,7 @@ window.displayProjectHistory = function(history) {
             fileItem.className = 'file-item';
             
             const fileNameSpan = document.createElement('span');
-            fileNameSpan.textContent = file.filename;
+            fileNameSpan.textContent = file.filename || '-';
             fileNameSpan.style.cursor = 'pointer';
             fileNameSpan.style.textDecoration = 'underline';
             fileNameSpan.addEventListener('click', () => {
@@ -342,7 +342,7 @@ window.displayProjectHistory = function(history) {
                 
                 const lockedBySpan = document.createElement('span');
                 lockedBySpan.className = 'locked-by';
-                lockedBySpan.textContent = `Locked by ${file.locked_by_name}`;
+                lockedBySpan.textContent = `Locked by ${file.locked_by_name || '-'}`;
                 fileItem.appendChild(lockedBySpan);
             } else {
                 const lockBtn = document.createElement('button');

@@ -267,6 +267,11 @@ main > .table-actions, main > .add-btn {
     pointer-events: auto;
 }
 
+/* Stile per il dropdown quando è visibile */
+.dropdown-content[style*="display: block"] {
+    display: block !important;
+}
+
 .dropdown-content label {
     display: flex;
     align-items: center;
@@ -676,6 +681,32 @@ input[type="file"] {
     background-color: #e3f2fd !important; /* Azzurro chiaro */
     border-color: #2196f3 !important; /* Blu */
     box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2) !important;
+}
+
+/* Stile per il pulsante dropdown quando è attivo */
+#status-dropdown-btn.active {
+    background-color: #e3f2fd;
+    border-color: #2196f3;
+}
+
+/* Stile per le checkbox nel dropdown */
+.dropdown-content input[type="checkbox"] {
+    margin-right: 8px;
+}
+
+/* Stile per le label nel dropdown */
+.dropdown-content label {
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    font-size: 12px;
+    color: #333;
+}
+
+.dropdown-content label:hover {
+    background-color: #f5f5f5;
 }
 
 /* Media queries per dispositivi mobili */
