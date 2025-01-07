@@ -27,6 +27,19 @@ async function initializeDashboard() {
     // Add event listener for the "Add Project" button
     document.getElementById('add-project-btn').addEventListener('click', addProject);
 
+    // Carica i product kinds
+    try {
+        const response = await fetch('/api/product-kinds');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const productKinds = await response.json();
+        window.productKinds = productKinds;
+        window.dispatchEvent(new CustomEvent('productKindsLoaded', { detail: productKinds }));
+    } catch (error) {
+        handleNetworkError(error);
+    }
+
     // Initial fetch of projects
     await fetchProjects();
 
@@ -282,11 +295,58 @@ function addProject() {
         if (!field.editable) {
             cell.textContent = field.defaultValue;
         } else {
-            const input = document.createElement('input');
-            input.type = field.type;
-            input.name = field.name;
-            input.classList.add('new-entry-input');
-            cell.appendChild(input);
+            if (field.name === 'productKind') {
+                // Crea un ID unico per il datalist
+                const datalistId = 'product-kinds-list-' + Math.random().toString(36).substr(2, 9);
+                
+                // Crea il datalist per product kinds
+                const datalist = document.createElement('datalist');
+                datalist.id = datalistId;
+                
+                // Crea l'input collegato al datalist
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.name = field.name;
+                input.classList.add('new-entry-input');
+                input.setAttribute('list', datalistId);
+                
+                // Popola il datalist immediatamente se i product kinds sono già disponibili
+                if (window.productKinds) {
+                    window.productKinds.forEach(pk => {
+                        const option = document.createElement('option');
+                        option.value = pk.name;
+                        datalist.appendChild(option);
+                    });
+                }
+                
+                // Aggiorna il datalist quando vengono caricati nuovi product kinds
+                const updateDatalist = (event) => {
+                    const productKinds = event.detail;
+                    datalist.innerHTML = '';
+                    productKinds.forEach(pk => {
+                        const option = document.createElement('option');
+                        option.value = pk.name;
+                        datalist.appendChild(option);
+                    });
+                };
+                
+                window.addEventListener('productKindsLoaded', updateDatalist);
+                
+                // Rimuovi l'event listener quando l'elemento viene rimosso
+                const cleanup = () => {
+                    window.removeEventListener('productKindsLoaded', updateDatalist);
+                };
+                window.addEventListener('beforeunload', cleanup);
+                
+                cell.appendChild(datalist);
+                cell.appendChild(input);
+            } else {
+                const input = document.createElement('input');
+                input.type = field.type;
+                input.name = field.name;
+                input.classList.add('new-entry-input');
+                cell.appendChild(input);
+            }
         }
     });
 
@@ -298,7 +358,7 @@ function addProject() {
     saveBtn.addEventListener('click', async function() {
         const newProject = {
             client: newRow.cells[0].firstChild.value,
-            productKind: newRow.cells[1].firstChild.value,
+            productKind: newRow.cells[1].querySelector('input').value,
             factory: newRow.cells[2].firstChild.value,
             brand: newRow.cells[3].firstChild.value,
             range: newRow.cells[4].firstChild.value,
@@ -359,11 +419,58 @@ function editProject(row, projectId) {
             continue; // Salta le celle dello status e assignedTo
         }
         cells[i].innerHTML = '';
-        const input = document.createElement('input');
-        input.type = i === 8 || i === 9 ? 'date' : 'text';
-        input.value = projectData[Object.keys(projectData)[i]];
-        input.style.backgroundColor = '#ffff99';
-        cells[i].appendChild(input);
+        if (i === 1) { // Campo productKind
+            // Crea un ID unico per il datalist
+            const datalistId = 'product-kinds-list-edit-' + Math.random().toString(36).substr(2, 9);
+            
+            // Crea il datalist per product kinds
+            const datalist = document.createElement('datalist');
+            datalist.id = datalistId;
+            
+            // Crea l'input collegato al datalist
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = projectData[Object.keys(projectData)[i]];
+            input.style.backgroundColor = '#ffff99';
+            input.setAttribute('list', datalistId);
+            
+            // Popola il datalist immediatamente se i product kinds sono già disponibili
+            if (window.productKinds) {
+                window.productKinds.forEach(pk => {
+                    const option = document.createElement('option');
+                    option.value = pk.name;
+                    datalist.appendChild(option);
+                });
+            }
+            
+            // Aggiorna il datalist quando vengono caricati nuovi product kinds
+            const updateDatalist = (event) => {
+                const productKinds = event.detail;
+                datalist.innerHTML = '';
+                productKinds.forEach(pk => {
+                    const option = document.createElement('option');
+                    option.value = pk.name;
+                    datalist.appendChild(option);
+                });
+            };
+            
+            window.addEventListener('productKindsLoaded', updateDatalist);
+            
+            // Rimuovi l'event listener quando l'elemento viene rimosso
+            const cleanup = () => {
+                window.removeEventListener('productKindsLoaded', updateDatalist);
+            };
+            window.addEventListener('beforeunload', cleanup);
+            
+            cells[i].appendChild(datalist);
+            cells[i].appendChild(input);
+        } else {
+            const input = document.createElement('input');
+            input.type = i === 8 || i === 9 ? 'date' : 'text';
+            input.value = projectData[Object.keys(projectData)[i]];
+            input.style.backgroundColor = '#ffff99';
+            cells[i].appendChild(input);
+        }
     }
 
     // Change edit button to save button
@@ -374,7 +481,7 @@ function editProject(row, projectId) {
     saveBtn.addEventListener('click', async function() {
         const updatedProject = {
             client: cells[0].firstChild.value,
-            productKind: cells[1].firstChild.value,
+            productKind: cells[1].querySelector('input').value,
             factory: cells[2].firstChild.value,
             brand: cells[3].firstChild.value,
             range: cells[4].firstChild.value,
