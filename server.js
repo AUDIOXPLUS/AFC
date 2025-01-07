@@ -169,6 +169,33 @@ app.get('/healthcheck', (req, res) => {
     res.status(200).send('OK');
 });
 
+// Endpoint per ottenere gli utenti connessi
+app.get('/api/connected-users', (req, res) => {
+    // Ottiene tutti gli utenti con sessione attiva
+    const connectedUsers = [];
+    // Itera attraverso tutte le sessioni attive
+    req.sessionStore.all((error, sessions) => {
+        if (error) {
+            console.error('Errore nel recupero delle sessioni:', error);
+            return res.status(500).json({ error: 'Errore interno del server' });
+        }
+        
+        // Estrae gli utenti dalle sessioni attive
+        if (sessions) {
+            Object.values(sessions).forEach(session => {
+                if (session.user) {
+                    connectedUsers.push({
+                        name: session.user.name,
+                        id: session.user.id
+                    });
+                }
+            });
+        }
+        
+        res.json(connectedUsers);
+    });
+});
+
 // -------------------- Integrazione OnlyOffice --------------------
 
 // Funzione per normalizzare i percorsi dei file

@@ -61,6 +61,23 @@ nav ul li a:hover, nav ul li a.active {
     color: white;
 }
 
+.connected-users {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    color: #a0b3c6;
+    margin-right: 20px;
+}
+
+.connected-users span {
+    margin-right: 10px;
+}
+
+#connected-users-list {
+    display: flex;
+    gap: 10px;
+}
+
 .user-info {
     display: flex;
     align-items: center;

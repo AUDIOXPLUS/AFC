@@ -1,7 +1,29 @@
 document.addEventListener('DOMContentLoaded', function() {
     initializeUsersPage();
-    displayLoggedInUser(); // Aggiungi questa funzione per visualizzare l'utente loggato
+    displayLoggedInUser();
+    updateConnectedUsers(); // Aggiorna la lista degli utenti connessi
+    // Aggiorna la lista ogni 30 secondi
+    setInterval(updateConnectedUsers, 30000);
 });
+
+// Funzione per aggiornare la lista degli utenti connessi
+async function updateConnectedUsers() {
+    try {
+        const response = await fetch('/api/connected-users');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const users = await response.json();
+        
+        // Aggiorna la lista degli utenti connessi
+        const usersList = document.getElementById('connected-users-list');
+        if (usersList) {
+            usersList.innerHTML = users.map(user => user.name).join(', ');
+        }
+    } catch (error) {
+        console.error('Errore nel recupero degli utenti connessi:', error);
+    }
+}
 
 function initializeUsersPage() {
     const logoutButton = document.getElementById('logout');
