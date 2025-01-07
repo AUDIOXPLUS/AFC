@@ -244,7 +244,7 @@ router.delete('/phases/:id', checkAuthentication, (req, res) => {
 
 // Endpoint per ottenere i membri del team
 router.get('/team-members', checkAuthentication, (req, res) => {
-    const query = 'SELECT id, name, role, email, color, username FROM users';
+    const query = 'SELECT id, name, role, email, color, fontColor, username FROM users';
     req.db.all(query, [], (err, rows) => {
         if (err) {
             console.error('Errore nel recupero dei team members:', err);
@@ -256,9 +256,9 @@ router.get('/team-members', checkAuthentication, (req, res) => {
 
 // Endpoint per aggiungere un membro del team
 router.post('/team-members', checkAuthentication, (req, res) => {
-    const { name, role, email, color, username, password } = req.body;
-    const query = `INSERT INTO users (name, role, email, color, username, password) VALUES (?, ?, ?, ?, ?, ?)`;
-    req.db.run(query, [name, role, email, color, username, password], function(err) {
+    const { name, role, email, color, fontColor, username, password } = req.body;
+    const query = `INSERT INTO users (name, role, email, color, fontColor, username, password) VALUES (?, ?, ?, ?, ?, ?, ?)`;
+    req.db.run(query, [name, role, email, color, fontColor, username, password], function(err) {
         if (err) {
             console.error('Errore nell\'inserimento del team member:', err);
             return res.status(500).send('Errore del server');
@@ -269,15 +269,15 @@ router.post('/team-members', checkAuthentication, (req, res) => {
 
 // Endpoint per aggiornare un membro del team
 router.put('/team-members/:id', checkAuthentication, (req, res) => {
-    const { name, role, email, color } = req.body;
+    const { name, role, email, color, fontColor } = req.body;
     const userId = req.params.id;
 
     console.log(`Tentativo di aggiornamento del team member con ID: ${userId}`);
-    console.log(`Dati ricevuti: name=${name}, role=${role}, email=${email}, color=${color}`);
+    console.log(`Dati ricevuti: name=${name}, role=${role}, email=${email}, color=${color}, fontColor=${fontColor}`);
 
-    const query = `UPDATE users SET name = ?, role = ?, email = ?, color = ? WHERE id = ?`;
+    const query = `UPDATE users SET name = ?, role = ?, email = ?, color = ?, fontColor = ? WHERE id = ?`;
 
-    req.db.run(query, [name, role, email, color, userId], function(err) {
+    req.db.run(query, [name, role, email, color, fontColor, userId], function(err) {
         if (err) {
             console.error('Errore nell\'aggiornamento del team member:', err);
             return res.status(500).send('Errore del server');
@@ -390,7 +390,7 @@ router.put('/team-members/:id/privileges', checkAuthentication, (req, res) => {
 // Endpoint per ottenere i dettagli di un singolo membro del team
 router.get('/team-members/:id', checkAuthentication, (req, res) => {
     const userId = req.params.id;
-    const query = 'SELECT id, name, role, email, color, username FROM users WHERE id = ?';
+    const query = 'SELECT id, name, role, email, color, fontColor, username FROM users WHERE id = ?';
 
     req.db.get(query, [userId], (err, row) => {
         if (err) {

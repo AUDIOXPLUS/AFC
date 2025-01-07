@@ -66,6 +66,7 @@ function displayTeamMembers(teamMembers) {
         const row = tableBody.insertRow();
         row.dataset.memberId = member.id; // Memorizza memberId come data attribute
         row.dataset.color = member.color; // Memorizza il colore come data attribute
+        row.dataset.fontColor = member.fontColor; // Memorizza il colore del font come data attribute
 
         row.insertCell(0).textContent = member.name;
 
@@ -78,15 +79,25 @@ function displayTeamMembers(teamMembers) {
 
         row.insertCell(2).textContent = member.email;
 
-        const colorCell = row.insertCell(3);
-        const colorDiv = document.createElement('div');
-        colorDiv.style.backgroundColor = member.color;
-        colorDiv.style.width = '20px';
-        colorDiv.style.height = '20px';
-        colorDiv.style.display = 'inline-block';
-        colorCell.appendChild(colorDiv);
+        // Cella per il background color
+        const bgColorCell = row.insertCell(3);
+        const bgColorDiv = document.createElement('div');
+        bgColorDiv.style.backgroundColor = member.color;
+        bgColorDiv.style.width = '20px';
+        bgColorDiv.style.height = '20px';
+        bgColorDiv.style.display = 'inline-block';
+        bgColorCell.appendChild(bgColorDiv);
 
-        const actionsCell = row.insertCell(4);
+        // Cella per il font color
+        const fontColorCell = row.insertCell(4);
+        const fontColorDiv = document.createElement('div');
+        fontColorDiv.style.backgroundColor = member.fontColor;
+        fontColorDiv.style.width = '20px';
+        fontColorDiv.style.height = '20px';
+        fontColorDiv.style.display = 'inline-block';
+        fontColorCell.appendChild(fontColorDiv);
+
+        const actionsCell = row.insertCell(5);
         const editBtn = document.createElement('button');
         editBtn.textContent = 'Edit';
         editBtn.addEventListener('click', () => editTeamMember(row, member.id));
@@ -98,10 +109,10 @@ function addTeamMember() {
     const tableBody = document.getElementById('team-members-table').getElementsByTagName('tbody')[0];
     const newRow = tableBody.insertRow(0);
 
-    const fields = ['name', 'role', 'email', 'color'];
+    const fields = ['name', 'role', 'email', 'color', 'fontColor'];
     fields.forEach((field, index) => {
         const cell = newRow.insertCell(index);
-        if (field === 'color') {
+        if (field === 'color' || field === 'fontColor') {
             const colorInput = document.createElement('input');
             colorInput.type = 'color';
             colorInput.name = field;
@@ -115,7 +126,7 @@ function addTeamMember() {
         }
     });
 
-    const actionsCell = newRow.insertCell(4);
+    const actionsCell = newRow.insertCell(5);
     const saveBtn = document.createElement('button');
     saveBtn.textContent = 'Save';
     saveBtn.addEventListener('click', () => saveNewTeamMember(newRow));
@@ -127,7 +138,8 @@ async function saveNewTeamMember(row) {
         name: row.cells[0].firstChild.value,
         role: row.cells[1].firstChild.value,
         email: row.cells[2].firstChild.value,
-        color: row.cells[3].firstChild.value
+        color: row.cells[3].firstChild.value,
+        fontColor: row.cells[4].firstChild.value
     };
 
     try {
@@ -156,15 +168,16 @@ function editTeamMember(row, memberId) {
         name: cells[0].textContent,
         role: cells[1].textContent,
         email: cells[2].textContent,
-        color: row.dataset.color // Usa il valore hex del colore memorizzato
+        color: row.dataset.color, // Usa il valore hex del colore memorizzato
+        fontColor: row.dataset.fontColor // Usa il valore hex del colore del font memorizzato
     };
 
     // Converte le celle in campi input
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 5; i++) {
         const input = document.createElement('input');
-        if (i === 3) {
-            input.type = 'color'; // Input di tipo color per il colore
-            input.value = memberData.color;
+        if (i === 3 || i === 4) {
+            input.type = 'color'; // Input di tipo color per i colori
+            input.value = i === 3 ? memberData.color : memberData.fontColor;
         } else {
             input.type = 'text';
             input.value = cells[i].textContent;
@@ -175,7 +188,7 @@ function editTeamMember(row, memberId) {
     }
 
     // Cambia il pulsante Edit in Save
-    const actionsCell = cells[4];
+    const actionsCell = cells[5];
     actionsCell.innerHTML = '';
     const saveBtn = document.createElement('button');
     saveBtn.textContent = 'Save';
@@ -185,7 +198,8 @@ function editTeamMember(row, memberId) {
             name: cells[0].firstChild.value,
             role: cells[1].firstChild.value,
             email: cells[2].firstChild.value,
-            color: cells[3].firstChild.value
+            color: cells[3].firstChild.value,
+            fontColor: cells[4].firstChild.value
         };
 
         console.log('Updated Member Data:', updatedMember); // Per debugging

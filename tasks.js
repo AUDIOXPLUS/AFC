@@ -75,10 +75,11 @@ function displayTasks(tasks) {
         row.insertCell(4).textContent = task.assignedTo;
         row.insertCell(5).textContent = task.status;
 
-        // Applica il colore di sfondo in base all'utente assegnato
+        // Applica il colore di sfondo e del font in base all'utente assegnato
         const assignedMember = teamMembers.find(member => member.name === task.assignedTo);
         if (assignedMember) {
             row.style.backgroundColor = assignedMember.color;
+            row.style.color = assignedMember.fontColor || '#000000';
         }
     });
 

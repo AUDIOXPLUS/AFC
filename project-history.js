@@ -416,6 +416,7 @@ window.displayProjectHistory = function(history) {
             const assignedMember = window.teamMembers.find(member => member.name === entry.assigned_to);
             if (assignedMember) {
                 row.style.backgroundColor = assignedMember.color;
+                row.style.color = assignedMember.fontColor || '#000000';
             }
         }
 
