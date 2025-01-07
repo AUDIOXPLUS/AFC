@@ -549,6 +549,43 @@ window.addHistoryEntry = function(projectId) {
             textarea.style.width = '100%';
             textarea.style.minHeight = '100px';
             textarea.style.resize = 'vertical';
+            
+            // Gestione del drag and drop dei file
+            textarea.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.style.backgroundColor = '#e6ffe6'; // Feedback visivo
+            });
+            
+            textarea.addEventListener('dragleave', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.style.backgroundColor = '#ffff99'; // Ripristina colore originale
+            });
+            
+            textarea.addEventListener('drop', async function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.style.backgroundColor = '#ffff99'; // Ripristina colore originale
+                
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    const fileInput = row.cells[5].querySelector('input[type="file"]');
+                    if (fileInput && !fileInput.disabled) {
+                        // Crea un nuovo FileList con i file trascinati
+                        const dataTransfer = new DataTransfer();
+                        for (let i = 0; i < files.length; i++) {
+                            dataTransfer.items.add(files[i]);
+                        }
+                        fileInput.files = dataTransfer.files;
+                        
+                        // Simula l'evento change per attivare l'upload
+                        const event = new Event('change', { bubbles: true });
+                        fileInput.dispatchEvent(event);
+                    }
+                }
+            });
+            
             cell.appendChild(textarea);
         } else if (field === 'phase') {
             const select = document.createElement('select');
@@ -736,6 +773,42 @@ window.editHistoryEntry = function(entryId) {
                 input.style.width = '100%';
                 input.style.minHeight = '100px';
                 input.style.resize = 'vertical';
+                
+                // Gestione del drag and drop dei file in modalità edit
+                input.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.style.backgroundColor = '#e6ffe6'; // Feedback visivo
+                });
+                
+                input.addEventListener('dragleave', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.style.backgroundColor = '#ffff99'; // Ripristina colore originale
+                });
+                
+                input.addEventListener('drop', async function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.style.backgroundColor = '#ffff99'; // Ripristina colore originale
+                    
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0) {
+                        const fileInput = cells[5].querySelector('input[type="file"]');
+                        if (fileInput) {
+                            // Crea un nuovo FileList con i file trascinati
+                            const dataTransfer = new DataTransfer();
+                            for (let i = 0; i < files.length; i++) {
+                                dataTransfer.items.add(files[i]);
+                            }
+                            fileInput.files = dataTransfer.files;
+                            
+                            // Simula l'evento change per attivare l'upload
+                            const event = new Event('change', { bubbles: true });
+                            fileInput.dispatchEvent(event);
+                        }
+                    }
+                });
             } else if (i === 0) { // Campo 'date'
                 input = document.createElement('input');
                 input.type = 'date';
