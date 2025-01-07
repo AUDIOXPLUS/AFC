@@ -145,6 +145,14 @@ function enableLiveFiltering() {
             .filter(cb => cb.checked)
             .map(cb => cb.value);
 
+        // Aggiorna lo stile dei filtri attivi
+        textFilterInputs.forEach(input => {
+            input.classList.toggle('filter-active', input.value.trim() !== '');
+        });
+
+        const statusBtn = document.getElementById('status-dropdown-btn');
+        statusBtn.classList.toggle('filter-active', selectedStatuses.length > 0);
+
         // Salva i filtri nel localStorage
         saveFilters(textFilterValues, selectedStatuses);
         

@@ -654,6 +654,13 @@ input[type="file"] {
     border-radius: 3px;
 }
 
+/* Stile per i filtri attivi */
+.filter-active {
+    background-color: #e3f2fd !important; /* Azzurro chiaro */
+    border-color: #2196f3 !important; /* Blu */
+    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2) !important;
+}
+
 /* Media queries per dispositivi mobili */
 @media screen and (max-width: 768px) {
     /* Wrapper per la tabella su mobile */

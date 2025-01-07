@@ -582,6 +582,19 @@ function enableLiveFiltering() {
             endDate: document.getElementById('end-date-filter').value
         };
 
+        // Aggiorna lo stile dei filtri attivi
+        textFilterInputs.forEach(input => {
+            input.classList.toggle('filter-active', input.value.trim() !== '');
+        });
+        
+        const dateInputs = document.querySelectorAll('.filters input[type="date"]');
+        dateInputs.forEach(input => {
+            input.classList.toggle('filter-active', input.value !== '');
+        });
+
+        const statusBtn = document.getElementById('status-dropdown-btn');
+        statusBtn.classList.toggle('filter-active', selectedStatuses.length > 0);
+
         // Salva i filtri nel localStorage
         saveFilters(textFilterValues, selectedStatuses, dateFilterValues);
         
