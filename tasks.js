@@ -1,4 +1,5 @@
 let teamMembers = [];
+let currentUser = null;
 
 // Funzione di utilità per gestire gli errori di rete
 function handleNetworkError(error) {
@@ -13,26 +14,114 @@ function handleNetworkError(error) {
 let filteringApi = null;
 
 document.addEventListener('DOMContentLoaded', async function() {
-    // Verifica lo stato della connessione
-    if (!navigator.onLine) {
+    try {
+        // Verifica lo stato della connessione
+        if (!navigator.onLine) {
+            window.location.href = 'login.html';
+            return;
+        }
+
+        // Verifica l'autenticazione
+        const isAuthenticated = await checkAuthStatus();
+        if (!isAuthenticated) {
+            window.location.href = 'login.html';
+            return;
+        }
+
+        // Ottieni l'utente corrente
+        currentUser = await getCurrentUser();
+        if (!currentUser) {
+            console.error('Impossibile ottenere l\'utente corrente');
+            window.location.href = 'login.html';
+            return;
+        }
+        
+        await fetchTeamMembers();
+        await fetchTasks();
+
+        // Enable column resizing
+        enableColumnResizing();
+
+        // Restore column widths on page load
+        restoreColumnWidths();
+
+        // Enable column sorting
+        enableColumnSorting();
+
+        // Enable live filtering
+        enableLiveFiltering();
+
+        // Inizializza la gestione delle notifiche
+        initializeNotifications();
+    } catch (error) {
+        console.error('Errore durante l\'inizializzazione:', error);
         window.location.href = 'login.html';
-        return;
     }
-    await fetchTeamMembers();
-    await fetchTasks();
-
-    // Enable column resizing
-    enableColumnResizing();
-
-    // Restore column widths on page load
-    restoreColumnWidths();
-
-    // Enable column sorting
-    enableColumnSorting();
-
-    // Enable live filtering
-    enableLiveFiltering();
 });
+
+// Funzione per ottenere l'utente corrente
+async function getCurrentUser() {
+    try {
+        const response = await fetch('/api/current-user');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const user = await response.json();
+        if (!user || !user.name) {
+            throw new Error('Dati utente non validi');
+        }
+        return user;
+    } catch (error) {
+        console.error('Errore nel recupero dell\'utente corrente:', error);
+        return null;
+    }
+}
+
+// Funzione per inizializzare le notifiche
+function initializeNotifications() {
+    const bell = document.getElementById('notification-bell');
+    const notificationCount = bell.querySelector('.notification-count');
+
+    // Click sulla campanella
+    bell.addEventListener('click', () => {
+        // Filtra automaticamente per mostrare solo i task dell'utente corrente
+        const userFilter = document.getElementById('filter-input');
+        userFilter.value = currentUser.name;
+        filteringApi.applyFilters();
+
+        // Aggiorna l'URL per indicare che siamo nella vista dei task dell'utente
+        const url = new URL(window.location.href);
+        url.searchParams.set('view', 'my-tasks');
+        window.history.pushState({}, '', url);
+    });
+
+    // Controlla se ci sono nuovi task all'avvio
+    updateNotificationCount();
+}
+
+// Funzione per aggiornare il contatore delle notifiche
+function updateNotificationCount() {
+    const bell = document.getElementById('notification-bell');
+    const notificationCount = bell.querySelector('.notification-count');
+    
+    // Conta i nuovi task assegnati all'utente corrente
+    const newTasks = Array.from(document.getElementById('task-table').getElementsByTagName('tbody')[0].rows)
+        .filter(row => {
+            const assignedToCell = row.cells[4];
+            return assignedToCell.textContent === currentUser.name && assignedToCell.classList.contains('new-task-cell');
+        });
+
+    const count = newTasks.length;
+    
+    if (count > 0) {
+        notificationCount.textContent = count;
+        notificationCount.style.display = 'block';
+        bell.classList.add('has-notifications');
+    } else {
+        notificationCount.style.display = 'none';
+        bell.classList.remove('has-notifications');
+    }
+}
 
 async function fetchTeamMembers() {
     try {
@@ -57,6 +146,11 @@ async function fetchTasks() {
 }
 
 function displayTasks(tasks) {
+    if (!currentUser) {
+        console.error('Utente non disponibile per la visualizzazione dei task');
+        return;
+    }
+
     const tableBody = document.getElementById('task-table').getElementsByTagName('tbody')[0];
     tableBody.innerHTML = ''; // Clear existing rows
 
@@ -80,6 +174,12 @@ function displayTasks(tasks) {
         if (assignedMember) {
             row.style.backgroundColor = assignedMember.color;
             row.style.color = assignedMember.fontColor || '#000000';
+        }
+
+        // Evidenzia i nuovi task assegnati all'utente corrente
+        if (task.is_new && task.assignedTo === currentUser.name) {
+            const assignedToCell = row.cells[4]; // Indice della colonna "Assigned To"
+            assignedToCell.classList.add('new-task-cell');
         }
     });
 

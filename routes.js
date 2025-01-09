@@ -531,6 +531,19 @@ router.get('/session-user', (req, res) => {
     }
 });
 
+// Endpoint per ottenere l'utente corrente
+router.get('/current-user', (req, res) => {
+    if (req.session && req.session.user) {
+        res.json({ 
+            id: req.session.user.id, 
+            username: req.session.user.username, 
+            name: req.session.user.name 
+        });
+    } else {
+        res.status(401).json({ error: 'Utente non autenticato' });
+    }
+});
+
 // Endpoint per aggiungere una voce alla cronologia del progetto
 router.post('/projects/:id/history', checkAuthentication, (req, res) => {
     const projectId = req.params.id;
@@ -637,7 +650,8 @@ router.get('/tasks', checkAuthentication, (req, res) => {
             ph.date, 
             ph.description, 
             ph.assigned_to AS assignedTo, 
-            ph.status
+            ph.status,
+            ph.is_new
         FROM 
             project_history ph
         JOIN 
@@ -649,6 +663,28 @@ router.get('/tasks', checkAuthentication, (req, res) => {
             return res.status(500).send('Errore del server');
         }
         res.json(rows);
+    });
+});
+
+// Endpoint per resettare lo stato "nuovo" dei task di un progetto
+router.post('/projects/:id/reset-new-status', checkAuthentication, (req, res) => {
+    const projectId = req.params.id;
+    const { userId } = req.body;
+
+    const query = `
+        UPDATE project_history 
+        SET is_new = 0 
+        WHERE project_id = ? AND assigned_to = (
+            SELECT name FROM users WHERE id = ?
+        )
+    `;
+
+    req.db.run(query, [projectId, userId], function(err) {
+        if (err) {
+            console.error('Errore nel reset dello stato nuovo:', err);
+            return res.status(500).json({ error: 'Errore del server' });
+        }
+        res.json({ message: 'Stato nuovo resettato con successo' });
     });
 });
 

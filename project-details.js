@@ -42,8 +42,24 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Funzione per recuperare i dettagli del progetto
     window.fetchProjectDetails = async function(projectId) {
         try {
+            // Recupera i dettagli del progetto
             const response = await fetch(`/api/projects/${projectId}`);
             const project = await window.handleResponse(response);
+
+            // Resetta lo stato "nuovo" per i task di questo progetto per l'utente corrente
+            try {
+                await fetch(`/api/projects/${projectId}/reset-new-status`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        userId: window.currentUserId
+                    })
+                });
+            } catch (error) {
+                console.error('Error resetting new status:', error);
+            }
             
             // Aggiorna il titolo del progetto
             document.getElementById('project-model-number').textContent = project.modelNumber;
