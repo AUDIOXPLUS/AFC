@@ -136,6 +136,9 @@
             if (isAuthenticated) {
                 displayLoggedInUser();
                 initializeDashboard();
+            } else {
+                // Se non autenticato, reindirizza al login
+                window.location.href = '/login.html';
             }
         });
     </script>

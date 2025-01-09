@@ -280,16 +280,22 @@ router.put('/product-kinds/:id', checkAuthentication, (req, res) => {
     req.db.run(query, [name, description, order_num, productKindId], function(err) {
         if (err) {
             console.error('Errore nell\'aggiornamento del product kind:', err);
-            return res.status(500).send('Errore del server');
+            return res.status(500).json({ error: 'Errore del server' });
         }
         if (this.changes === 0) {
-            return res.status(404).send('Product kind non trovato');
+            return res.status(404).json({ error: 'Product kind non trovato' });
         }
-        res.status(200).json({
-            id: productKindId,
-            name,
-            description,
-            order_num
+
+        // Dopo l'aggiornamento, recupera il record aggiornato
+        req.db.get('SELECT * FROM product_kinds WHERE id = ?', [productKindId], (err, row) => {
+            if (err) {
+                console.error('Errore nel recupero del product kind aggiornato:', err);
+                return res.status(500).json({ error: 'Errore del server' });
+            }
+            if (!row) {
+                return res.status(404).json({ error: 'Product kind non trovato' });
+            }
+            res.status(200).json(row);
         });
     });
 });

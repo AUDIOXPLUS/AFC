@@ -170,23 +170,49 @@ async function saveNewProductKind(row) {
         // Rimuovi lo stile di editing
         row.classList.remove('editing');
 
+        // Mostra un feedback visivo di successo
+        const feedback = document.createElement('div');
+        feedback.textContent = 'Record salvato con successo';
+        feedback.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #4CAF50; color: white; padding: 10px; border-radius: 4px; z-index: 1000;';
+        document.body.appendChild(feedback);
+        setTimeout(() => feedback.remove(), 3000);
+
         // Ricarica la tabella per mostrare l'ordinamento aggiornato
         fetchProductKinds();
     } catch (error) {
         handleNetworkError(error);
+        // Mostra un feedback visivo di errore
+        const feedback = document.createElement('div');
+        feedback.textContent = 'Errore nel salvataggio del record';
+        feedback.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #f44336; color: white; padding: 10px; border-radius: 4px; z-index: 1000;';
+        document.body.appendChild(feedback);
+        setTimeout(() => feedback.remove(), 3000);
     }
 }
 
 function editProductKind(productKindId) {
+    console.log('Editing product kind with ID:', productKindId);
     const row = document.querySelector(`tr[data-product-kind-id="${productKindId}"]`);
+    if (!row) {
+        console.error('Row not found for product kind ID:', productKindId);
+        return;
+    }
+    
     row.classList.add('editing');
     const cells = row.cells;
 
+    // Salva i valori originali come attributi della riga per il ripristino
+    row.setAttribute('data-original-name', cells[0].textContent);
+    row.setAttribute('data-original-description', cells[1].textContent);
+    row.setAttribute('data-original-order', cells[2].textContent);
+
     ['name', 'description', 'order'].forEach((field, index) => {
-        const currentValue = cells[index].textContent;
+        const currentValue = cells[index].textContent.trim();
+        console.log(`Setting ${field} input with value:`, currentValue);
         const input = document.createElement('input');
         input.type = field === 'order' ? 'number' : 'text';
         input.value = currentValue;
+        input.name = field; // Aggiungi il nome del campo
         cells[index].textContent = '';
         cells[index].appendChild(input);
     });
@@ -197,14 +223,37 @@ function editProductKind(productKindId) {
     const saveBtn = document.createElement('button');
     saveBtn.textContent = 'Save';
     saveBtn.classList.add('save-btn');
-    saveBtn.addEventListener('click', () => saveEditedProductKind(productKindId, row));
+    saveBtn.onclick = () => {
+        console.log('Save button clicked for product kind ID:', productKindId);
+        saveEditedProductKind(productKindId, row);
+    };
     
     const cancelBtn = document.createElement('button');
     cancelBtn.textContent = 'Cancel';
     cancelBtn.classList.add('cancel-btn');
-    cancelBtn.addEventListener('click', () => {
-        fetchProductKinds(); // Ricarica i dati originali
-    });
+    cancelBtn.onclick = () => {
+        console.log('Cancel button clicked, restoring original values');
+        // Ripristina i valori originali
+        cells[0].textContent = row.getAttribute('data-original-name');
+        cells[1].textContent = row.getAttribute('data-original-description');
+        cells[2].textContent = row.getAttribute('data-original-order');
+        row.classList.remove('editing');
+        
+        // Ripristina i pulsanti originali
+        actionsCell.innerHTML = '';
+        const editBtn = document.createElement('button');
+        editBtn.textContent = 'Edit';
+        editBtn.classList.add('edit-btn');
+        editBtn.addEventListener('click', () => editProductKind(productKindId));
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.classList.add('delete-btn');
+        deleteBtn.addEventListener('click', () => confirmDeleteProductKind(productKindId));
+        
+        actionsCell.appendChild(editBtn);
+        actionsCell.appendChild(deleteBtn);
+    };
     
     actionsCell.appendChild(saveBtn);
     actionsCell.appendChild(cancelBtn);
@@ -213,26 +262,20 @@ function editProductKind(productKindId) {
 // Funzione per salvare un product kind modificato con gestione dell'ordinamento
 async function saveEditedProductKind(productKindId, row) {
     try {
-        // Ottieni il product kind corrente
-        const currentProductKind = await window.handleFetchWithCursor(
-            fetch(`/api/product-kinds/${productKindId}`)
-        );
-
-        if (!currentProductKind) {
-            console.error('Product kind non trovato');
-            return;
-        }
-
+        console.log('Inizio saveEditedProductKind per ID:', productKindId);
+        
         // Prepara i dati aggiornati
         const updatedProductKind = {
             id: productKindId,
             name: row.cells[0].firstChild.value,
             description: row.cells[1].firstChild.value,
-            order_num: parseInt(row.cells[2].firstChild.value) || currentProductKind.order_num
+            order_num: parseInt(row.cells[2].firstChild.value)
         };
 
+        console.log('Dati da inviare al server:', updatedProductKind);
+
         // Salva le modifiche
-        const savedProductKind = await window.handleFetchWithCursor(
+        const response = await window.handleFetchWithCursor(
             fetch(`/api/product-kinds/${productKindId}`, {
                 method: 'PUT',
                 headers: {
@@ -241,7 +284,15 @@ async function saveEditedProductKind(productKindId, row) {
                 body: JSON.stringify(updatedProductKind),
             })
         );
-            
+
+        console.log('Dati salvati ricevuti dal server:', response);
+        
+        if (!response || !response.id) {
+            throw new Error('Errore nel salvataggio dei dati: dati mancanti nella risposta');
+        }
+
+        const savedProductKind = response;
+
         // Aggiorna la riga con i dati salvati
         row.cells[0].textContent = savedProductKind.name;
         row.cells[1].textContent = savedProductKind.description;
@@ -321,15 +372,11 @@ async function updateOrdersAfterDelete(deletedOrder) {
 async function deleteProductKind(productKindId) {
     try {
         // Elimina l'elemento
-        const response = await fetch(`/api/product-kinds/${productKindId}`, {
-            method: 'DELETE',
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const responseText = await response.text();
+        const responseText = await window.handleFetchWithCursor(
+            fetch(`/api/product-kinds/${productKindId}`, {
+                method: 'DELETE',
+            })
+        );
         
         if (responseText === 'Product kind eliminato con successo') {
             // Forza il refresh della tabella
