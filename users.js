@@ -78,9 +78,11 @@ function displayTeamMembers(teamMembers) {
         roleCell.appendChild(roleLink);
 
         row.insertCell(2).textContent = member.email;
+        row.insertCell(3).textContent = member.factory;
+        row.insertCell(4).textContent = member.client_company_name;
 
         // Cella per il background color
-        const bgColorCell = row.insertCell(3);
+        const bgColorCell = row.insertCell(5);
         const bgColorDiv = document.createElement('div');
         bgColorDiv.style.backgroundColor = member.color;
         bgColorDiv.style.width = '20px';
@@ -89,7 +91,7 @@ function displayTeamMembers(teamMembers) {
         bgColorCell.appendChild(bgColorDiv);
 
         // Cella per il font color
-        const fontColorCell = row.insertCell(4);
+        const fontColorCell = row.insertCell(6);
         const fontColorDiv = document.createElement('div');
         fontColorDiv.style.backgroundColor = member.fontColor;
         fontColorDiv.style.width = '20px';
@@ -97,7 +99,7 @@ function displayTeamMembers(teamMembers) {
         fontColorDiv.style.display = 'inline-block';
         fontColorCell.appendChild(fontColorDiv);
 
-        const actionsCell = row.insertCell(5);
+        const actionsCell = row.insertCell(7);
         const editBtn = document.createElement('button');
         editBtn.textContent = 'Edit';
         editBtn.addEventListener('click', () => editTeamMember(row, member.id));
@@ -109,7 +111,7 @@ function addTeamMember() {
     const tableBody = document.getElementById('team-members-table').getElementsByTagName('tbody')[0];
     const newRow = tableBody.insertRow(0);
 
-    const fields = ['name', 'role', 'email', 'color', 'fontColor'];
+    const fields = ['name', 'role', 'email', 'factory', 'client_company_name', 'color', 'fontColor'];
     fields.forEach((field, index) => {
         const cell = newRow.insertCell(index);
         if (field === 'color' || field === 'fontColor') {
@@ -126,7 +128,7 @@ function addTeamMember() {
         }
     });
 
-    const actionsCell = newRow.insertCell(5);
+    const actionsCell = newRow.insertCell(7);
     const saveBtn = document.createElement('button');
     saveBtn.textContent = 'Save';
     saveBtn.addEventListener('click', () => saveNewTeamMember(newRow));
@@ -138,8 +140,10 @@ async function saveNewTeamMember(row) {
         name: row.cells[0].firstChild.value,
         role: row.cells[1].firstChild.value,
         email: row.cells[2].firstChild.value,
-        color: row.cells[3].firstChild.value,
-        fontColor: row.cells[4].firstChild.value
+        factory: row.cells[3].firstChild.value,
+        client_company_name: row.cells[4].firstChild.value,
+        color: row.cells[5].firstChild.value,
+        fontColor: row.cells[6].firstChild.value
     };
 
     try {
@@ -173,11 +177,11 @@ function editTeamMember(row, memberId) {
     };
 
     // Converte le celle in campi input
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 7; i++) {
         const input = document.createElement('input');
-        if (i === 3 || i === 4) {
+        if (i === 5 || i === 6) {
             input.type = 'color'; // Input di tipo color per i colori
-            input.value = i === 3 ? memberData.color : memberData.fontColor;
+            input.value = i === 5 ? memberData.color : memberData.fontColor;
         } else {
             input.type = 'text';
             input.value = cells[i].textContent;
@@ -188,7 +192,7 @@ function editTeamMember(row, memberId) {
     }
 
     // Cambia il pulsante Edit in Save
-    const actionsCell = cells[5];
+    const actionsCell = cells[7];
     actionsCell.innerHTML = '';
     const saveBtn = document.createElement('button');
     saveBtn.textContent = 'Save';
@@ -198,8 +202,10 @@ function editTeamMember(row, memberId) {
             name: cells[0].firstChild.value,
             role: cells[1].firstChild.value,
             email: cells[2].firstChild.value,
-            color: cells[3].firstChild.value,
-            fontColor: cells[4].firstChild.value
+            factory: cells[3].firstChild.value,
+            client_company_name: cells[4].firstChild.value,
+            color: cells[5].firstChild.value,
+            fontColor: cells[6].firstChild.value
         };
 
         console.log('Updated Member Data:', updatedMember); // Per debugging

@@ -4,7 +4,7 @@ const checkAuthentication = require('../middleware/auth');
 
 // Endpoint per ottenere i membri del team
 router.get('/', checkAuthentication, (req, res) => {
-    const query = 'SELECT id, name, role, email, color, fontColor, username FROM users';
+    const query = 'SELECT id, name, role, email, color, fontColor, username, factory, client_company_name FROM users';
     req.db.all(query, [], (err, rows) => {
         if (err) {
             console.error('Errore nel recupero dei team members:', err);
@@ -17,7 +17,7 @@ router.get('/', checkAuthentication, (req, res) => {
 // Endpoint per ottenere i dettagli di un singolo membro del team
 router.get('/:id', checkAuthentication, (req, res) => {
     const userId = req.params.id;
-    const query = 'SELECT id, name, role, email, color, fontColor, username FROM users WHERE id = ?';
+    const query = 'SELECT id, name, role, email, color, fontColor, username, factory, client_company_name FROM users WHERE id = ?';
 
     req.db.get(query, [userId], (err, row) => {
         if (err) {
@@ -34,9 +34,9 @@ router.get('/:id', checkAuthentication, (req, res) => {
 
 // Endpoint per aggiungere un membro del team
 router.post('/', checkAuthentication, (req, res) => {
-    const { name, role, email, color, fontColor, username, password } = req.body;
-    const query = `INSERT INTO users (name, role, email, color, fontColor, username, password) VALUES (?, ?, ?, ?, ?, ?, ?)`;
-    req.db.run(query, [name, role, email, color, fontColor, username, password], function(err) {
+    const { name, role, email, color, fontColor, username, password, factory, client_company_name } = req.body;
+    const query = `INSERT INTO users (name, role, email, color, fontColor, username, password, factory, client_company_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    req.db.run(query, [name, role, email, color, fontColor, username, password, factory, client_company_name], function(err) {
         if (err) {
             console.error('Errore nell\'inserimento del team member:', err);
             return res.status(500).send('Errore del server');
@@ -47,15 +47,15 @@ router.post('/', checkAuthentication, (req, res) => {
 
 // Endpoint per aggiornare un membro del team
 router.put('/:id', checkAuthentication, (req, res) => {
-    const { name, role, email, color, fontColor } = req.body;
+    const { name, role, email, color, fontColor, factory, client_company_name } = req.body;
     const userId = req.params.id;
 
     console.log(`Tentativo di aggiornamento del team member con ID: ${userId}`);
-    console.log(`Dati ricevuti: name=${name}, role=${role}, email=${email}, color=${color}, fontColor=${fontColor}`);
+    console.log(`Dati ricevuti: name=${name}, role=${role}, email=${email}, color=${color}, fontColor=${fontColor}, factory=${factory}, client_company_name=${client_company_name}`);
 
-    const query = `UPDATE users SET name = ?, role = ?, email = ?, color = ?, fontColor = ? WHERE id = ?`;
+    const query = `UPDATE users SET name = ?, role = ?, email = ?, color = ?, fontColor = ?, factory = ?, client_company_name = ? WHERE id = ?`;
 
-    req.db.run(query, [name, role, email, color, fontColor, userId], function(err) {
+    req.db.run(query, [name, role, email, color, fontColor, factory, client_company_name, userId], function(err) {
         if (err) {
             console.error('Errore nell\'aggiornamento del team member:', err);
             return res.status(500).send('Errore del server');
