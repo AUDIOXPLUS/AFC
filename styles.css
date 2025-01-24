@@ -1,3 +1,35 @@
+/* Stili per i permessi di lettura nella tabella CRUD */
+.crud-table .read-permission {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Container per checkbox e dropdown Read */
+.read-permission-container {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.crud-table .read-permission select {
+    flex: 1;
+    min-width: 200px;
+    padding: 4px;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    font-size: 12px;
+    background-color: white;
+}
+
+.crud-table .crud-checkbox {
+    margin-right: 8px;
+    transform: scale(1.2);
+    cursor: pointer;
+}
+
 body {
     font-family: Arial, sans-serif;
     margin: 0;
@@ -422,7 +454,7 @@ th i {
     background-color: #e74c3c;
 }
 
-.edit-btn, .delete-btn, .set-completed-btn {
+.edit-btn, .delete-btn, .crud-btn, .set-completed-btn, #save-role-btn {
     padding: 3px 8px;
     margin-right: 5px;
     border: none;
@@ -435,6 +467,15 @@ th i {
 .edit-btn {
     background-color: #3498db;
     color: white;
+}
+
+.crud-btn {
+    background-color: #f39c12;
+    color: white;
+}
+
+.crud-btn:hover {
+    background-color: #d68910;
 }
 
 .delete-btn {
@@ -770,6 +811,12 @@ input[type="file"] {
 }
 
 /* Media queries per dispositivi mobili */
+/* Rotazione 180 gradi del display principale con contesto 3D */
+.main-display {
+    transform: rotate(180deg);
+    transform-style: preserve-3d;
+}
+
 @media screen and (max-width: 768px) {
     /* Wrapper per la tabella su mobile */
     .table-wrapper {
@@ -906,9 +953,136 @@ input[type="file"] {
         box-shadow: -2px 0 5px rgba(0,0,0,0.1) !important;
     }
 
-    /* Aumenta dimensione pulsanti per touch */
-    .edit-btn, .delete-btn, .set-completed-btn {
-        padding: 8px 12px;
+    /* Read Permissions Configuration Styles */
+.read-permissions-section {
+    background-color: white;
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 5px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.read-permissions-section h3 {
+    color: #2c3e50;
+    margin-bottom: 15px;
+    font-size: 16px;
+}
+
+.permission-group {
+    margin-bottom: 15px;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    border: 1px solid #e0e0e0;
+}
+
+.permission-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.permission-header input[type="checkbox"] {
+    margin-right: 10px;
+    transform: scale(1.2);
+    cursor: pointer;
+}
+
+.permission-header label {
+    font-size: 14px;
+    color: #2c3e50;
+    cursor: pointer;
+}
+
+.view-options {
+    padding-left: 25px;
+}
+
+.view-options select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: white;
+    font-size: 13px;
+    color: #333;
+    cursor: pointer;
+}
+
+.view-options select:disabled {
+    background-color: #f5f5f5;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.view-options select:not(:disabled):hover {
+    border-color: #3498db;
+}
+
+/* Stili per la tabella CRUD */
+.crud-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    margin-bottom: 20px;
+}
+
+.crud-table th, .crud-table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: center;
+}
+
+.crud-table th {
+    background-color: #f5f5f5;
+    font-weight: bold;
+}
+
+.crud-table tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+.crud-table tr:hover {
+    background-color: #f0f0f0;
+}
+
+/* Stili per i permessi di lettura nella tabella CRUD */
+.read-permission {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.read-permission > div {
+    flex: 1;
+}
+
+.read-permission .crud-checkbox {
+    transform: scale(1.2);
+    cursor: pointer;
+}
+
+.read-permission select {
+    width: 100%;
+    padding: 4px;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    font-size: 12px;
+    background-color: white;
+    cursor: pointer;
+}
+
+.read-permission select:hover {
+    border-color: #3498db;
+}
+
+/* Aumenta la larghezza della colonna Read per ospitare il selettore */
+.crud-table td:nth-child(3) {
+    min-width: 200px;
+}
+
+.crud-table input[type="checkbox"] {
+    transform: scale(1.2);
         font-size: 14px;
         margin: 2px;
     }

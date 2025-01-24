@@ -14,6 +14,45 @@ router.get('/', checkAuthentication, (req, res) => {
     });
 });
 
+// Endpoint per aggiungere un membro del team
+router.post('/', checkAuthentication, (req, res) => {
+    const { name, role, email, color, fontColor, username, password, factory, client_company_name } = req.body;
+    const query = `INSERT INTO users (name, role, email, color, fontColor, username, password, factory, client_company_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    req.db.run(query, [name, role, email, color, fontColor, username, password, factory, client_company_name], function(err) {
+        if (err) {
+            console.error('Errore nell\'inserimento del team member:', err);
+            return res.status(500).send('Errore del server');
+        }
+        res.status(201).json({ id: this.lastID });
+    });
+});
+
+// Endpoint per ottenere tutte le pagine e azioni dalla tabella crud
+router.get('/crud-actions', checkAuthentication, (req, res) => {
+    const query = `
+        SELECT DISTINCT page, action 
+        FROM crud 
+        ORDER BY page, action`;
+
+    req.db.all(query, [], (err, rows) => {
+        if (err) {
+            console.error('Errore nel recupero delle azioni CRUD:', err);
+            return res.status(500).send('Errore del server');
+        }
+
+        // Organizza i risultati per pagina
+        const pages = {};
+        rows.forEach(row => {
+            if (!pages[row.page]) {
+                pages[row.page] = [];
+            }
+            pages[row.page].push(row.action);
+        });
+
+        res.json(pages);
+    });
+});
+
 // Endpoint per ottenere i dettagli di un singolo membro del team
 router.get('/:id', checkAuthentication, (req, res) => {
     const userId = req.params.id;
@@ -29,19 +68,6 @@ router.get('/:id', checkAuthentication, (req, res) => {
             return res.status(404).send('Membro del team non trovato');
         }
         res.json(row);
-    });
-});
-
-// Endpoint per aggiungere un membro del team
-router.post('/', checkAuthentication, (req, res) => {
-    const { name, role, email, color, fontColor, username, password, factory, client_company_name } = req.body;
-    const query = `INSERT INTO users (name, role, email, color, fontColor, username, password, factory, client_company_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-    req.db.run(query, [name, role, email, color, fontColor, username, password, factory, client_company_name], function(err) {
-        if (err) {
-            console.error('Errore nell\'inserimento del team member:', err);
-            return res.status(500).send('Errore del server');
-        }
-        res.status(201).json({ id: this.lastID });
     });
 });
 
@@ -71,36 +97,44 @@ router.put('/:id', checkAuthentication, (req, res) => {
     });
 });
 
-// Endpoint per ottenere i privilegi di un membro del team
-router.get('/:id/privileges', checkAuthentication, (req, res) => {
+// Endpoint per ottenere i permessi CRUD di un membro del team
+router.get('/:id/crud-permissions', checkAuthentication, (req, res) => {
     const userId = req.params.id;
-    const query = `SELECT p.page, p.action 
-                   FROM privileges p
+    const query = `SELECT p.page, p.action, p.properties 
+                   FROM crud p
                    JOIN user_privileges up ON p.id = up.privilege_id
                    WHERE up.user_id = ?`;
     req.db.all(query, [userId], (err, rows) => {
         if (err) {
-            console.error('Errore nel recupero dei privilegi:', err);
+            console.error('Errore nel recupero delle azioni CRUD:', err);
             return res.status(500).send('Errore del server');
         }
-        const privileges = {};
+        const crud = {};
         rows.forEach(row => {
-            if (!privileges[row.page]) {
-                privileges[row.page] = [];
+            if (!crud[row.page]) {
+                crud[row.page] = {};
             }
-            privileges[row.page].push(row.action);
+            if (row.action === 'Read') {
+                const properties = row.properties ? JSON.parse(row.properties) : { level: 'all' };
+                crud[row.page].read = {
+                    enabled: true,
+                    level: properties.level
+                };
+            } else {
+                crud[row.page][row.action.toLowerCase()] = true;
+            }
         });
-        res.json(privileges);
+        res.json(crud);
     });
 });
 
-// Endpoint per aggiornare i privilegi di un membro del team
-router.put('/:id/privileges', checkAuthentication, (req, res) => {
+// Endpoint per aggiornare i permessi CRUD di un membro del team
+router.put('/:id/crud-permissions', checkAuthentication, (req, res) => {
     const userId = req.params.id;
-    const { privileges } = req.body;
+    const { crud } = req.body;
 
-    if (!Array.isArray(privileges)) {
-        return res.status(400).send('Privilegi non validi');
+    if (typeof crud !== 'object' || crud === null) {
+        return res.status(400).send('Valori CRUD non validi');
     }
 
     req.db.serialize(() => {
@@ -108,40 +142,53 @@ router.put('/:id/privileges', checkAuthentication, (req, res) => {
 
         req.db.run('DELETE FROM user_privileges WHERE user_id = ?', [userId], function(err) {
             if (err) {
-                console.error('Errore nella cancellazione dei privilegi esistenti:', err);
+                console.error('Errore nella cancellazione delle azioni CRUD esistenti:', err);
                 req.db.run('ROLLBACK');
                 return res.status(500).send('Errore del server');
             }
 
-            if (privileges.length === 0) {
+            const permissions = [];
+            Object.entries(crud).forEach(([page, actions]) => {
+                Object.entries(actions).forEach(([action, value]) => {
+                    if (action === 'read' && typeof value === 'object') {
+                        if (value.enabled) {
+                            permissions.push({
+                                page,
+                                action: 'Read',
+                                properties: JSON.stringify({ level: value.level || 'all' })
+                            });
+                        }
+                    } else if (value === true) {
+                        permissions.push({
+                            page,
+                            action: action.charAt(0).toUpperCase() + action.slice(1),
+                            properties: null
+                        });
+                    }
+                });
+            });
+
+            if (permissions.length === 0) {
                 req.db.run('COMMIT', (err) => {
                     if (err) {
                         req.db.run('ROLLBACK');
                         console.error('Errore durante il commit della transazione:', err);
                         return res.status(500).send('Errore del server');
-                   }
-                   res.status(200).send('Privilegi aggiornati con successo');
-               });
-               return;
-           }
-
-            const stmt = req.db.prepare('INSERT INTO user_privileges (user_id, privilege_id) VALUES (?, ?)');
-            let pending = privileges.length;
-
-            privileges.forEach(priv => {
-                req.db.get('SELECT id FROM privileges WHERE page = ? AND action = ?', [priv.page, priv.action], (err, row) => {
-                    if (err) {
-                        console.error('Errore nel recupero dell\'ID del privilegio:', err);
-                    } else if (row) {
-                        stmt.run(userId, row.id, function(err) {
-                            if (err) {
-                                console.error('Errore nell\'inserimento del privilegio:', err);
-                            }
-                        });
-                    } else {
-                        console.warn(`Privilegio non trovato: ${priv.page} - ${priv.action}`);
                     }
+                    res.status(200).send('CRUD actions updated successfully!');
+                });
+                return;
+            }
 
+            const stmt = req.db.prepare('INSERT INTO user_privileges (user_id, privilege_id) SELECT ?, id FROM crud WHERE page = ? AND action = ? AND (properties = ? OR (properties IS NULL AND ? IS NULL))');
+            let pending = permissions.length;
+
+            permissions.forEach(perm => {
+                stmt.run([userId, perm.page, perm.action, perm.properties, perm.properties], function(err) {
+                    if (err) {
+                        console.error('Errore nell\'inserimento del permesso:', err);
+                    }
+                    
                     pending--;
                     if (pending === 0) {
                         stmt.finalize((err) => {
@@ -156,13 +203,50 @@ router.put('/:id/privileges', checkAuthentication, (req, res) => {
                                     console.error('Errore durante il commit della transazione:', err);
                                     return res.status(500).send('Errore del server');
                                 }
-                                res.status(200).send('Privilegi aggiornati con successo');
+                                res.status(200).send('CRUD actions updated successfully!');
                             });
                         });
                     }
                 });
             });
         });
+    });
+});
+
+// Endpoint per ottenere i tasks assegnati a un membro del team
+router.get('/:id/tasks', checkAuthentication, (req, res) => {
+    const userId = req.params.id;
+    const query = `
+        SELECT t.* 
+        FROM project_history t 
+        WHERE t.assigned_to = (
+            SELECT username 
+            FROM users 
+            WHERE id = ?
+        )`;
+
+    req.db.all(query, [userId], (err, rows) => {
+        if (err) {
+            console.error('Errore nel recupero dei tasks:', err);
+            return res.status(500).send('Errore del server');
+        }
+        res.json(rows);
+    });
+});
+
+// Endpoint per eliminare un membro del team
+router.delete('/:id', checkAuthentication, (req, res) => {
+    const userId = req.params.id;
+
+    req.db.run('DELETE FROM users WHERE id = ?', [userId], function(err) {
+        if (err) {
+            console.error('Errore nell\'eliminazione del team member:', err);
+            return res.status(500).send('Errore del server');
+        }
+        if (this.changes === 0) {
+            return res.status(404).send('Utente non trovato');
+        }
+        res.status(200).send('Utente eliminato con successo');
     });
 });
 

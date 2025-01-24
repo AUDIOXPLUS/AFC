@@ -70,12 +70,9 @@ function displayTeamMembers(teamMembers) {
 
         row.insertCell(0).textContent = member.name;
 
-        // Create a clickable link for the role
+        // Cella per il ruolo
         const roleCell = row.insertCell(1);
-        const roleLink = document.createElement('a');
-        roleLink.href = `role-selection.html?memberId=${member.id}`;
-        roleLink.textContent = member.role;
-        roleCell.appendChild(roleLink);
+        roleCell.textContent = member.role;
 
         row.insertCell(2).textContent = member.email;
         row.insertCell(3).textContent = member.factory;
@@ -100,10 +97,33 @@ function displayTeamMembers(teamMembers) {
         fontColorCell.appendChild(fontColorDiv);
 
         const actionsCell = row.insertCell(7);
+        
+        // Pulsante Edit
         const editBtn = document.createElement('button');
         editBtn.textContent = 'Edit';
+        editBtn.className = 'edit-btn';
         editBtn.addEventListener('click', () => editTeamMember(row, member.id));
         actionsCell.appendChild(editBtn);
+
+        // Pulsante CRUD
+        const crudBtn = document.createElement('button');
+        crudBtn.textContent = 'CRUD';
+        crudBtn.className = 'crud-btn';
+        crudBtn.addEventListener('click', () => {
+            window.location.href = `crud.html?memberId=${member.id}`;
+        });
+        actionsCell.appendChild(crudBtn);
+
+        // Pulsante Delete
+        const deleteBtn = document.createElement('button');
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.className = 'delete-btn';
+        deleteBtn.addEventListener('click', () => deleteTeamMember(member.id));
+        actionsCell.appendChild(deleteBtn);
+
+        // Aggiungi spazio tra i pulsanti
+        actionsCell.style.whiteSpace = 'nowrap';
+        actionsCell.style.minWidth = '200px';
     });
 }
 
@@ -243,7 +263,39 @@ function displayLoggedInUser() {
     }
 }
 
-// Aggiungi questa funzione per gestire il login e memorizzare il nome dell'utente
+async function deleteTeamMember(memberId) {
+    try {
+        // Prima controlla se l'utente ha tasks assegnati
+        const tasksResponse = await fetch(`/api/team-members/${memberId}/tasks`);
+        if (!tasksResponse.ok) {
+            throw new Error(`HTTP error! status: ${tasksResponse.status}`);
+        }
+        const tasks = await tasksResponse.json();
+        
+        if (tasks.length > 0) {
+            alert('Non è possibile eliminare questo utente perché ha dei tasks assegnati.');
+            return;
+        }
+
+        // Se non ci sono tasks, procedi con l'eliminazione
+        const deleteResponse = await fetch(`/api/team-members/${memberId}`, {
+            method: 'DELETE'
+        });
+
+        if (deleteResponse.ok) {
+            console.log('Team member deleted successfully');
+            fetchTeamMembers(); // Aggiorna la lista dei membri del team
+        } else {
+            const errorText = await deleteResponse.text();
+            console.error('Failed to delete team member:', deleteResponse.status, errorText);
+            alert('Errore durante l\'eliminazione dell\'utente.');
+        }
+    } catch (error) {
+        console.error('Error deleting team member:', error);
+        alert('Errore durante l\'eliminazione dell\'utente.');
+    }
+}
+
 async function handleLogin(username, password) {
     const response = await fetch('/login', {
         method: 'POST',
