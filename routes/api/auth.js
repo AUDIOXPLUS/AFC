@@ -1,19 +1,6 @@
 const express = require('express');
 const router = express.Router();
 
-// Middleware di autenticazione migliorato
-function checkAuthentication(req, res, next) {
-    if (req.session && req.session.user) {
-        return next();
-    } else {
-        if (req.path.startsWith('/')) {
-            res.status(401).json({ error: 'Utente non autenticato' });
-        } else {
-            res.redirect('/login.html');
-        }
-    }
-}
-
 // Endpoint per il login
 router.post('/login', (req, res) => {
     console.log('Tentativo di accesso ricevuto:', req.body);
@@ -64,6 +51,5 @@ router.get('/current-user', (req, res) => {
 });
 
 module.exports = {
-    router,
-    checkAuthentication
+    router: router
 };

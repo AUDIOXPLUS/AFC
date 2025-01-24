@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { checkAuthentication } = require('./auth');
+const checkAuthentication = require('../middleware/auth');
 
 // Endpoint per ottenere tutte le attività
 router.get('/', checkAuthentication, (req, res) => {

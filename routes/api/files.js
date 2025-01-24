@@ -3,7 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs-extra');
-const { checkAuthentication } = require('./auth');
+const checkAuthentication = require('../middleware/auth');
 
 // Funzione per convertire il path da Windows a Docker
 function convertWindowsPathToDocker(windowsPath) {

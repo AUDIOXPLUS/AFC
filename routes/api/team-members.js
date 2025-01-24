@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { checkAuthentication } = require('./auth');
+const checkAuthentication = require('../middleware/auth');
 
 // Endpoint per ottenere i membri del team
 router.get('/', checkAuthentication, (req, res) => {

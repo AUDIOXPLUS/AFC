@@ -3,7 +3,8 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs-extra');
 
-// Importa i router
+// Importa i router e i middleware necessari
+const checkAuthentication = require('./routes/middleware/auth');
 const { router: authRouter } = require('./routes/api/auth');
 const projectsRouter = require('./routes/api/projects');
 const phasesRouter = require('./routes/api/phases');
@@ -22,7 +23,7 @@ router.use('/tasks', tasksRouter);
 router.use('/files', filesRouter);
 
 // Endpoint per il caricamento dei file di progetto
-router.post('/projects/:projectId/files', upload.array('files'), (req, res) => {
+router.post('/projects/:projectId/files', checkAuthentication, upload.array('files'), (req, res) => {
     const { projectId } = req.params;
     const { files } = req;
     const { historyId } = req.body;
@@ -91,7 +92,7 @@ router.post('/projects/:projectId/files', upload.array('files'), (req, res) => {
 });
 
 // Endpoint per ottenere i file di un progetto
-router.get('/projects/:projectId/files', (req, res) => {
+router.get('/projects/:projectId/files', checkAuthentication, (req, res) => {
     const { projectId } = req.params;
     const { historyId } = req.query;
 
@@ -119,7 +120,7 @@ router.get('/projects/:projectId/files', (req, res) => {
 });
 
 // Endpoint per ottenere i file di una voce di cronologia
-router.get('/projects/:projectId/history/:historyId/files', (req, res) => {
+router.get('/projects/:projectId/history/:historyId/files', checkAuthentication, (req, res) => {
     const { projectId, historyId } = req.params;
     const query = `
         SELECT pf.*, u1.name as uploaded_by_name, u2.name as locked_by_name 
