@@ -1,4 +1,68 @@
 document.addEventListener('DOMContentLoaded', function() {
+    // Struttura dati per memorizzare gli utenti selezionati
+    let selectedUsers = {
+        Users: {
+            read: [] // Array di oggetti {id, name}
+        }
+    };
+
+    // Funzione per aprire il modal di selezione utenti
+    async function openUserSelectionModal(pageName) {
+        // Crea il modal
+        const modal = document.createElement('div');
+        modal.className = 'user-modal';
+        modal.innerHTML = `
+            <h3>Seleziona gli utenti</h3>
+            <div class="user-list"></div>
+            <button class="user-select-btn">Conferma</button>
+        `;
+
+        // Recupera la lista degli utenti dal server
+        try {
+            const response = await fetch('/api/team-members');
+            const users = await response.json();
+            
+            // Popola la lista degli utenti
+            const userList = modal.querySelector('.user-list');
+            users.forEach(user => {
+                const label = document.createElement('label');
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.value = user.id;
+                checkbox.checked = selectedUsers[pageName].read.some(u => u.id === user.id);
+                
+                label.appendChild(checkbox);
+                label.appendChild(document.createTextNode(user.name));
+                userList.appendChild(label);
+            });
+        } catch (error) {
+            console.error('Errore nel recupero degli utenti:', error);
+            alert('Impossibile recuperare la lista degli utenti');
+            return;
+        }
+
+        // Gestisci il click sul pulsante conferma
+        const confirmBtn = modal.querySelector('.user-select-btn');
+        confirmBtn.addEventListener('click', () => {
+            const checkedBoxes = modal.querySelectorAll('input[type="checkbox"]:checked');
+            selectedUsers[pageName].read = Array.from(checkedBoxes).map(cb => ({
+                id: cb.value,
+                name: cb.parentElement.textContent.trim()
+            }));
+            
+            // Aggiorna il testo della select
+            const select = document.querySelector(`select[data-page="${pageName}"]`);
+            if (selectedUsers[pageName].read.length > 0) {
+                const option = select.querySelector('option[value="specific-users"]');
+                option.textContent = `Only these specific users: ${selectedUsers[pageName].read.map(u => u.name).join(', ')}`;
+            }
+            
+            document.body.removeChild(modal);
+        });
+
+        document.body.appendChild(modal);
+    }
+
     // Funzione per mostrare/nascondere dropdown e gestire stato
     const toggleDropdownVisibility = (checkbox) => {
         const dropdown = checkbox.parentElement.querySelector('.read-scope-select');
@@ -23,8 +87,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // Gestione eventi per checkbox Read
     roleGrid.addEventListener('change', (event) => {
         const checkbox = event.target.closest('.crud-read-checkbox');
+        const select = event.target.closest('.read-scope-select');
+        
         if (checkbox) {
             toggleDropdownVisibility(checkbox);
+        } else if (select && select.value === 'specific-users') {
+            const pageName = select.dataset.page;
+            openUserSelectionModal(pageName);
         }
     });
 
@@ -158,6 +227,30 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (typeof pagePermissions === 'object' && pagePermissions.read) {
                             checkbox.checked = true;
                             select.value = pagePermissions.read.scope || 'all';
+                            
+                            // Inizializza gli utenti selezionati se necessario
+                            if (pagePermissions.read.scope === 'specific-users' && pagePermissions.read.userIds) {
+                                // Recupera i dettagli degli utenti dal server
+                                fetch('/api/team-members')
+                                    .then(res => res.json())
+                                    .then(users => {
+                                        const selectedUserDetails = users
+                                            .filter(user => pagePermissions.read.userIds.includes(user.id))
+                                            .map(user => ({
+                                                id: user.id,
+                                                name: user.name
+                                            }));
+                                        
+                                        selectedUsers[pageName].read = selectedUserDetails;
+                                        
+                                        // Aggiorna il testo dell'opzione
+                                        const option = select.querySelector('option[value="specific-users"]');
+                                        option.textContent = `Only these specific users: ${selectedUserDetails.map(u => u.name).join(', ')}`;
+                                    })
+                                    .catch(error => {
+                                        console.error('Errore nel recupero dei dettagli utenti:', error);
+                                    });
+                            }
                         } else if (Array.isArray(pagePermissions) && pagePermissions.includes(actionType)) {
                             checkbox.checked = true;
                             select.value = 'all';
@@ -224,7 +317,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (readCheckbox && readCheckbox.checked) {
                 updatedCrud[pageName].read = {
                     enabled: true,
-                    scope: readSelect.value
+                    scope: readSelect.value,
+                    userIds: readSelect.value === 'specific-users' ? selectedUsers[pageName].read.map(u => u.id) : undefined
                 };
             }
         });
