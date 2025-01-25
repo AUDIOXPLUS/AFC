@@ -1,13 +1,22 @@
 document.addEventListener('DOMContentLoaded', function() {
-    // Struttura dati per memorizzare gli utenti selezionati
-    let selectedUsers = {
-        Users: {
-            read: [] // Array di oggetti {id, name}
+    // Struttura dati per memorizzare gli utenti selezionati e gli scope
+    let selectedUsers = {};
+
+    // Funzione per inizializzare selectedUsers per una pagina
+    function initializeSelectedUsers(pageName) {
+        if (!selectedUsers[pageName]) {
+            selectedUsers[pageName] = {
+                read: [], // Array di oggetti {id, name}
+                scope: 'all'
+            };
         }
-    };
+    }
 
     // Funzione per aprire il modal di selezione utenti
     async function openUserSelectionModal(pageName) {
+        // Inizializza selectedUsers per questa pagina se non esiste
+        initializeSelectedUsers(pageName);
+
         // Crea il modal
         const modal = document.createElement('div');
         modal.className = 'user-modal';
@@ -221,15 +230,22 @@ document.addEventListener('DOMContentLoaded', function() {
                         `;
                     }
 
+                    // Inizializza selectedUsers per questa pagina
+                    initializeSelectedUsers(pageName);
+
                     // Verifica se l'utente ha questa azione CRUD e imposta i valori
                     if (userCrud[pageName]) {
                         const pagePermissions = userCrud[pageName];
                         if (typeof pagePermissions === 'object' && pagePermissions.read) {
                             checkbox.checked = true;
-                            select.value = pagePermissions.read.scope || 'all';
                             
-                            // Inizializza gli utenti selezionati se necessario
-                            if (pagePermissions.read.scope === 'specific-users' && pagePermissions.read.userIds) {
+                            // Imposta lo scope corretto basato sulla factory e client_company
+                            const scope = pagePermissions.read.scope;
+                            select.value = scope;
+                            selectedUsers[pageName].scope = scope;
+                            
+                            // Gestisci gli utenti specifici se necessario
+                            if (scope === 'specific-users' && pagePermissions.read.userIds) {
                                 // Recupera i dettagli degli utenti dal server
                                 fetch('/api/team-members')
                                     .then(res => res.json())
@@ -245,11 +261,23 @@ document.addEventListener('DOMContentLoaded', function() {
                                         
                                         // Aggiorna il testo dell'opzione
                                         const option = select.querySelector('option[value="specific-users"]');
-                                        option.textContent = `Only these specific users: ${selectedUserDetails.map(u => u.name).join(', ')}`;
+                                        if (selectedUserDetails.length > 0) {
+                                            option.textContent = `Only these specific users: ${selectedUserDetails.map(u => u.name).join(', ')}`;
+                                        }
                                     })
                                     .catch(error => {
                                         console.error('Errore nel recupero dei dettagli utenti:', error);
                                     });
+                            }
+
+                            // Disabilita opzioni non valide basate sulla factory e client_company
+                            if (pagePermissions.read.factory) {
+                                Array.from(select.options).forEach(option => {
+                                    if ((option.value.includes('client') && !pagePermissions.read.client_company_name) ||
+                                        (option.value.includes('factory') && !pagePermissions.read.factory)) {
+                                        option.disabled = true;
+                                    }
+                                });
                             }
                         } else if (Array.isArray(pagePermissions) && pagePermissions.includes(actionType)) {
                             checkbox.checked = true;
@@ -294,38 +322,70 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Funzione per salvare le azioni CRUD
     async function saveCrudPermissions() {
-        const updatedCrud = {};
-        const rows = roleGrid.querySelectorAll('.crud-table tr:not(:first-child)');
-        
-        rows.forEach(row => {
-            const pageName = row.cells[0].textContent;
-            updatedCrud[pageName] = {};
+        try {
+            const updatedCrud = {};
+            const rows = roleGrid.querySelectorAll('.crud-table tr:not(:first-child)');
             
-            // Gestisci tutte le azioni CRUD
-            const actions = ['Create', 'Read', 'Update', 'Delete'];
-            actions.forEach((action, index) => {
-                const cell = row.cells[index + 1];
-                const checkbox = cell.querySelector('input[type="checkbox"]');
+            rows.forEach(row => {
+                const pageName = row.cells[0].textContent;
+                updatedCrud[pageName] = {};
                 
-                if (checkbox && checkbox.checked) {
+                // Gestisci tutte le azioni CRUD
+                const actions = ['Create', 'Read', 'Update', 'Delete'];
+                actions.forEach((action, index) => {
+                    const cell = row.cells[index + 1];
+                    const checkbox = cell.querySelector('input[type="checkbox"]');
+                    
                     if (action === 'Read') {
                         const readSelect = cell.querySelector('select');
-                        updatedCrud[pageName].read = {
-                            enabled: true,
-                            scope: readSelect ? readSelect.value : 'all',
-                            userIds: readSelect && readSelect.value === 'specific-users' ? 
-                                    selectedUsers[pageName]?.read?.map(u => u.id) : undefined
-                        };
+                        if (checkbox && checkbox.checked) {
+                            const scope = readSelect ? readSelect.value : 'all';
+                            
+                            // Struttura corretta per i permessi di lettura
+                            updatedCrud[pageName].read = {
+                                enabled: true,
+                                scope: scope,
+                                properties: JSON.stringify({
+                                    enabled: true,
+                                    scope: scope
+                                })
+                            };
+
+                            // Aggiungi userIds solo se necessario
+                            if (scope === 'specific-users' && selectedUsers[pageName]?.read?.length > 0) {
+                                updatedCrud[pageName].read.userIds = selectedUsers[pageName].read.map(u => u.id);
+                                // Aggiorna properties per includere userIds
+                                updatedCrud[pageName].read.properties = JSON.stringify({
+                                    enabled: true,
+                                    scope: scope,
+                                    userIds: selectedUsers[pageName].read.map(u => u.id)
+                                });
+                            }
+                        } else {
+                            // Se la checkbox non è selezionata
+                            updatedCrud[pageName].read = {
+                                enabled: false,
+                                scope: 'none',
+                                properties: JSON.stringify({
+                                    enabled: false,
+                                    scope: 'none'
+                                })
+                            };
+                        }
                     } else {
-                        updatedCrud[pageName][action.toLowerCase()] = true;
+                        // Per le altre azioni, usa la prima lettera maiuscola
+                        const actionName = action.charAt(0).toUpperCase() + action.slice(1).toLowerCase();
+                        if (checkbox && checkbox.checked) {
+                            updatedCrud[pageName][actionName.toLowerCase()] = true;
+                        }
                     }
-                }
+                });
             });
-        });
-    
+
+        // Log dei dati prima dell'invio
         console.log('Dati inviati al server:', JSON.stringify({ crud: updatedCrud }, null, 2));
-    
-        try {
+
+        // Invio dei dati al server
             const response = await fetch(`/api/team-members/${memberId}/crud-permissions`, {
                 method: 'PUT',
                 headers: {

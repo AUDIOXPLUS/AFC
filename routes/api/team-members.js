@@ -100,25 +100,46 @@ router.put('/:id', checkAuthentication, (req, res) => {
 // Endpoint per ottenere i permessi CRUD di un membro del team
 router.get('/:id/crud-permissions', checkAuthentication, (req, res) => {
     const userId = req.params.id;
-    const query = `SELECT c.page, c.action, c.properties 
-                   FROM crud c
-                   JOIN user_crud uc ON c.id = uc.crud_id
-                   WHERE uc.user_id = ?`;
+    const query = `
+        SELECT c.page, c.action, uc.properties, u.factory, u.client_company_name
+        FROM crud c
+        JOIN user_crud uc ON c.id = uc.crud_id
+        JOIN users u ON uc.user_id = u.id
+        WHERE uc.user_id = ?`;
+    
     req.db.all(query, [userId], (err, rows) => {
         if (err) {
             console.error('Errore nel recupero delle azioni CRUD:', err);
             return res.status(500).send('Errore del server');
         }
+        
         const crud = {};
         rows.forEach(row => {
             if (!crud[row.page]) {
                 crud[row.page] = {};
             }
+            
             if (row.action === 'Read') {
-                const properties = row.properties ? JSON.parse(row.properties) : { level: 'all' };
+                let properties;
+                try {
+                    // Prima prova a leggere le properties da user_crud
+                    properties = row.properties ? JSON.parse(row.properties) : {};
+                } catch (e) {
+                    console.error('Errore nel parsing delle properties:', e);
+                    // Se fallisce, usa valori di default
+                    properties = {
+                        enabled: true,
+                        scope: 'all',
+                        level: 'all'
+                    };
+                }
+                
                 crud[row.page].read = {
-                    enabled: true,
-                    level: properties.level
+                    enabled: properties.enabled !== false,
+                    scope: properties.scope || 'all',
+                    userIds: properties.userIds,
+                    factory: row.factory,
+                    client_company_name: row.client_company_name
                 };
             } else {
                 crud[row.page][row.action.toLowerCase()] = true;
@@ -129,7 +150,7 @@ router.get('/:id/crud-permissions', checkAuthentication, (req, res) => {
 });
 
 // Endpoint per aggiornare i permessi CRUD di un membro del team
-router.put('/:id/crud-permissions', checkAuthentication, (req, res) => {
+router.put('/:id/crud-permissions', checkAuthentication, async (req, res) => {
     const userId = req.params.id;
     const { crud } = req.body;
 
@@ -137,89 +158,96 @@ router.put('/:id/crud-permissions', checkAuthentication, (req, res) => {
         return res.status(400).send('Valori CRUD non validi');
     }
 
-    req.db.serialize(() => {
-        req.db.run('BEGIN TRANSACTION');
+    try {
+        // Funzione per eseguire una query SQL come Promise
+        const runQuery = (query, params = []) => {
+            return new Promise((resolve, reject) => {
+                req.db.run(query, params, function(err) {
+                    if (err) reject(err);
+                    else resolve(this);
+                });
+            });
+        };
 
-        // Elimina i vecchi permessi dell'utente
-        req.db.run('DELETE FROM user_crud WHERE user_id = ?', [userId], function(err) {
-            if (err) {
-                console.error('Errore nella cancellazione dei vecchi permessi:', err);
-                req.db.run('ROLLBACK');
-                return res.status(500).send('Errore del server');
-            }
+        // Funzione per ottenere gli ID delle azioni CRUD
+        const getCrudId = (page, action) => {
+            return new Promise((resolve, reject) => {
+                req.db.get(
+                    'SELECT id FROM crud WHERE page = ? AND action = ?',
+                    [page, action],
+                    (err, row) => {
+                        if (err) reject(err);
+                        else resolve(row ? row.id : null);
+                    }
+                );
+            });
+        };
 
-            // Prepara i nuovi permessi
-            const permissions = [];
-            Object.entries(crud).forEach(([page, actions]) => {
-                Object.entries(actions).forEach(([action, value]) => {
-                    if (action === 'read' && typeof value === 'object') {
-                        if (value.enabled) {
+        // Inizia la transazione
+        await runQuery('BEGIN TRANSACTION');
+
+        // Elimina i vecchi permessi
+        await runQuery('DELETE FROM user_crud WHERE user_id = ?', [userId]);
+
+        // Prepara i nuovi permessi
+        const permissions = [];
+        
+        // Processa le azioni CRUD
+        for (const [page, actions] of Object.entries(crud)) {
+            for (const [action, value] of Object.entries(actions)) {
+                const actionName = action.charAt(0).toUpperCase() + action.slice(1);
+                
+                if (action === 'read' && typeof value === 'object') {
+                    if (value.enabled) {
+                        const crudId = await getCrudId(page, actionName);
+                        if (crudId) {
+                            const properties = {
+                                enabled: true,
+                                scope: value.scope || 'all',
+                                level: value.scope || 'all'
+                            };
+                            
+                            if (value.scope === 'specific-users' && Array.isArray(value.userIds)) {
+                                properties.userIds = value.userIds;
+                            }
+                            
                             permissions.push({
-                                page,
-                                action: 'Read',
-                                properties: JSON.stringify({ level: value.level || 'all' })
+                                userId,
+                                crudId,
+                                properties: JSON.stringify(properties)
                             });
                         }
-                    } else if (value === true) {
+                    }
+                } else if (value === true) {
+                    const crudId = await getCrudId(page, actionName);
+                    if (crudId) {
                         permissions.push({
-                            page,
-                            action: action.charAt(0).toUpperCase() + action.slice(1),
+                            userId,
+                            crudId,
                             properties: null
                         });
                     }
-                });
-            });
-
-            if (permissions.length === 0) {
-                req.db.run('COMMIT', (err) => {
-                    if (err) {
-                        req.db.run('ROLLBACK');
-                        console.error('Errore durante il commit della transazione:', err);
-                        return res.status(500).send('Errore del server');
-                    }
-                    res.status(200).send('CRUD actions updated successfully!');
-                });
-                return;
+                }
             }
+        }
 
-            // Inserisci i nuovi permessi
-            const stmt = req.db.prepare(`
-                INSERT INTO user_crud (user_id, crud_id) 
-                SELECT ?, id 
-                FROM crud 
-                WHERE page = ? AND action = ?
-            `);
-            let pending = permissions.length;
+        // Inserisci i nuovi permessi con properties
+        for (const perm of permissions) {
+            await runQuery(
+                'INSERT INTO user_crud (user_id, crud_id, properties) VALUES (?, ?, ?)',
+                [perm.userId, perm.crudId, perm.properties]
+            );
+        }
 
-            permissions.forEach(perm => {
-                console.log('Inserting permission:', perm);
-                stmt.run([userId, perm.page, perm.action], function(err) {
-                    if (err) {
-                        console.error('Errore nell\'inserimento del permesso:', err);
-                    }
-                    
-                    pending--;
-                    if (pending === 0) {
-                        stmt.finalize((err) => {
-                            if (err) {
-                                console.error('Errore nella finalizzazione dello statement:', err);
-                                req.db.run('ROLLBACK');
-                                return res.status(500).send('Errore del server');
-                            }
-                            req.db.run('COMMIT', (err) => {
-                                if (err) {
-                                    req.db.run('ROLLBACK');
-                                    console.error('Errore durante il commit della transazione:', err);
-                                    return res.status(500).send('Errore del server');
-                                }
-                                res.status(200).send('CRUD actions updated successfully!');
-                            });
-                        });
-                    }
-                });
-            });
-        });
-    });
+        // Commit della transazione
+        await runQuery('COMMIT');
+        
+        res.status(200).send('CRUD actions updated successfully!');
+    } catch (error) {
+        console.error('Errore nell\'aggiornamento dei permessi:', error);
+        await runQuery('ROLLBACK').catch(console.error);
+        res.status(500).send('Errore del server');
+    }
 });
 
 // Endpoint per ottenere i tasks assegnati a un membro del team
