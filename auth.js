@@ -1,15 +1,15 @@
-// Funzione per verificare lo stato di autenticazione dell'utente
+// Function to check user authentication status
 async function checkAuthStatus() {
     try {
-        // Effettua una chiamata all'endpoint di verifica sessione
+        // Make a call to the session verification endpoint
         const response = await fetch('/api/session-user');
         
-        // Se la risposta è 401 (non autorizzato), l'utente non è autenticato
+        // If response is 401 (unauthorized), user is not authenticated
         if (response.status === 401) {
             return false;
         }
         
-        // Per altri errori (es. 404, 500), reindirizza al login
+        // For other errors (e.g., 404, 500), redirect to login
         if (!response.ok) {
             window.location.href = '/login.html';
             return false;
@@ -17,12 +17,12 @@ async function checkAuthStatus() {
 
         const data = await response.json();
         
-        // Se la risposta contiene i dati dell'utente (id, username, name), l'utente è autenticato
+        // If response contains user data (id, username, name), user is authenticated
         if (data.id && data.username && data.name) {
             return true;
         }
         
-        // Se non ci sono dati utente validi, reindirizza al login
+        // If no valid user data, redirect to login
         window.location.href = '/login.html';
         return false;
     } catch (error) {
@@ -31,3 +31,23 @@ async function checkAuthStatus() {
         return false;
     }
 }
+
+// Function to check authentication on page load
+async function checkAuthOnLoad() {
+    // Don't check auth on login page
+    if (window.location.pathname === '/login.html') {
+        return;
+    }
+    
+    const isAuthenticated = await checkAuthStatus();
+    if (!isAuthenticated) {
+        window.location.href = '/login.html';
+    }
+}
+
+// Export functions for use in other files
+window.checkAuthStatus = checkAuthStatus;
+window.checkAuthOnLoad = checkAuthOnLoad;
+
+// Check authentication when page loads
+document.addEventListener('DOMContentLoaded', checkAuthOnLoad);

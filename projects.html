@@ -134,16 +134,9 @@
     <script src="users.js"></script>
     <script src="projects.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', async function() {
-            // Verifica l'autenticazione prima di procedere
-            const isAuthenticated = await checkAuthStatus();
-            if (isAuthenticated) {
-                displayLoggedInUser();
-                initializeDashboard();
-            } else {
-                // Se non autenticato, reindirizza al login
-                window.location.href = '/login.html';
-            }
+        document.addEventListener('DOMContentLoaded', function() {
+            displayLoggedInUser();
+            initializeDashboard();
         });
     </script>
 </body>

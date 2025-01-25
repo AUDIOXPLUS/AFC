@@ -72,15 +72,11 @@
     <script src="users.js"></script>
     <script src="tasks.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', async function() {
-            // Verifica l'autenticazione prima di procedere
-            const isAuthenticated = await checkAuthStatus();
-            if (isAuthenticated) {
-                displayLoggedInUser();
-                updateConnectedUsers(); // Aggiorna la lista degli utenti connessi
-                // Aggiorna la lista ogni 30 secondi
-                setInterval(updateConnectedUsers, 30000);
-            }
+        document.addEventListener('DOMContentLoaded', function() {
+            displayLoggedInUser();
+            updateConnectedUsers(); // Aggiorna la lista degli utenti connessi
+            // Aggiorna la lista ogni 30 secondi
+            setInterval(updateConnectedUsers, 30000);
         });
     </script>
 </body>
