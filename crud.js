@@ -301,26 +301,26 @@ document.addEventListener('DOMContentLoaded', function() {
             const pageName = row.cells[0].textContent;
             updatedCrud[pageName] = {};
             
-            // Gestisci le azioni CRUD standard
-            ['Create', 'Update', 'Delete'].forEach((action, index) => {
-                const checkbox = row.cells[index + 1].querySelector('input[type="checkbox"]');
+            // Gestisci tutte le azioni CRUD
+            const actions = ['Create', 'Read', 'Update', 'Delete'];
+            actions.forEach((action, index) => {
+                const cell = row.cells[index + 1];
+                const checkbox = cell.querySelector('input[type="checkbox"]');
+                
                 if (checkbox && checkbox.checked) {
-                    updatedCrud[pageName][action.toLowerCase()] = true;
+                    if (action === 'Read') {
+                        const readSelect = cell.querySelector('select');
+                        updatedCrud[pageName].read = {
+                            enabled: true,
+                            scope: readSelect ? readSelect.value : 'all',
+                            userIds: readSelect && readSelect.value === 'specific-users' ? 
+                                    selectedUsers[pageName]?.read?.map(u => u.id) : undefined
+                        };
+                    } else {
+                        updatedCrud[pageName][action.toLowerCase()] = true;
+                    }
                 }
             });
-            
-            // Gestisci l'azione Read con il suo scope
-            const readCell = row.cells[2];
-            const readCheckbox = readCell.querySelector('input[type="checkbox"]');
-            const readSelect = readCell.querySelector('select');
-            
-            if (readCheckbox && readCheckbox.checked) {
-                updatedCrud[pageName].read = {
-                    enabled: true,
-                    scope: readSelect.value,
-                    userIds: readSelect.value === 'specific-users' ? selectedUsers[pageName].read.map(u => u.id) : undefined
-                };
-            }
         });
     
         console.log('Dati inviati al server:', JSON.stringify({ crud: updatedCrud }, null, 2));

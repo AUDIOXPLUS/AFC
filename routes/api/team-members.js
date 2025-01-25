@@ -100,10 +100,10 @@ router.put('/:id', checkAuthentication, (req, res) => {
 // Endpoint per ottenere i permessi CRUD di un membro del team
 router.get('/:id/crud-permissions', checkAuthentication, (req, res) => {
     const userId = req.params.id;
-    const query = `SELECT p.page, p.action, p.properties 
-                   FROM crud p
-                   JOIN user_privileges up ON p.id = up.privilege_id
-                   WHERE up.user_id = ?`;
+    const query = `SELECT c.page, c.action, c.properties 
+                   FROM crud c
+                   JOIN user_crud uc ON c.id = uc.crud_id
+                   WHERE uc.user_id = ?`;
     req.db.all(query, [userId], (err, rows) => {
         if (err) {
             console.error('Errore nel recupero delle azioni CRUD:', err);
@@ -140,13 +140,15 @@ router.put('/:id/crud-permissions', checkAuthentication, (req, res) => {
     req.db.serialize(() => {
         req.db.run('BEGIN TRANSACTION');
 
-        req.db.run('DELETE FROM user_privileges WHERE user_id = ?', [userId], function(err) {
+        // Elimina i vecchi permessi dell'utente
+        req.db.run('DELETE FROM user_crud WHERE user_id = ?', [userId], function(err) {
             if (err) {
-                console.error('Errore nella cancellazione delle azioni CRUD esistenti:', err);
+                console.error('Errore nella cancellazione dei vecchi permessi:', err);
                 req.db.run('ROLLBACK');
                 return res.status(500).send('Errore del server');
             }
 
+            // Prepara i nuovi permessi
             const permissions = [];
             Object.entries(crud).forEach(([page, actions]) => {
                 Object.entries(actions).forEach(([action, value]) => {
@@ -180,11 +182,18 @@ router.put('/:id/crud-permissions', checkAuthentication, (req, res) => {
                 return;
             }
 
-            const stmt = req.db.prepare('INSERT INTO user_privileges (user_id, privilege_id) SELECT ?, id FROM crud WHERE page = ? AND action = ? AND (properties = ? OR (properties IS NULL AND ? IS NULL))');
+            // Inserisci i nuovi permessi
+            const stmt = req.db.prepare(`
+                INSERT INTO user_crud (user_id, crud_id) 
+                SELECT ?, id 
+                FROM crud 
+                WHERE page = ? AND action = ?
+            `);
             let pending = permissions.length;
 
             permissions.forEach(perm => {
-                stmt.run([userId, perm.page, perm.action, perm.properties, perm.properties], function(err) {
+                console.log('Inserting permission:', perm);
+                stmt.run([userId, perm.page, perm.action], function(err) {
                     if (err) {
                         console.error('Errore nell\'inserimento del permesso:', err);
                     }
