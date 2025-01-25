@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Creazione dell'intestazione
         const headerRow = table.insertRow();
-        headerRow.insertCell().textContent = 'Pagina / Azione';
+        headerRow.insertCell().textContent = 'Page / Action';  // Traduzione della scritta "Pagina/Azione" in inglese
         const actionTypes = ['Create', 'Read', 'Update', 'Delete'];
         actionTypes.forEach(action => {
             const th = document.createElement('th');
@@ -123,28 +123,32 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Opzioni specifiche per ogni pagina
                     if (pageName === 'Projects') {
                         select.innerHTML = `
-                            <option value="all">All Projects</option>
-                            <option value="own-factory">Projects from Own Factories</option>
-                            <option value="all-factories">Projects from All Factories</option>
-                            <option value="own-clients">Projects from Own Client Companies</option>
-                            <option value="all-clients">Projects from All Client Companies</option>
+                            <option value="all">All projects</option>
+                            <option value="own">Own projects</option>
+                            <option value="own-factory">Own factory projects</option>
+                            <option value="all-factories">All factories projects</option>
+                            <option value="own-client">Own client company projects</option>
+                            <option value="all-clients">All client companies projects</option>
+                            <option value="user-projects">Only selected user's projects</option>
                         `;
                     } else if (pageName === 'Users') {
                         select.innerHTML = `
-                            <option value="all">All Users</option>
-                            <option value="own-factory">Users from Own Factories</option>
-                            <option value="all-factories">Users from All Factories</option>
-                            <option value="own-clients">Users from Own Client Companies</option>
-                            <option value="all-clients">Users from All Client Companies</option>
+                            <option value="all">All users</option>
+                            <option value="own-factory">Own factory users</option>
+                            <option value="all-factories">All factories users</option>
+                            <option value="own-client">Own client company users</option>
+                            <option value="all-clients">All client companies users</option>
+                            <option value="specific-users">Only these specific users</option>
                         `;
                     } else if (pageName === 'Tasks') {
                         select.innerHTML = `
-                            <option value="all">All Tasks</option>
-                            <option value="own-factory-users">Tasks from Own Factory Users</option>
-                            <option value="all-factory-users">Tasks from All Factory Users</option>
-                            <option value="own-client-users">Tasks from Own Client Company Users</option>
-                            <option value="all-client-users">Tasks from All Client Company Users</option>
-                            <option value="own-tasks">Only Own Tasks</option>
+                            <option value="all">All tasks</option>
+                            <option value="own">Own tasks</option>
+                            <option value="own-factory">Own factory tasks (all users)</option>
+                            <option value="all-factories">All factories tasks</option>
+                            <option value="own-client">Own client company tasks (all users)</option>
+                            <option value="all-clients">All client companies tasks</option>
+                            <option value="user-tasks">Only selected user's tasks</option>
                         `;
                     }
 

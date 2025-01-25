@@ -454,14 +454,42 @@ th i {
     background-color: #e74c3c;
 }
 
-.edit-btn, .delete-btn, .crud-btn, .set-completed-btn, #save-role-btn {
-    padding: 3px 8px;
-    margin-right: 5px;
+.edit-btn, .delete-btn, .crud-btn {
+    padding: 6px 12px;
+    margin-right: 10px;
     border: none;
-    border-radius: 3px;
+    border-radius: 4px;
     cursor: pointer;
-    font-size: 11px;
-    transition: background-color 0.3s ease;
+    font-size: 0.9em;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+.set-completed-btn, #save-role-btn {
+    padding: 8px 16px;
+    margin-right: 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+#save-role-btn {
+    background-color: #27ae60; /* Verde coerente con .set-completed-btn */
+    color: white;
+}
+
+#save-role-btn:hover {
+    background-color: #219a52;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+#save-role-btn:active {
+    transform: translateY(0);
+    box-shadow: none;
 }
 
 .edit-btn {
