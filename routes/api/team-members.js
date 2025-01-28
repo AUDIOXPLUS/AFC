@@ -304,14 +304,38 @@ router.put('/:id/crud-permissions', checkAuthentication, async (req, res) => {
                     if (value.enabled) {
                         const crudId = await getCrudId(page, actionName);
                         if (crudId) {
+                            // Mantieni gli userIds quando si passa da specific-users a user-tasks e viceversa
                             const properties = {
                                 enabled: true,
                                 scope: value.scope || 'all',
-                                level: value.scope || 'all'
+                                level: value.scope || 'all',
+                                userIds: value.userIds || [] // Mantieni sempre userIds se presente
                             };
                             
-                            if (value.scope === 'specific-users' && Array.isArray(value.userIds)) {
-                                properties.userIds = value.userIds;
+                            // Se non ci sono userIds ma è un permesso che li richiede, usa quelli esistenti
+                            if ((value.scope === 'specific-users' || value.scope === 'user-tasks') && !Array.isArray(value.userIds)) {
+                                // Cerca i permessi esistenti per questo utente
+                                const existingPerms = await new Promise((resolve, reject) => {
+                                    req.db.get(
+                                        'SELECT properties FROM user_crud WHERE user_id = ? AND crud_id = (SELECT id FROM crud WHERE page = ? AND action = ?)',
+                                        [userId, page, actionName],
+                                        (err, row) => {
+                                            if (err) reject(err);
+                                            else resolve(row);
+                                        }
+                                    );
+                                });
+
+                                if (existingPerms && existingPerms.properties) {
+                                    try {
+                                        const existingProps = JSON.parse(existingPerms.properties);
+                                        if (Array.isArray(existingProps.userIds)) {
+                                            properties.userIds = existingProps.userIds;
+                                        }
+                                    } catch (e) {
+                                        console.error('Errore nel parsing delle properties esistenti:', e);
+                                    }
+                                }
                             }
                             
                             permissions.push({

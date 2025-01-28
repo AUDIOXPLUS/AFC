@@ -251,19 +251,13 @@ document.addEventListener('DOMContentLoaded', function() {
                                     .then(res => res.json())
                                     .then(users => {
                                         const selectedUserDetails = users
-                                            .filter(user => pagePermissions.read.userIds.includes(user.id))
+                                            .filter(user => pagePermissions.read.userIds.includes(user.id.toString()))
                                             .map(user => ({
                                                 id: user.id,
                                                 name: user.name
                                             }));
                                         
                                         selectedUsers[pageName].read = selectedUserDetails;
-                                        
-                                        // Aggiorna il testo dell'opzione
-                                        const option = select.querySelector('option[value="specific-users"]');
-                                        if (selectedUserDetails.length > 0) {
-                                            option.textContent = `Only these specific users: ${selectedUserDetails.map(u => u.name).join(', ')}`;
-                                        }
                                     })
                                     .catch(error => {
                                         console.error('Errore nel recupero dei dettagli utenti:', error);
@@ -318,6 +312,47 @@ document.addEventListener('DOMContentLoaded', function() {
 
         roleGrid.innerHTML = '';
         roleGrid.appendChild(table);
+
+        // Aggiorna i testi delle dropdown dopo un breve timeout per assicurarsi che siano state create
+        setTimeout(() => {
+            if (userCrud['Users']?.read?.userIds) {
+                fetch('/api/team-members')
+                    .then(res => res.json())
+                    .then(users => {
+                        const selectedUserDetails = users
+                            .filter(user => userCrud['Users'].read.userIds.includes(user.id.toString()))
+                            .map(user => ({
+                                id: user.id,
+                                name: user.name
+                            }));
+
+                        if (selectedUserDetails.length > 0) {
+                            const userNames = selectedUserDetails.map(u => u.name).join(', ');
+                            
+                            // Aggiorna il testo per Users
+                            const usersSelect = document.querySelector('select[data-page="Users"]');
+                            if (usersSelect) {
+                                const usersOption = usersSelect.querySelector('option[value="specific-users"]');
+                                if (usersOption) {
+                                    usersOption.textContent = `Only these specific users: ${userNames}`;
+                                }
+                            }
+
+                            // Aggiorna il testo per Tasks
+                            const tasksSelect = document.querySelector('select[data-page="Tasks"]');
+                            if (tasksSelect) {
+                                const taskOption = tasksSelect.querySelector('option[value="user-tasks"]');
+                                if (taskOption) {
+                                    taskOption.textContent = `Only selected user's tasks: ${userNames}`;
+                                }
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Errore nel recupero dei dettagli utenti:', error);
+                    });
+            }
+        }, 100);
     }
 
     // Funzione per salvare le azioni CRUD

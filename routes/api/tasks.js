@@ -101,8 +101,47 @@ router.get('/', checkAuthentication, async (req, res) => {
                 query += ` AND p.client_company_name = (SELECT client_company_name FROM users WHERE name = ?)`;
                 queryParams.push(req.session.user.name);
                 break;
+            case 'user-tasks':
+                // Recupera gli userIds dai permessi degli utenti
+                const userPermsQuery = `
+                    SELECT uc.properties
+                    FROM crud c
+                    JOIN user_crud uc ON c.id = uc.crud_id
+                    WHERE c.page = 'Users'
+                    AND c.action = 'Read'
+                    AND uc.user_id = ?
+                    AND uc.properties IS NOT NULL
+                `;
+                
+                const userPerms = await new Promise((resolve, reject) => {
+                    req.db.get(userPermsQuery, [req.session.user.id], (err, row) => {
+                        if (err) reject(err);
+                        else resolve(row);
+                    });
+                });
+
+                if (userPerms && userPerms.properties) {
+                    try {
+                        const userProps = JSON.parse(userPerms.properties);
+                        if (Array.isArray(userProps.userIds) && userProps.userIds.length > 0) {
+                            query += ` AND EXISTS (
+                                SELECT 1 FROM users u
+                                WHERE u.name = ph.assigned_to
+                                AND u.id IN (${userProps.userIds.map(() => '?').join(',')})
+                            )`;
+                            queryParams.push(...userProps.userIds);
+                        } else {
+                            return res.status(403).json({ error: 'Nessun utente specifico definito nei permessi' });
+                        }
+                    } catch (e) {
+                        console.error('Errore nel parsing delle properties degli utenti:', e);
+                        return res.status(403).json({ error: 'Permessi non validi' });
+                    }
+                } else {
+                    return res.status(403).json({ error: 'Nessun utente specifico definito nei permessi' });
+                }
+                break;
             case 'all':
-                // Nessun filtro necessario
                 // Nessun filtro necessario
                 break;
             default:
