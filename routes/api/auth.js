@@ -15,7 +15,12 @@ router.post('/login', (req, res) => {
         if (row) {
             console.log('Login effettuato con successo!');
             console.log('Dati utente recuperati dal database:', row);
-            req.session.user = row;
+            // Salva solo i dati necessari nella sessione
+            req.session.user = {
+                id: row.id,
+                name: row.name,
+                username: row.username
+            };
             res.json({ success: true, name: row.name });
         } else {
             console.log('Credenziali non valide.');

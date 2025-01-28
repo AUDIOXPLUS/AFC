@@ -39,8 +39,23 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(session({
     secret: process.env.JWT_SECRET || 'default-secret',
     resave: false,
-    saveUninitialized: true,
+    saveUninitialized: false,
+    cookie: {
+        secure: false, // set to true if using https
+        httpOnly: true,
+        maxAge: 24 * 60 * 60 * 1000 // 24 ore
+    }
 }));
+
+// Log delle sessioni per debug
+app.use((req, res, next) => {
+    console.log('Session Debug:', {
+        sessionID: req.sessionID,
+        hasSession: !!req.session,
+        user: req.session?.user
+    });
+    next();
+});
 
 // Passa il database alle rotte
 app.use((req, res, next) => {
