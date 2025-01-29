@@ -204,7 +204,7 @@ router.put('/:id', checkAuthentication, (req, res) => {
 router.get('/:id/crud-permissions', checkAuthentication, (req, res) => {
     const userId = req.params.id;
     const query = `
-        SELECT c.page, c.action, uc.properties, u.factory, u.client_company_name
+        SELECT c.id, c.page, c.action, uc.properties, u.factory, u.client_company_name
         FROM crud c
         JOIN user_crud uc ON c.id = uc.crud_id
         JOIN users u ON uc.user_id = u.id
@@ -218,6 +218,18 @@ router.get('/:id/crud-permissions', checkAuthentication, (req, res) => {
         
         const crud = {};
         rows.forEach(row => {
+            // Gestione speciale per il permesso CRUD visible (ID 17)
+            if (row.id === 17) {
+                crud['CRUD'] = {
+                    read: {
+                        enabled: true,
+                        scope: 'all',
+                        crudId: 17
+                    }
+                };
+                return;
+            }
+
             if (!crud[row.page]) {
                 crud[row.page] = {};
             }
@@ -297,6 +309,15 @@ router.put('/:id/crud-permissions', checkAuthentication, async (req, res) => {
         
         // Processa le azioni CRUD
         for (const [page, actions] of Object.entries(crud)) {
+            // Gestione speciale per il permesso CRUD visible
+            if (page === 'crud_visible' && actions.id === 17 && actions.enabled) {
+                permissions.push({
+                    userId,
+                    crudId: 17,
+                    properties: null
+                });
+                continue;
+            }
             for (const [action, value] of Object.entries(actions)) {
                 const actionName = action.charAt(0).toUpperCase() + action.slice(1);
                 

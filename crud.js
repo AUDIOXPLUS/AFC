@@ -294,14 +294,17 @@ document.addEventListener('DOMContentLoaded', function() {
                     checkbox.dataset.action = actionType;
 
                     // Verifica se l'utente ha questa azione CRUD
-                    if (userCrud[pageName] && 
+                    if (pageName === 'CRUD' && actionType === 'Read') {
+                        // Verifica se l'utente ha il permesso CRUD
+                        checkbox.checked = userCrud['CRUD']?.read?.enabled === true;
+                    } else if (userCrud[pageName] && 
                         ((Array.isArray(userCrud[pageName]) && userCrud[pageName].includes(actionType)) ||
                          (typeof userCrud[pageName] === 'object' && userCrud[pageName][actionType.toLowerCase()]))) {
                         checkbox.checked = true;
                     }
 
                     // Verifica se questa azione è disponibile per questa pagina
-                    if (pages[pageName].includes(actionType)) {
+                    if (pages[pageName].includes(actionType) || (pageName === 'CRUD' && actionType === 'Read')) {
                         cell.appendChild(checkbox);
                     } else {
                         cell.textContent = '—';
@@ -372,40 +375,52 @@ document.addEventListener('DOMContentLoaded', function() {
                     const checkbox = cell.querySelector('input[type="checkbox"]');
                     
                     if (action === 'Read') {
-                        const readSelect = cell.querySelector('select');
-                        if (checkbox && checkbox.checked) {
-                            const scope = readSelect ? readSelect.value : 'all';
-                            
-                            // Struttura corretta per i permessi di lettura
-                            updatedCrud[pageName].read = {
-                                enabled: true,
-                                scope: scope,
-                                properties: JSON.stringify({
-                                    enabled: true,
-                                    scope: scope
-                                })
-                            };
-
-                            // Aggiungi userIds solo se necessario
-                            if (scope === 'specific-users' && selectedUsers[pageName]?.read?.length > 0) {
-                                updatedCrud[pageName].read.userIds = selectedUsers[pageName].read.map(u => u.id);
-                                // Aggiorna properties per includere userIds
-                                updatedCrud[pageName].read.properties = JSON.stringify({
-                                    enabled: true,
-                                    scope: scope,
-                                    userIds: selectedUsers[pageName].read.map(u => u.id)
-                                });
+                        if (pageName === 'CRUD') {
+                            // Gestione speciale per la riga CRUD
+                            // Gestione speciale per la riga CRUD - usa direttamente l'ID 17
+                            if (checkbox && checkbox.checked) {
+                                // Aggiungi il permesso CRUD visible (ID 17)
+                                updatedCrud['crud_visible'] = {
+                                    id: 17,
+                                    enabled: true
+                                };
                             }
                         } else {
-                            // Se la checkbox non è selezionata
-                            updatedCrud[pageName].read = {
-                                enabled: false,
-                                scope: 'none',
-                                properties: JSON.stringify({
+                            const readSelect = cell.querySelector('select');
+                            if (checkbox && checkbox.checked) {
+                                const scope = readSelect ? readSelect.value : 'all';
+                                
+                                // Struttura corretta per i permessi di lettura
+                                updatedCrud[pageName].read = {
+                                    enabled: true,
+                                    scope: scope,
+                                    properties: JSON.stringify({
+                                        enabled: true,
+                                        scope: scope
+                                    })
+                                };
+
+                                // Aggiungi userIds solo se necessario
+                                if (scope === 'specific-users' && selectedUsers[pageName]?.read?.length > 0) {
+                                    updatedCrud[pageName].read.userIds = selectedUsers[pageName].read.map(u => u.id);
+                                    // Aggiorna properties per includere userIds
+                                    updatedCrud[pageName].read.properties = JSON.stringify({
+                                        enabled: true,
+                                        scope: scope,
+                                        userIds: selectedUsers[pageName].read.map(u => u.id)
+                                    });
+                                }
+                            } else {
+                                // Se la checkbox non è selezionata
+                                updatedCrud[pageName].read = {
                                     enabled: false,
-                                    scope: 'none'
-                                })
-                            };
+                                    scope: 'none',
+                                    properties: JSON.stringify({
+                                        enabled: false,
+                                        scope: 'none'
+                                    })
+                                };
+                            }
                         }
                     } else {
                         // Per le altre azioni, usa la prima lettera maiuscola
