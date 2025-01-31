@@ -5,6 +5,7 @@ const checkAuthentication = require('../middleware/auth');
 // Endpoint per ottenere i progetti in base ai permessi
 router.get('/', checkAuthentication, async (req, res) => {
     try {
+        const showArchived = req.query.showArchived === 'true';
         // Ottieni i permessi CRUD dell'utente per la pagina projects
         const permissionsQuery = `
             SELECT c.properties, uc.properties as user_properties
@@ -25,8 +26,9 @@ router.get('/', checkAuthentication, async (req, res) => {
             return res.status(403).json({ error: 'Utente non trovato' });
         }
 
-        let query = 'SELECT * FROM projects WHERE 1=1';
         const queryParams = [];
+        let query = 'SELECT * FROM projects WHERE 1=1 AND (archived = ? OR archived IS NULL)';
+        queryParams.push(showArchived ? 1 : 0);
 
         if (!user.user_properties) {
             return res.status(403).json({ error: 'Permesso di lettura negato' });
@@ -350,6 +352,48 @@ router.post('/:id/reset-new-status', checkAuthentication, (req, res) => {
         }
         res.json({ message: 'Stato nuovo resettato con successo' });
     });
+});
+
+// Endpoint per archiviare/disarchiviare un progetto
+router.post('/:id/archive', checkAuthentication, async (req, res) => {
+    const projectId = req.params.id;
+    const { archive } = req.body; // true per archiviare, false per disarchiviare
+
+    try {
+        // Verifica che il progetto sia completato se si sta tentando di archiviarlo
+        if (archive) {
+            const projectStatus = await new Promise((resolve, reject) => {
+                req.db.get('SELECT * FROM project_history WHERE project_id = ? ORDER BY date DESC LIMIT 1', [projectId], (err, row) => {
+                    if (err) reject(err);
+                    else resolve(row);
+                });
+            });
+
+            if (!projectStatus || projectStatus.status !== 'Completed') {
+                return res.status(400).json({ 
+                    error: 'Solo i progetti con stato "Completed" possono essere archiviati'
+                });
+            }
+        }
+
+        // Aggiorna lo stato di archiviazione
+        const query = `UPDATE projects SET archived = ? WHERE id = ?`;
+        req.db.run(query, [archive ? 1 : 0, projectId], function(err) {
+            if (err) {
+                console.error('Errore nell\'archiviazione del progetto:', err);
+                return res.status(500).json({ error: 'Errore del server' });
+            }
+            if (this.changes === 0) {
+                return res.status(404).json({ error: 'Progetto non trovato' });
+            }
+            res.json({ 
+                message: archive ? 'Progetto archiviato con successo' : 'Progetto disarchiviato con successo'
+            });
+        });
+    } catch (error) {
+        console.error('Errore:', error);
+        res.status(500).json({ error: 'Errore del server' });
+    }
 });
 
 module.exports = router;

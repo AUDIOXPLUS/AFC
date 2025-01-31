@@ -90,17 +90,10 @@
                 <input type="date" id="end-date-filter" placeholder="End date">
                 <label class="column-visibility"><input type="checkbox" data-column="9" checked></label>
             </div>
-            <div class="status-dropdown filter-group">
-                <!--<input type="text" id="status-display" readonly placeholder="Status">-->
-                <button id="status-dropdown-btn">
-                    Status
-                </button>
-                <div id="status-filter" class="dropdown-content">
-                    <label><input type="checkbox" value="In Progress" data-abbr="IP"> In Progress</label>
-                    <label><input type="checkbox" value="Completed" data-abbr="CO"> Completed</label>
-                    <label><input type="checkbox" value="On Hold" data-abbr="OH"> On Hold</label>
-                    <label><input type="checkbox" value="Archived" data-abbr="AR"> Archived</label>
-                </div>
+            <div class="filter-group">
+                <label>
+                    <input type="checkbox" id="show-archived"> Show archived projects
+                </label>
             </div>
 
         </div>

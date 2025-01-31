@@ -122,11 +122,36 @@ function saveColumnVisibility() {
 // Variabile globale per mantenere il riferimento alle funzioni di filtering
 let filteringApi = null;
 
+// Funzione per archiviare/disarchiviare un progetto
+async function toggleArchiveProject(projectId, archive) {
+    try {
+        const response = await fetch(`/api/projects/${projectId}/archive`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ archive }),
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            alert(error.error || 'Error updating project archive status');
+            return false;
+        }
+
+        return true;
+    } catch (error) {
+        handleNetworkError(error);
+        return false;
+    }
+}
+
 // Function to fetch project data from the backend
 async function fetchProjects() {
     console.log('Fetching projects...');
     try {
-        const response = await fetch('/api/projects');
+        const showArchived = document.getElementById('show-archived').checked;
+        const response = await fetch(`/api/projects?showArchived=${showArchived}`);
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -245,15 +270,32 @@ async function displayProjects(projects) {
         row.insertCell(12).textContent = project.priority;
 
         const actionsCell = row.insertCell(13);
+        
+        // Edit button
         const editBtn = document.createElement('button');
         editBtn.className = 'edit-btn';
         editBtn.textContent = 'Edit';
         editBtn.addEventListener('click', () => editProject(row, project.id));
-
+        
+        // Delete button
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'delete-btn';
         deleteBtn.textContent = 'Delete';
         deleteBtn.addEventListener('click', () => confirmDelete(project.id));
+        
+        // Archive/Unarchive button
+        if (project.archived || projectStatus.status === 'Completed') {
+            const archiveBtn = document.createElement('button');
+            archiveBtn.className = project.archived ? 'unarchive-btn' : 'archive-btn';
+            archiveBtn.textContent = project.archived ? 'Unarchive' : 'Archive';
+            archiveBtn.addEventListener('click', async () => {
+                const success = await toggleArchiveProject(project.id, !project.archived);
+                if (success) {
+                    fetchProjects();
+                }
+            });
+            actionsCell.appendChild(archiveBtn);
+        }
 
         actionsCell.appendChild(editBtn);
         actionsCell.appendChild(deleteBtn);
@@ -635,21 +677,11 @@ function enableColumnSorting() {
 function enableLiveFiltering() {
     // Oggetto per esporre funzioni pubbliche
     const publicApi = {};
-    // Gestione dropdown status
-    const statusDropdownBtn = document.getElementById('status-dropdown-btn');
-    const statusDropdown = document.getElementById('status-filter');
-    const statusCheckboxes = statusDropdown.querySelectorAll('input[type="checkbox"]');
-    
-    // Apertura/chiusura dropdown
-    statusDropdownBtn.addEventListener('click', function() {
-        statusDropdown.classList.toggle('show');
-    });
 
-    // Chiudi dropdown quando si clicca fuori
-    document.addEventListener('click', function(event) {
-        if (!event.target.matches('#status-dropdown-btn') && !event.target.closest('.dropdown-content')) {
-            statusDropdown.classList.remove('show');
-        }
+    // Gestione checkbox progetti archiviati
+    const showArchivedCheckbox = document.getElementById('show-archived');
+    showArchivedCheckbox.addEventListener('change', () => {
+        fetchProjects();
     });
 
     // Gestione filtri testo
@@ -658,25 +690,10 @@ function enableLiveFiltering() {
     const tableRows = document.getElementById('projects-table').getElementsByTagName('tbody')[0].rows;
     const filterIndices = [0, 1, 2, 3, 4, 5, 6, 7, 11, 12]; // Indici delle colonne da filtrare, aggiunto 11 per Assigned to
 
-    // Funzione per aggiornare il display degli stati selezionati
-    function updateStatusDisplay() {
-        const selectedCheckboxes = Array.from(statusCheckboxes).filter(cb => cb.checked);
-        const statusDropdownBtn = document.getElementById('status-dropdown-btn');
-        
-        if (selectedCheckboxes.length === 0) {
-            statusDropdownBtn.textContent = 'Status';
-            return;
-        }
-
-        const selectedStatuses = selectedCheckboxes.map(cb => cb.getAttribute('data-abbr'));
-        statusDropdownBtn.textContent = selectedStatuses.join(', ');
-    }
-
     // Funzione per salvare i filtri nel localStorage
-    function saveFilters(textFilterValues, selectedStatuses, dateFilterValues) {
+    function saveFilters(textFilterValues, dateFilterValues) {
         const filters = {
             text: textFilterValues,
-            status: selectedStatuses,
             dates: dateFilterValues
         };
         localStorage.setItem('projectFilters', JSON.stringify(filters));
@@ -685,9 +702,6 @@ function enableLiveFiltering() {
     // Funzione per applicare i filtri
     function applyFilters() {
         const textFilterValues = Array.from(textFilterInputs).map(input => input.value.toLowerCase().trim());
-        const selectedStatuses = Array.from(statusCheckboxes)
-            .filter(cb => cb.checked)
-            .map(cb => cb.value);
         const dateFilterValues = {
             startDate: document.getElementById('start-date-filter').value,
             endDate: document.getElementById('end-date-filter').value
@@ -703,13 +717,8 @@ function enableLiveFiltering() {
             input.classList.toggle('filter-active', input.value !== '');
         });
 
-        const statusBtn = document.getElementById('status-dropdown-btn');
-        statusBtn.classList.toggle('filter-active', selectedStatuses.length > 0);
-
         // Salva i filtri nel localStorage
-        saveFilters(textFilterValues, selectedStatuses, dateFilterValues);
-        
-        updateStatusDisplay();
+        saveFilters(textFilterValues, dateFilterValues);
 
         Array.from(tableRows).forEach(row => {
             let isMatch = true;
@@ -752,33 +761,6 @@ function enableLiveFiltering() {
                 }
             }
 
-            // Controllo filtro status
-            if (isMatch && selectedStatuses.length > 0) {
-                const statusCell = row.cells[10];
-                const statusText = statusCell.textContent.trim();
-                
-                // Gestione speciale per "In Progress"
-                if (selectedStatuses.includes('In Progress')) {
-                    // Se è selezionato "In Progress", la riga deve NON contenere questi status
-                    const excludedStatuses = ['Completed', 'On Hold', 'Archived'];
-                    const hasExcludedStatus = excludedStatuses.some(status => statusText === status);
-                    
-                    // Rimuovi "In Progress" da selectedStatuses per il controllo degli altri status
-                    const otherStatuses = selectedStatuses.filter(s => s !== 'In Progress');
-                    
-                    // La riga corrisponde se:
-                    // - NON ha uno status escluso E non ci sono altri filtri status
-                    // OPPURE
-                    // - NON ha uno status escluso E corrisponde a uno degli altri status selezionati
-                    isMatch = !hasExcludedStatus && 
-                             (otherStatuses.length === 0 || otherStatuses.includes(statusText));
-                } else {
-                    // Per gli altri status, usa il controllo normale
-                    if (!selectedStatuses.includes(statusText)) {
-                        isMatch = false;
-                    }
-                }
-            }
 
             row.style.display = isMatch ? '' : 'none';
         });
@@ -795,10 +777,6 @@ function enableLiveFiltering() {
                 input.value = filters.text[index] || '';
             });
             
-            // Applica i filtri di stato
-            statusCheckboxes.forEach(checkbox => {
-                checkbox.checked = filters.status.includes(checkbox.value);
-            });
 
             // Applica i filtri delle date
             if (filters.dates) {
@@ -821,13 +799,8 @@ function enableLiveFiltering() {
         input.addEventListener('change', applyFilters);
     });
 
-    statusCheckboxes.forEach(checkbox => {
-        checkbox.addEventListener('change', applyFilters);
-    });
-
-    // Carica i filtri salvati e inizializza il display degli stati
+    // Carica i filtri salvati
     loadSavedFilters();
-    updateStatusDisplay();
 
     // Espone le funzioni necessarie
     publicApi.applyFilters = applyFilters;
