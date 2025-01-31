@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Editor Excel</title>
+    <title>Excel Editor</title>
     <link rel="stylesheet" href="https://bossanova.uk/jspreadsheet/v4/jexcel.css" type="text/css" />
     <link rel="stylesheet" href="https://jsuites.net/v4/jsuites.css" type="text/css" />
     <script src="https://bossanova.uk/jspreadsheet/v4/jexcel.js"></script>
@@ -46,9 +46,9 @@
 <body>
     <div class="toolbar">
         <select id="sheetSelector" style="display: none;"></select>
-        <button onclick="saveChanges()">Salva Modifiche</button>
+        <button onclick="saveChanges()">Save Changes</button>
     </div>
-    <div id="loading" class="loading">Caricamento del file Excel in corso...</div>
+    <div id="loading" class="loading">Loading Excel file...</div>
     <div id="spreadsheet"></div>
 
     <script>
@@ -60,7 +60,7 @@
         async function loadExcel() {
             const fileId = new URLSearchParams(window.location.search).get('fileId');
             if (!fileId) {
-                document.getElementById('loading').textContent = 'ID file non specificato';
+                document.getElementById('loading').textContent = 'File ID not specified';
                 return;
             }
             currentFileId = fileId;
@@ -69,7 +69,7 @@
                 const response = await fetch(`/api/files/${fileId}/view`, {
                     credentials: 'include' // Aggiunto per includere le credenziali
                 });
-                if (!response.ok) throw new Error('Errore nel caricamento del file');
+                if (!response.ok) throw new Error('Error loading file');
                 
                 const arrayBuffer = await response.arrayBuffer();
                 const data = new Uint8Array(arrayBuffer);
@@ -97,7 +97,7 @@
 
             } catch (error) {
                 console.error('Errore:', error);
-                document.getElementById('loading').textContent = 'Errore nel caricamento del file Excel';
+                document.getElementById('loading').textContent = 'Error loading Excel file';
             }
         }
 
@@ -153,14 +153,14 @@
                 });
                 
                 if (!response.ok) {
-                    throw new Error('Errore durante il salvataggio');
+                    throw new Error('Error while saving');
                 }
                 
-                alert('Modifiche salvate con successo!');
+                alert('Changes saved successfully!');
                 
             } catch (error) {
-                console.error('Errore durante il salvataggio:', error);
-                alert('Errore durante il salvataggio delle modifiche');
+                console.error('Error while saving:', error);
+                alert('Error while saving changes');
             }
         }
 

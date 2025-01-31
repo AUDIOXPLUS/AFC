@@ -21,7 +21,7 @@ async function updateConnectedUsers() {
             usersList.innerHTML = users.map(user => user.name).join(', ');
         }
     } catch (error) {
-        console.error('Errore nel recupero degli utenti connessi:', error);
+        console.error('Error retrieving connected users:', error);
     }
 }
 
@@ -105,38 +105,29 @@ function displayTeamMembers(teamMembers) {
         editBtn.addEventListener('click', () => editTeamMember(row, member.id));
         actionsCell.appendChild(editBtn);
 
-        // Pulsante CRUD
+        // Pulsante CRUD con verifica diretta del permesso 17
         const crudBtn = document.createElement('button');
         crudBtn.textContent = 'CRUD';
         crudBtn.className = 'crud-btn';
         crudBtn.addEventListener('click', async () => {
             try {
-                console.log('Checking CRUD permission...');
-                // Prima verifica il permesso
-                const response = await fetch('/crud.html', {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/json'
-                    },
-                    credentials: 'same-origin'
-                });
+                // Verifica i permessi dell'utente corrente
+                const response = await fetch('/api/session-user');
+                const currentUser = await response.json();
                 
-                console.log('Permission check response:', response.status);
+                // Verifica se l'utente corrente ha il permesso 17
+                const permResponse = await fetch(`/api/team-members/${currentUser.id}/crud-permissions`);
+                const permissions = await permResponse.json();
                 
-                if (response.ok) {
-                    console.log('Permission granted, redirecting...');
+                // Cerca il permesso CRUD (ID 17)
+                if (permissions.CRUD && permissions.CRUD.read && permissions.CRUD.read.enabled) {
                     window.location.href = `crud.html?memberId=${member.id}`;
-                } else if (response.status === 403) {
-                    console.log('Permission denied');
-                    const error = await response.json();
-                    alert(error.message);
                 } else {
-                    console.log('Unexpected response:', response.status);
-                    alert('An error occurred while checking permissions');
+                    alert('You do not have permission to access the CRUD page');
                 }
             } catch (error) {
-                console.error('Error checking CRUD permission:', error);
-                alert('An error occurred while checking permissions');
+                console.error('Error checking permissions:', error);
+                alert('Error checking permissions');
             }
         });
         actionsCell.appendChild(crudBtn);
@@ -300,7 +291,7 @@ async function deleteTeamMember(memberId) {
         const tasks = await tasksResponse.json();
         
         if (tasks.length > 0) {
-            alert('Non è possibile eliminare questo utente perché ha dei tasks assegnati.');
+            alert('Cannot delete this user because they have assigned tasks.');
             return;
         }
 
@@ -315,11 +306,11 @@ async function deleteTeamMember(memberId) {
         } else {
             const errorText = await deleteResponse.text();
             console.error('Failed to delete team member:', deleteResponse.status, errorText);
-            alert('Errore durante l\'eliminazione dell\'utente.');
+            alert('Error deleting user.');
         }
     } catch (error) {
         console.error('Error deleting team member:', error);
-        alert('Errore durante l\'eliminazione dell\'utente.');
+        alert('Error deleting user.');
     }
 }
 

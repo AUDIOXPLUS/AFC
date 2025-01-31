@@ -44,13 +44,13 @@
     console.log('File richiesto per l\'editor:', filePath);
 
     if (!filePath) {
-      alert('Parametro filePath mancante nell\'URL');
+      alert('Missing filePath parameter in URL');
     } else {
       // Richiedi la configurazione dal server
       fetch('/onlyoffice/config?filePath=' + encodeURIComponent(filePath))
         .then(function(response) {
           if (!response.ok) {
-            throw new Error('Errore nella risposta del server: ' + response.status);
+            throw new Error('Server response error: ' + response.status);
           }
           return response.json();
         })
@@ -79,7 +79,7 @@
         })
         .catch(function(error) {
           console.error('Errore durante il caricamento della configurazione:', error);
-          alert('Errore durante il caricamento della configurazione: ' + error.message);
+          alert('Error loading configuration: ' + error.message);
         });
     }
   </script>
