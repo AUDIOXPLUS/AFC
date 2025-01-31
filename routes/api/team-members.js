@@ -70,16 +70,57 @@ router.get('/', checkAuthentication, async (req, res) => {
                 break;
             case 'own-factory':
                 // Ottieni tutti gli utenti della stessa factory dell'utente corrente
-                query += ` AND factory = (
-                    SELECT factory 
-                    FROM users 
-                    WHERE id = ?
+                // o che lavorano su progetti della factory dell'utente
+                query += ` AND (
+                    factory = (
+                        SELECT factory 
+                        FROM users 
+                        WHERE id = ?
+                    )
+                    OR EXISTS (
+                        SELECT 1 
+                        FROM project_history ph
+                        JOIN projects p ON ph.project_id = p.id
+                        WHERE ph.assigned_to = users.name
+                        AND p.factory = (
+                            SELECT factory 
+                            FROM users 
+                            WHERE id = ?
+                        )
+                    )
                 )`;
-                queryParams.push(req.session.user.id);
+                queryParams.push(req.session.user.id, req.session.user.id);
                 break;
             case 'all-factories':
                 // Ottieni tutti gli utenti di tutte le factories
                 query += ` AND factory IS NOT NULL`;
+                break;
+            case 'own-client':
+                // Ottieni tutti gli utenti dello stesso client dell'utente corrente
+                // o che lavorano su progetti del client dell'utente
+                query += ` AND (
+                    client_company_name = (
+                        SELECT client_company_name 
+                        FROM users 
+                        WHERE id = ?
+                    )
+                    OR EXISTS (
+                        SELECT 1 
+                        FROM project_history ph
+                        JOIN projects p ON ph.project_id = p.id
+                        WHERE ph.assigned_to = users.name
+                        AND p.client = (
+                            SELECT client_company_name 
+                            FROM users 
+                            WHERE id = ?
+                        )
+                    )
+                )`;
+                queryParams.push(req.session.user.id, req.session.user.id);
+                break;
+            case 'all-clients':
+                // Ottieni tutti gli utenti di tutti i client
+                query += ` AND client_company_name IS NOT NULL`;
                 break;
             case 'specific-users':
                 // Se sono specificati utenti specifici nei permessi

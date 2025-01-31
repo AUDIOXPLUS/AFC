@@ -98,8 +98,8 @@ router.get('/', checkAuthentication, async (req, res) => {
                 break;
             case 'client':
             case 'own-client':
-                query += ` AND p.client_company_name = (SELECT client_company_name FROM users WHERE name = ?)`;
-                queryParams.push(req.session.user.name);
+                query += ` AND p.client = (SELECT client_company_name FROM users WHERE id = ?)`;
+                queryParams.push(req.session.user.id);
                 break;
             case 'user-tasks':
                 // Recupera gli userIds dai permessi degli utenti
