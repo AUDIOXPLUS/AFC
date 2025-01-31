@@ -109,8 +109,35 @@ function displayTeamMembers(teamMembers) {
         const crudBtn = document.createElement('button');
         crudBtn.textContent = 'CRUD';
         crudBtn.className = 'crud-btn';
-        crudBtn.addEventListener('click', () => {
-            window.location.href = `crud.html?memberId=${member.id}`;
+        crudBtn.addEventListener('click', async () => {
+            try {
+                console.log('Checking CRUD permission...');
+                // Prima verifica il permesso
+                const response = await fetch('/crud.html', {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'same-origin'
+                });
+                
+                console.log('Permission check response:', response.status);
+                
+                if (response.ok) {
+                    console.log('Permission granted, redirecting...');
+                    window.location.href = `crud.html?memberId=${member.id}`;
+                } else if (response.status === 403) {
+                    console.log('Permission denied');
+                    const error = await response.json();
+                    alert(error.message);
+                } else {
+                    console.log('Unexpected response:', response.status);
+                    alert('An error occurred while checking permissions');
+                }
+            } catch (error) {
+                console.error('Error checking CRUD permission:', error);
+                alert('An error occurred while checking permissions');
+            }
         });
         actionsCell.appendChild(crudBtn);
 

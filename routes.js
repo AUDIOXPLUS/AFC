@@ -40,10 +40,19 @@ router.post('/projects/:projectId/files', checkAuthentication, upload.array('fil
     files.forEach(file => {
         // Imposta i permessi del file appena caricato
         try {
+            console.log('=== File Upload Debug ===');
+            console.log('File originale:', {
+                originalname: file.originalname,
+                path: file.path,
+                destination: file.destination,
+                size: file.size
+            });
+
             fs.chmodSync(file.path, 0o666);
             const stats = fs.statSync(file.path);
-            console.log('File caricato:', {
+            console.log('File dopo chmod:', {
                 path: file.path,
+                absolutePath: path.resolve(file.path),
                 size: file.size,
                 mode: stats.mode.toString(8),
                 uid: stats.uid,
@@ -56,7 +65,12 @@ router.post('/projects/:projectId/files', checkAuthentication, upload.array('fil
 
         // Usa il percorso relativo per OnlyOffice
         const normalizedFilePath = path.basename(file.path);
-        console.log('normalizedFilePath:', normalizedFilePath);
+        console.log('Percorsi file:', {
+            original: file.path,
+            normalized: normalizedFilePath,
+            onlyoffice: path.join('/var/www/onlyoffice/Data', normalizedFilePath),
+            uploads: path.join('uploads', normalizedFilePath)
+        });
 
         const query = `INSERT INTO project_files (project_id, history_id, filename, filepath, uploaded_by) VALUES (?, ?, ?, ?, ?)`;
         

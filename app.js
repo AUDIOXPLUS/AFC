@@ -66,6 +66,26 @@ app.use((req, res, next) => {
 // Aggiunge le rotte con prefisso
 app.use('/api', routes);
 
+// Importa il middleware di controllo permessi CRUD
+const checkCrudPermission = require('./routes/middleware/check-crud-permission');
+
+// Importa il middleware di autenticazione
+const checkAuthentication = require('./routes/middleware/auth');
+
+// Middleware per proteggere crud.html
+app.use((req, res, next) => {
+    if (req.url.includes('crud.html')) {
+        console.log('Intercepting crud.html access');
+        checkAuthentication(req, res, () => {
+            checkCrudPermission(req, res, () => {
+                next();
+            });
+        });
+    } else {
+        next();
+    }
+});
+
 // Serve file statici
 app.use(express.static(path.join(__dirname)));
 
