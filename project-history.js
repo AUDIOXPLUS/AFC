@@ -160,6 +160,13 @@ window.fetchProjectHistory = async function(projectId) {
         // Ordina la cronologia per data in ordine decrescente
         history.sort((a, b) => new Date(b.date) - new Date(a.date));
         console.log('Cronologia del Progetto:', history);
+        
+        // Evidenzia l'header della colonna Date che è ordinata di default
+        const table = document.getElementById('history-table');
+        const headers = table.getElementsByTagName('th');
+        Array.from(headers).forEach(header => header.classList.remove('sorted'));
+        headers[0].classList.add('sorted'); // Date è la prima colonna (index 0)
+        
         window.displayProjectHistory(history);
     } catch (error) {
         handleNetworkError(error);

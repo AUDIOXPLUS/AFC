@@ -269,30 +269,71 @@ async function displayProjects(projects) {
         // Funzione helper per gestire i valori vuoti
         const getValueOrDash = (value) => value || '-';
         
-        row.insertCell(0).textContent = getValueOrDash(project.client);
-        row.insertCell(1).textContent = getValueOrDash(project.productKind);
-        row.insertCell(2).textContent = getValueOrDash(project.factory);
-        row.insertCell(3).textContent = getValueOrDash(project.brand);
-        row.insertCell(4).textContent = getValueOrDash(project.range);
-        row.insertCell(5).textContent = getValueOrDash(project.line);
+        // Client
+        const clientCell = row.insertCell(0);
+        clientCell.textContent = getValueOrDash(project.client);
+        clientCell.title = clientCell.textContent;
 
-        // Crea un link per il model number
+        // Product kind
+        const productKindCell = row.insertCell(1);
+        productKindCell.textContent = getValueOrDash(project.productKind);
+        productKindCell.title = productKindCell.textContent;
+        // Factory
+        const factoryCell = row.insertCell(2);
+        factoryCell.textContent = getValueOrDash(project.factory);
+        factoryCell.title = factoryCell.textContent;
+
+        // Brand
+        const brandCell = row.insertCell(3);
+        brandCell.textContent = getValueOrDash(project.brand);
+        brandCell.title = brandCell.textContent;
+
+        // Range
+        const rangeCell = row.insertCell(4);
+        rangeCell.textContent = getValueOrDash(project.range);
+        rangeCell.title = rangeCell.textContent;
+
+        // Line
+        const lineCell = row.insertCell(5);
+        lineCell.textContent = getValueOrDash(project.line);
+        lineCell.title = lineCell.textContent;
+
+        // Model number
         const modelNumberCell = row.insertCell(6);
         const modelNumberLink = document.createElement('a');
         modelNumberLink.href = `project-details.html?id=${project.id}`;
         modelNumberLink.textContent = project.modelNumber;
         modelNumberCell.appendChild(modelNumberLink);
+        modelNumberCell.title = project.modelNumber;
 
-        row.insertCell(7).textContent = getValueOrDash(project.factoryModelNumber);
-        row.insertCell(8).textContent = getValueOrDash(project.startDate);
-        row.insertCell(9).textContent = getValueOrDash(project.endDate);
+        // Factory model number
+        const factoryModelCell = row.insertCell(7);
+        factoryModelCell.textContent = getValueOrDash(project.factoryModelNumber);
+        factoryModelCell.title = factoryModelCell.textContent;
+        // Start date
+        const startDateCell = row.insertCell(8);
+        startDateCell.textContent = getValueOrDash(project.startDate);
+        startDateCell.title = startDateCell.textContent;
+
+        // End date
+        const endDateCell = row.insertCell(9);
+        endDateCell.textContent = getValueOrDash(project.endDate);
+        endDateCell.title = endDateCell.textContent;
 
         // Recupera e imposta lo status del progetto e l'utente assegnato
         const projectStatus = await getProjectStatus(project.id);
-        row.insertCell(10).textContent = projectStatus.status;
-        row.insertCell(11).textContent = projectStatus.assignedTo;
+        const statusCell = row.insertCell(10);
+        statusCell.textContent = projectStatus.status;
+        statusCell.title = projectStatus.status; // Aggiunge il tooltip
+        // Assigned to
+        const assignedToCell = row.insertCell(11);
+        assignedToCell.textContent = projectStatus.assignedTo;
+        assignedToCell.title = assignedToCell.textContent;
 
-        row.insertCell(12).textContent = project.priority;
+        // Priority
+        const priorityCell = row.insertCell(12);
+        priorityCell.textContent = project.priority;
+        priorityCell.title = priorityCell.textContent;
 
         const actionsCell = row.insertCell(13);
         
@@ -329,6 +370,9 @@ async function displayProjects(projects) {
     // Crea tutte le righe in modo asincrono
     await Promise.all(projects.map(project => createTableRow(project)));
     console.log('Projects displayed successfully');
+    
+    // Ripristina le larghezze delle colonne dopo aver caricato i dati
+    restoreColumnWidths();
 }
 
 // Function to handle adding a new project
@@ -448,7 +492,11 @@ function addProject() {
 
             if (response.ok) {
                 console.log('Project added successfully');
+                const savedWidths = localStorage.getItem('projectsColumnWidths');
                 await fetchProjects(); // Refresh the project list and apply sorting
+                if (savedWidths) {
+                    restoreColumnWidths(); // Ripristina le larghezze dopo l'aggiunta
+                }
             } else {
                 console.error('Failed to add project');
             }
@@ -571,7 +619,11 @@ function editProject(row, projectId) {
 
             if (response.ok) {
                 console.log('Project updated successfully');
+                const savedWidths = localStorage.getItem('projectsColumnWidths');
                 await fetchProjects(); // Refresh the project list and apply sorting
+                if (savedWidths) {
+                    restoreColumnWidths(); // Ripristina le larghezze dopo l'aggiornamento
+                }
             } else {
                 console.error('Failed to update project');
             }
@@ -615,69 +667,91 @@ async function confirmDelete(projectId) {
     }
 }
 
-// Function to save column widths to local storage
+// Function to enable column resizing
+// Funzione per salvare le larghezze delle colonne
 function saveColumnWidths() {
     const table = document.getElementById('projects-table');
     const headerCells = table.getElementsByTagName('th');
-    const columnWidths = Array.from(headerCells).map(cell => cell.style.width);
-    console.log('Saving column widths:', columnWidths);
-    localStorage.setItem('columnWidths', JSON.stringify(columnWidths));
+    const widths = Array.from(headerCells).map(cell => cell.style.width);
+    localStorage.setItem('projectsColumnWidths', JSON.stringify(widths));
 }
 
-// Function to restore column widths from local storage
+// Funzione per ripristinare le larghezze delle colonne
 function restoreColumnWidths() {
-    const columnWidths = JSON.parse(localStorage.getItem('columnWidths'));
-    if (columnWidths) {
+    const savedWidths = localStorage.getItem('projectsColumnWidths');
+    if (savedWidths) {
+        const widths = JSON.parse(savedWidths);
         const table = document.getElementById('projects-table');
         const headerCells = table.getElementsByTagName('th');
-        columnWidths.forEach((width, index) => {
-            if (headerCells[index]) {
+        
+        widths.forEach((width, index) => {
+            if (headerCells[index] && width) {
                 headerCells[index].style.width = width;
+                // Aggiorna anche le celle del corpo della tabella
+                const tableRows = table.getElementsByTagName('tr');
+                for (let row of tableRows) {
+                    if (row.cells[index]) {
+                        row.cells[index].style.width = width;
+                    }
+                }
             }
         });
-        console.log('Restored column widths:', columnWidths);
-    } else {
-        console.log('No column widths found in local storage.');
     }
 }
 
-// Function to enable column resizing
 function enableColumnResizing() {
     const table = document.getElementById('projects-table');
     const headerCells = table.getElementsByTagName('th');
+    const tableWrapper = table.closest('.table-wrapper');
+    const maxTableWidth = tableWrapper.offsetWidth;
+
+    // Ripristina le larghezze salvate
+    restoreColumnWidths();
 
     for (let i = 0; i < headerCells.length; i++) {
         const resizer = document.createElement('div');
         resizer.className = 'resizer';
-        resizer.style.width = '5px';
-        resizer.style.height = '100%';
-        resizer.style.position = 'absolute';
-        resizer.style.right = '0';
-        resizer.style.top = '0';
-        resizer.style.cursor = 'col-resize';
-        resizer.style.userSelect = 'none';
-
         headerCells[i].style.position = 'relative';
         headerCells[i].appendChild(resizer);
 
-        let startX, startWidth;
+        let startX, startWidth, totalWidth;
 
         resizer.addEventListener('mousedown', function(e) {
             startX = e.pageX;
             startWidth = headerCells[i].offsetWidth;
+            totalWidth = Array.from(headerCells).reduce((sum, cell) => sum + cell.offsetWidth, 0);
+            
             document.addEventListener('mousemove', resizeColumn);
             document.addEventListener('mouseup', stopResize);
+            resizer.classList.add('resizing');
         });
 
         function resizeColumn(e) {
-            const newWidth = startWidth + (e.pageX - startX);
-            headerCells[i].style.width = newWidth + 'px';
-            saveColumnWidths(); // Save widths after resizing
+            const widthChange = e.pageX - startX;
+            const newWidth = Math.max(50, startWidth + widthChange); // Minimo 50px
+            const newTotalWidth = totalWidth + (newWidth - startWidth);
+            
+            // Verifica che la nuova larghezza totale non superi la larghezza del wrapper
+            if (newTotalWidth <= maxTableWidth) {
+                headerCells[i].style.width = newWidth + 'px';
+                
+                // Aggiorna anche le celle del corpo della tabella
+                const tableRows = table.getElementsByTagName('tr');
+                for (let row of tableRows) {
+                    if (row.cells[i]) {
+                        row.cells[i].style.width = newWidth + 'px';
+                    }
+                }
+                
+                // Salva le nuove larghezze
+                saveColumnWidths();
+            }
         }
 
         function stopResize() {
             document.removeEventListener('mousemove', resizeColumn);
             document.removeEventListener('mouseup', stopResize);
+            resizer.classList.remove('resizing');
         }
     }
 }
@@ -711,6 +785,11 @@ function enableColumnSorting() {
                 row.classList.remove('sorted-asc-1', 'sorted-asc-2', 'sorted-desc-1', 'sorted-desc-2');
             });
 
+            // Rimuovi la classe sorted da tutti gli header
+            Array.from(headers).forEach(header => header.classList.remove('sorted'));
+            // Aggiungi la classe sorted all'header corrente
+            headers[columnIndex].classList.add('sorted');
+
             rows.sort((a, b) => {
                 const aText = a.cells[columnIndex].textContent.trim();
                 const bText = b.cells[columnIndex].textContent.trim();
@@ -732,6 +811,9 @@ function enableColumnSorting() {
 
             sortDirection[columnIndex] = !isAscending; // Toggle sort direction
             rows.forEach(row => table.getElementsByTagName('tbody')[0].appendChild(row)); // Reorder rows
+            
+            // Ripristina le larghezze delle colonne dopo il sorting
+            restoreColumnWidths();
         });
     }
 }
@@ -827,19 +909,102 @@ function enableLiveFiltering() {
 
             row.style.display = isMatch ? '' : 'none';
         });
+        
+        // Ripristina le larghezze delle colonne dopo il filtering
+        restoreColumnWidths();
+    }
+
+    // Funzione per verificare la compatibilità dei filtri con i permessi CRUD
+    async function checkFilterPermissions(filters) {
+        try {
+            // Ottieni i permessi dell'utente
+            const response = await fetch('/api/projects');
+            const projects = await response.json();
+
+            // Se non ci sono progetti, significa che l'utente non ha permessi
+            if (!Array.isArray(projects)) {
+                console.error('Nessun permesso di visualizzazione progetti');
+                return {
+                    client: '',
+                    productKind: '',
+                    factory: '',
+                    brand: '',
+                    range: '',
+                    line: '',
+                    modelNumber: '',
+                    factoryModelNumber: '',
+                    assignedTo: '',
+                    priority: ''
+                };
+            }
+
+            // Estrai i valori unici permessi
+            const allowedValues = {
+                client: new Set(projects.map(p => p.client)),
+                productKind: new Set(projects.map(p => p.productKind)),
+                factory: new Set(projects.map(p => p.factory)),
+                brand: new Set(projects.map(p => p.brand)),
+                range: new Set(projects.map(p => p.range)),
+                line: new Set(projects.map(p => p.line)),
+                modelNumber: new Set(projects.map(p => p.modelNumber)),
+                factoryModelNumber: new Set(projects.map(p => p.factoryModelNumber)),
+                priority: new Set(projects.map(p => p.priority))
+            };
+
+            // Verifica la compatibilità dei filtri
+            const newFilters = {
+                client: filters.text[0],
+                productKind: filters.text[1],
+                factory: filters.text[2],
+                brand: filters.text[3],
+                range: filters.text[4],
+                line: filters.text[5],
+                modelNumber: filters.text[6],
+                factoryModelNumber: filters.text[7],
+                assignedTo: filters.text[8],
+                priority: filters.text[9]
+            };
+
+            // Resetta i filtri non compatibili
+            Object.keys(newFilters).forEach(key => {
+                if (newFilters[key] && !allowedValues[key]?.has(newFilters[key])) {
+                    console.log(`Filtro ${key} non compatibile con i permessi, reset`);
+                    newFilters[key] = '';
+                }
+            });
+
+            return newFilters;
+        } catch (error) {
+            console.error('Errore nella verifica dei permessi:', error);
+            return {
+                client: '',
+                productKind: '',
+                factory: '',
+                brand: '',
+                range: '',
+                line: '',
+                modelNumber: '',
+                factoryModelNumber: '',
+                assignedTo: '',
+                priority: ''
+            };
+        }
     }
 
     // Funzione per caricare e applicare i filtri salvati
-    function loadSavedFilters() {
+    async function loadSavedFilters() {
         const savedFilters = localStorage.getItem('projectFilters');
         if (savedFilters) {
             const filters = JSON.parse(savedFilters);
             
-            // Applica i filtri di testo
-            textFilterInputs.forEach((input, index) => {
-                input.value = filters.text[index] || '';
-            });
+            // Verifica la compatibilità dei filtri con i permessi
+            const validatedFilters = await checkFilterPermissions(filters);
             
+            // Applica i filtri di testo validati
+            textFilterInputs.forEach((input, index) => {
+                const filterValue = Object.values(validatedFilters)[index];
+                input.value = filterValue || '';
+            });
 
             // Applica i filtri delle date
             if (filters.dates) {

@@ -148,6 +148,12 @@ window.enableColumnSorting = function() {
             const columnIndex = i;
             const rows = Array.from(table.getElementsByTagName('tbody')[0].rows);
             const isAscending = sortDirection[columnIndex];
+
+            // Rimuovi la classe sorted da tutti gli header
+            Array.from(headers).forEach(header => header.classList.remove('sorted'));
+            // Aggiungi la classe sorted all'header corrente
+            headers[columnIndex].classList.add('sorted');
+
             rows.sort((a, b) => {
                 const aText = a.cells[columnIndex].textContent.trim();
                 const bText = b.cells[columnIndex].textContent.trim();

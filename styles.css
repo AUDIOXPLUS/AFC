@@ -91,6 +91,7 @@
     margin-right: 8px;
     transform: scale(1.2);
     cursor: pointer;
+    accent-color: #3498db;
 }
 
 body {
@@ -277,7 +278,7 @@ main > .table-actions, main > .add-btn {
     display: flex;
     align-items: center;
     background-color: white;
-    padding: 10px;
+    padding: 8px;
     border-radius: 5px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     flex-wrap: wrap;
@@ -308,7 +309,7 @@ main > .table-actions, main > .add-btn {
 
 .filter-group input[type="text"],
 .filter-group input[type="date"] {
-    padding: 5px 8px;
+    padding: 5px 4px;
     border: 1px solid #ddd;
     border-radius: 3px;
     font-size: 12px;
@@ -326,6 +327,7 @@ main > .table-actions, main > .add-btn {
 .column-visibility input[type="checkbox"] {
     margin: 0;
     cursor: pointer;
+    accent-color: #3498db;
 }
 
 .filters button, .dropbtn {
@@ -364,7 +366,7 @@ main > .table-actions, main > .add-btn {
     position: relative;
     display: inline-flex;
     align-items: center;
-    z-index: 9998;
+    z-index: 9999;
 }
 
 #column-visibility-btn {
@@ -415,7 +417,7 @@ main > .table-actions, main > .add-btn {
     background-color: #fff;
     min-width: 160px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    z-index: 9999;
+    z-index: 10000;
     border-radius: 3px;
     padding: 5px 0;
     margin-top: 2px;
@@ -456,30 +458,135 @@ main > .table-actions, main > .add-btn {
     background-color: #2ecc71;
     color: black; /* Changed text color to black */
     border: none;
-    padding: 8px 15px;
+    padding: 6px 12px; /* Ridotto padding per rendere il pulsante più piccolo */
     border-radius: 3px;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 12px; /* Ridotto font size */
     transition: background-color 0.3s ease;
+    height: 28px; /* Altezza fissa per uniformità */
+    display: inline-flex; /* Per gestire meglio l'allineamento verticale */
+    align-items: center; /* Centra verticalmente il testo */
 }
 
 .add-btn:hover {
     background-color: #27ae60;
 }
 
+/* Stili per il contenitore della tabella */
+.table-wrapper {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    background-color: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    /* Aggiungiamo position relative per il posizionamento dell'header sticky */
+    position: relative;
+    /* Aggiungiamo overflow-y auto per gestire lo scroll verticale */
+    overflow-y: auto;
+    /* Altezza massima per garantire lo scroll */
+    max-height: calc(100vh - 250px);
+}
+
+/* Stile per rendere l'header della tabella sticky */
+.table-wrapper thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: #f5f5f5;
+    /* Aggiungiamo un'ombra sotto l'header per separarlo visivamente */
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
 table {
     width: 100%;
     border-collapse: collapse;
-    background-color: white;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    table-layout: fixed;
 }
 
+/* Stile base per tutte le celle della tabella */
 th, td {
     border: 1px solid #e0e0e0;
     padding: 8px;
     text-align: left;
     font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    position: relative;
+    min-width: 50px; /* Larghezza minima per tutte le colonne */
 }
+
+/* Stile per la colonna Actions - Assicura che i pulsanti rimangano sempre visibili */
+th:last-child, td:last-child { 
+    min-width: 65px; /* Larghezza minima base */
+    width: 65px; /* Larghezza base */
+    white-space: nowrap; /* Previene il wrapping dei pulsanti */
+    padding-right: 2px; /* Spazio minimo a destra */
+    padding-left: 2px; /* Spazio minimo a sinistra */
+    position: sticky; /* Mantiene la colonna sempre visibile */
+    right: 0; /* Ancora la colonna al lato destro */
+    background-color: inherit; /* Mantiene lo sfondo coerente */
+    z-index: 2; /* Assicura che rimanga sopra le altre colonne */
+}
+
+/* Stile specifico per la colonna Actions nella pagina users */
+.users-page th:last-child, 
+.users-page td:last-child {
+    min-width: 100px; /* Aumentata ulteriormente la larghezza per la pagina users */
+    width: 100px;
+    padding-right: 3px;
+    padding-left: 3px;
+}
+
+/* Aggiunge un'ombra per separare visivamente la colonna Actions */
+td:last-child {
+    box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+}
+
+/* Stile per il resizer */
+.resizer {
+    position: absolute;
+    right: -3px;
+    top: 0;
+    height: 100%;
+    width: 6px;
+    background: transparent;
+    cursor: col-resize;
+    user-select: none;
+    touch-action: none;
+    z-index: 1;
+}
+
+.resizer:hover, .resizer.resizing {
+    background: #2196f3;
+}
+
+/* Transizione fluida per il ridimensionamento */
+th, td {
+    transition: width 0.1s ease;
+}
+
+/* Disabilita la transizione durante il ridimensionamento */
+.resizing th, .resizing td {
+    transition: none;
+}
+
+/* Mostra il testo completo al passaggio del mouse per tutte le colonne tranne Status e Actions */
+td:not(:nth-child(11)):not(:nth-child(14)):hover::after {
+    content: attr(title);
+    position: absolute;
+    left: 0;
+    top: 100%;
+    background: #333;
+    color: white;
+    padding: 5px;
+    border-radius: 3px;
+    z-index: 1000;
+    white-space: nowrap;
+}
+th:nth-child(12), td:nth-child(12) { min-width: 100px; } /* Assigned to */
+th:nth-child(13), td:nth-child(13) { min-width: 70px; } /* Priority */
+th:nth-child(14), td:nth-child(14) { min-width: 100px; } /* Actions */
 
 th {
     background-color: #f5f5f5;
@@ -518,25 +625,41 @@ th i {
 }
 
 .edit-btn, .delete-btn, .crud-btn, .archive-btn, .unarchive-btn {
-    padding: 3px 6px;
-    margin-right: 4px;
+    padding: 2px 3px; /* Ridotto ulteriormente il padding dei pulsanti */
+    margin-right: 1px; /* Ridotto ulteriormente il margine tra i pulsanti */
     border: none;
-    border-radius: 3px;
+    border-radius: 2px; /* Ridotto il border-radius */
     cursor: pointer;
     font-size: 0.8em;
     transition: all 0.3s ease;
     font-weight: 500;
 }
 
-.set-completed-btn, #save-role-btn {
-    padding: 3px 6px;
+.set-completed-btn {
+    padding: 3px 6px; /* Uniformato con edit-btn e delete-btn */
     margin-right: 4px;
     border: none;
     border-radius: 3px;
     cursor: pointer;
-    font-size: 0.8em;
+    font-size: 0.8em; /* Uniformato con edit-btn e delete-btn */
     transition: all 0.3s ease;
     font-weight: 500;
+    background-color: #27ae60;
+    color: white;
+}
+
+#save-role-btn {
+    padding: 6px 12px;
+    margin-right: 4px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.3s ease;
+    font-weight: 500;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
 }
 
 #save-role-btn {
@@ -583,10 +706,6 @@ th i {
     color: white;
 }
 
-.set-completed-btn {
-    background-color: #27ae60;
-    color: white;
-}
 
 .edit-btn:hover {
     background-color: #2980b9;
@@ -606,21 +725,19 @@ tr.completed {
     opacity: 0.7;
 }
 
+/* Stile per l'header della colonna ordinata */
+th.sorted {
+    background-color: #e3f2fd; /* Azzurro chiaro */
+    border-bottom: 2px solid #2196f3; /* Linea blu sotto */
+}
+
 /* Stili per le righe ordinate */
-tr.sorted-asc-1 {
-    background-color: #e3f2fd; /* Azzurro chiaro per il primo gruppo ascendente */
+tr.sorted-asc-1, tr.sorted-desc-1 {
+    background-color: #e3f2fd; /* Azzurro chiaro per il primo gruppo */
 }
 
-tr.sorted-asc-2 {
-    background-color: #fff3e0; /* Arancione chiaro per il secondo gruppo ascendente */
-}
-
-tr.sorted-desc-1 {
-    background-color: #e8f5e9; /* Verde chiaro per il primo gruppo discendente */
-}
-
-tr.sorted-desc-2 {
-    background-color: #fce4ec; /* Rosa chiaro per il secondo gruppo discendente */
+tr.sorted-asc-2, tr.sorted-desc-2 {
+    background-color: #bbdefb; /* Azzurro più scuro per il secondo gruppo */
 }
 
 /* New styles for input elements in the table */
@@ -910,11 +1027,15 @@ input[type="file"] {
 /* Stile per le checkbox nel dropdown */
 .dropdown-content input[type="checkbox"] {
     margin-right: 8px;
+    accent-color: #3498db;
+    cursor: pointer;
 }
 
 /* Stile per le label nel dropdown */
 .dropdown-content label {
     padding: 8px 12px;
+    width: 100%;
+    box-sizing: border-box;
     display: flex;
     align-items: center;
     cursor: pointer;
@@ -1202,6 +1323,7 @@ input[type="file"] {
     transform: scale(1.2);
         font-size: 14px;
         margin: 2px;
+        accent-color: #3498db;
     }
 
     /* Migliora spaziatura celle */

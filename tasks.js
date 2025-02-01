@@ -343,16 +343,75 @@ function enableLiveFiltering() {
         });
     }
 
+    // Funzione per verificare la compatibilità dei filtri con i permessi CRUD
+    async function checkFilterPermissions(filters) {
+        try {
+            // Ottieni i permessi dell'utente
+            const response = await fetch('/api/tasks');
+            const tasks = await response.json();
+
+            // Se non ci sono task, significa che l'utente non ha permessi
+            if (!Array.isArray(tasks)) {
+                console.error('Nessun permesso di visualizzazione task');
+                return {
+                    assignedTo: '',
+                    factory: '',
+                    modelNumber: ''
+                };
+            }
+
+            // Estrai i valori unici permessi
+            const allowedValues = {
+                assignedTo: new Set(tasks.map(t => t.assignedTo)),
+                factory: new Set(tasks.map(t => t.factory)),
+                modelNumber: new Set(tasks.map(t => t.modelNumber))
+            };
+
+            // Verifica la compatibilità dei filtri
+            const newFilters = {
+                assignedTo: filters.text[0],
+                factory: filters.text[1],
+                modelNumber: filters.text[2]
+            };
+
+            // Resetta i filtri non compatibili
+            if (newFilters.assignedTo && !allowedValues.assignedTo.has(newFilters.assignedTo)) {
+                console.log('Filtro utente non compatibile con i permessi, reset');
+                newFilters.assignedTo = '';
+            }
+            if (newFilters.factory && !allowedValues.factory.has(newFilters.factory)) {
+                console.log('Filtro factory non compatibile con i permessi, reset');
+                newFilters.factory = '';
+            }
+            if (newFilters.modelNumber && !allowedValues.modelNumber.has(newFilters.modelNumber)) {
+                console.log('Filtro model number non compatibile con i permessi, reset');
+                newFilters.modelNumber = '';
+            }
+
+            return newFilters;
+        } catch (error) {
+            console.error('Errore nella verifica dei permessi:', error);
+            return {
+                assignedTo: '',
+                factory: '',
+                modelNumber: ''
+            };
+        }
+    }
+
     // Funzione per caricare e applicare i filtri salvati
-    function loadSavedFilters() {
+    async function loadSavedFilters() {
         const savedFilters = localStorage.getItem('taskFilters');
         if (savedFilters) {
             const filters = JSON.parse(savedFilters);
             
-            // Applica i filtri di testo
-            textFilterInputs.forEach((input, index) => {
-                input.value = filters.text[index] || '';
-            });
+            // Verifica la compatibilità dei filtri con i permessi
+            const validatedFilters = await checkFilterPermissions(filters);
+            
+            // Applica i filtri di testo validati
+            textFilterInputs[0].value = validatedFilters.assignedTo;
+            textFilterInputs[1].value = validatedFilters.factory;
+            textFilterInputs[2].value = validatedFilters.modelNumber;
             
             // Applica i filtri di stato
             statusCheckboxes.forEach(checkbox => {
@@ -474,6 +533,11 @@ function enableColumnSorting() {
     function applySorting(columnIndex, direction) {
         const rows = Array.from(table.getElementsByTagName('tbody')[0].rows);
         const isAscending = direction;
+
+        // Rimuovi la classe sorted da tutti gli header
+        Array.from(headers).forEach(header => header.classList.remove('sorted'));
+        // Aggiungi la classe sorted all'header corrente
+        headers[columnIndex].classList.add('sorted');
 
         rows.sort((a, b) => {
             const aText = a.cells[columnIndex].textContent.trim();

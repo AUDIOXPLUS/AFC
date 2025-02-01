@@ -69,7 +69,13 @@ const checkAuthentication = require('./routes/middleware/auth');
 // Aggiunge le rotte con prefisso
 app.use('/api', routes);
 
-// Serve i file statici
+// Serve il file di login senza autenticazione
+app.get('/login.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'login.html'));
+});
+
+// Proteggi tutti gli altri file statici con l'autenticazione
+app.use(checkAuthentication);
 app.use(express.static(path.join(__dirname)));
 
 // Gestione graceful shutdown
