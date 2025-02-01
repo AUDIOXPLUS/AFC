@@ -23,6 +23,10 @@
             <div id="connected-users-list"></div>
         </div>
         <div class="user-info">
+            <div class="notification-bell" id="notification-bell">
+                <i class="fas fa-bell"></i>
+                <span class="notification-count" style="display: none">0</span>
+            </div>
             <span>Welcome, </span>
             <a href="#" id="logout">Logout</a>
         </div>
@@ -80,6 +84,7 @@
             updateConnectedUsers(); // Aggiorna la lista degli utenti connessi
             // Aggiorna la lista ogni 30 secondi
             setInterval(updateConnectedUsers, 30000);
+            initializeNotifications(); // Inizializza le notifiche
         });
     </script>
 </body>

@@ -169,5 +169,29 @@ router.get('/', checkAuthentication, async (req, res) => {
     }
 });
 
+// Endpoint per ottenere il conteggio dei task nuovi per l'utente corrente
+router.get('/new-count', checkAuthentication, async (req, res) => {
+    try {
+        const query = `
+            SELECT COUNT(*) as count
+            FROM project_history ph
+            JOIN projects p ON ph.project_id = p.id
+            WHERE ph.assigned_to = ?
+            AND ph.is_new = 1
+        `;
+        
+        req.db.get(query, [req.session.user.name], (err, row) => {
+            if (err) {
+                console.error('Errore nel conteggio dei task nuovi:', err);
+                return res.status(500).json({ error: 'Errore del server' });
+            }
+            res.json({ count: row.count });
+        });
+    } catch (error) {
+        console.error('Errore:', error);
+        res.status(500).json({ error: 'Errore del server' });
+    }
+});
+
 // Esporta il router come oggetto per mantenere la consistenza con gli altri router
 module.exports = router;

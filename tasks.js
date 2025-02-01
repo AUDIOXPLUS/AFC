@@ -54,6 +54,20 @@ document.addEventListener('DOMContentLoaded', async function() {
 
         // Enable column sorting dopo che i dati sono stati caricati
         enableColumnSorting();
+
+        // Controlla se dobbiamo simulare il click sulla campanella
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('openNotifications') === 'true') {
+            // Rimuovi il parametro dall'URL senza ricaricare la pagina
+            const newUrl = window.location.pathname;
+            window.history.pushState({}, '', newUrl);
+            
+            // Simula il click sulla campanella
+            const bell = document.getElementById('notification-bell');
+            if (bell) {
+                bell.click();
+            }
+        }
     } catch (error) {
         console.error('Errore durante l\'inizializzazione:', error);
         window.location.href = 'login.html';
@@ -100,20 +114,30 @@ function initializeNotifications() {
     updateNotificationCount();
 }
 
-// Funzione per aggiornare il contatore delle notifiche
-function updateNotificationCount() {
-    const bell = document.getElementById('notification-bell');
-    const notificationCount = bell.querySelector('.notification-count');
-    
-    // Conta i nuovi task assegnati all'utente corrente
-    const newTasks = Array.from(document.getElementById('task-table').getElementsByTagName('tbody')[0].rows)
-        .filter(row => {
-            const assignedToCell = row.cells[4];
-            return assignedToCell.textContent === currentUser.name && assignedToCell.classList.contains('new-task-cell');
-        });
+// Funzione per ottenere il conteggio dei task nuovi
+async function fetchNewTasksCount() {
+    try {
+        const response = await fetch('/api/tasks/new-count');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        return data.count;
+    } catch (error) {
+        console.error('Error fetching new tasks count:', error);
+        return 0;
+    }
+}
 
-    const count = newTasks.length;
-    
+// Funzione per aggiornare il contatore delle notifiche
+async function updateNotificationCount() {
+    const bell = document.getElementById('notification-bell');
+    if (!bell) return;
+
+    const notificationCount = bell.querySelector('.notification-count');
+    if (!notificationCount) return;
+
+    const count = await fetchNewTasksCount();
     if (count > 0) {
         notificationCount.textContent = count;
         notificationCount.style.display = 'block';

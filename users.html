@@ -5,12 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>User Management</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
 </head>
 <body>
     <header>
         <nav>
+            <div class="logo">AFC</div>
             <ul>
-                <li><div class="logo">AFC</div></li>
                 <li><a href="projects.html">Projects</a></li>
                 <li><a href="users.html">Team Members</a></li>
                 <li><a href="tasks.html">My Tasks</a></li>
@@ -22,7 +23,11 @@
             <div id="connected-users-list"></div>
         </div>
         <div class="user-info">
-            <span>Welcome, Admin</span>
+            <div class="notification-bell" id="notification-bell">
+                <i class="fas fa-bell"></i>
+                <span class="notification-count" style="display: none">0</span>
+            </div>
+            <span>Welcome, </span>
             <a href="#" id="logout">Logout</a>
         </div>
     </header>
@@ -54,6 +59,8 @@
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             displayLoggedInUser();
+            updateConnectedUsers();
+            setInterval(updateConnectedUsers, 30000);
         });
     </script>
 </body>

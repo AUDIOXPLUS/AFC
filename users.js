@@ -4,7 +4,56 @@ document.addEventListener('DOMContentLoaded', function() {
     updateConnectedUsers(); // Aggiorna la lista degli utenti connessi
     // Aggiorna la lista ogni 30 secondi
     setInterval(updateConnectedUsers, 30000);
+    initializeNotifications(); // Inizializza le notifiche
 });
+
+// Funzione per ottenere il conteggio dei task nuovi
+async function fetchNewTasksCount() {
+    try {
+        const response = await fetch('/api/tasks/new-count');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        return data.count;
+    } catch (error) {
+        console.error('Error fetching new tasks count:', error);
+        return 0;
+    }
+}
+
+// Funzione per aggiornare il contatore delle notifiche
+async function updateNotificationCount() {
+    const bell = document.getElementById('notification-bell');
+    if (!bell) return;
+
+    const notificationCount = bell.querySelector('.notification-count');
+    if (!notificationCount) return;
+
+    const count = await fetchNewTasksCount();
+    if (count > 0) {
+        notificationCount.textContent = count;
+        notificationCount.style.display = 'block';
+        bell.classList.add('has-notifications');
+    } else {
+        notificationCount.style.display = 'none';
+        bell.classList.remove('has-notifications');
+    }
+}
+
+// Funzione per inizializzare le notifiche
+function initializeNotifications() {
+    const bell = document.getElementById('notification-bell');
+    if (bell) {
+        bell.addEventListener('click', () => {
+            // Reindirizza alla pagina tasks.html con un parametro che indica di aprire le notifiche
+            window.location.href = 'tasks.html?openNotifications=true';
+        });
+    }
+    // Aggiorna il contatore delle notifiche ogni minuto
+    updateNotificationCount();
+    setInterval(updateNotificationCount, 60000);
+}
 
 // Funzione per aggiornare la lista degli utenti connessi
 async function updateConnectedUsers() {
@@ -272,12 +321,15 @@ function editTeamMember(row, memberId) {
 }
 
 function displayLoggedInUser() {
-    const userName = localStorage.getItem('loggedInUser'); // Recupera il nome dell'utente loggato
-    if (userName) {
-        document.querySelector('.user-info span').textContent = `Welcome, ${userName}`; // Aggiorna il nome nel menu
-    } else {
-        // Se non c'è un utente loggato, reindirizza al login
-        window.location.href = 'login.html';
+    // Recupera i dati dell'utente dal localStorage
+    const userDataStr = localStorage.getItem('user');
+    if (userDataStr) {
+        const userData = JSON.parse(userDataStr);
+        // Aggiorna il nome nel menu
+        const userSpan = document.querySelector('.user-info span');
+        if (userSpan) {
+            userSpan.textContent = `Welcome, ${userData.name}`;
+        }
     }
 }
 

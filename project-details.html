@@ -18,7 +18,15 @@
                 <li><a href="configuration.html">Configuration</a></li>
             </ul>
         </nav>
+        <div class="connected-users">
+            <span>Connected Users: </span>
+            <div id="connected-users-list"></div>
+        </div>
         <div class="user-info">
+            <div class="notification-bell" id="notification-bell">
+                <i class="fas fa-bell"></i>
+                <span class="notification-count" style="display: none">0</span>
+            </div>
             <span>Welcome, </span>
             <a href="#" id="logout">Logout</a>
         </div>
@@ -82,6 +90,9 @@
             const isAuthenticated = await checkAuthStatus();
             if (isAuthenticated) {
                 displayLoggedInUser();
+                updateConnectedUsers();
+                setInterval(updateConnectedUsers, 30000);
+                initializeNotifications(); // Inizializza le notifiche
             }
         });
     </script>
