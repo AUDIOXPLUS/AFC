@@ -36,23 +36,24 @@ document.addEventListener('DOMContentLoaded', async function() {
             return;
         }
         
-        await fetchTeamMembers();
-        await fetchTasks();
-
         // Enable column resizing
         enableColumnResizing();
 
         // Restore column widths on page load
         restoreColumnWidths();
 
-        // Enable column sorting
-        enableColumnSorting();
-
         // Enable live filtering
         enableLiveFiltering();
 
         // Inizializza la gestione delle notifiche
         initializeNotifications();
+
+        // Carica i dati
+        await fetchTeamMembers();
+        await fetchTasks();
+
+        // Enable column sorting dopo che i dati sono stati caricati
+        enableColumnSorting();
     } catch (error) {
         console.error('Errore durante l\'inizializzazione:', error);
         window.location.href = 'login.html';
@@ -132,6 +133,28 @@ async function fetchTeamMembers() {
     }
 }
 
+// Funzione helper per applicare l'ultimo sorting
+function applyLastSorting() {
+    const table = document.getElementById('task-table');
+    const lastSorting = JSON.parse(localStorage.getItem('taskLastSorting'));
+    if (lastSorting) {
+        const headers = table.getElementsByTagName('th');
+        if (headers[lastSorting.columnIndex]) {
+            // Se la direzione salvata è false (discendente), clicca due volte per ottenere l'ordine discendente
+            headers[lastSorting.columnIndex].click();
+            if (!lastSorting.direction) {
+                headers[lastSorting.columnIndex].click();
+            }
+        }
+    } else {
+        // Se non c'è un sorting salvato, usa la data come default
+        const dateHeader = table.getElementsByTagName('th')[2]; // 2 è l'indice della colonna Date
+        if (dateHeader) {
+            dateHeader.click();
+        }
+    }
+}
+
 async function fetchTasks() {
     try {
         console.log('Fetching tasks from API...');
@@ -139,13 +162,18 @@ async function fetchTasks() {
         console.log('Response status:', response.status);
         const tasks = await handleResponse(response);
         console.log('Fetched tasks:', tasks);
-        displayTasks(tasks);
+        await displayTasks(tasks);
+
+        // Riapplica i filtri dopo aver caricato i task
+        if (filteringApi && typeof filteringApi.applyFilters === 'function') {
+            filteringApi.applyFilters();
+        }
     } catch (error) {
         handleNetworkError(error);
     }
 }
 
-function displayTasks(tasks) {
+async function displayTasks(tasks) {
     if (!currentUser) {
         console.error('Utente non disponibile per la visualizzazione dei task');
         return;
@@ -154,7 +182,8 @@ function displayTasks(tasks) {
     const tableBody = document.getElementById('task-table').getElementsByTagName('tbody')[0];
     tableBody.innerHTML = ''; // Clear existing rows
 
-    tasks.forEach(task => {
+    // Usiamo Promise.all per attendere che tutte le righe siano create
+    await Promise.all(tasks.map(async task => {
         // Non mostrare i task con assigned_to "completed"
         if (task.assignedTo === 'Completed') {
             return;
@@ -181,7 +210,7 @@ function displayTasks(tasks) {
             const assignedToCell = row.cells[4]; // Indice della colonna "Assigned To"
             assignedToCell.classList.add('new-task-cell');
         }
-    });
+    }));
 
     // Riapplica i filtri dopo aver caricato i task
     if (filteringApi && typeof filteringApi.applyFilters === 'function') {
@@ -417,18 +446,54 @@ function enableColumnSorting() {
     const headers = table.getElementsByTagName('th');
     let sortDirection = Array(headers.length).fill(true); // true for ascending, false for descending
 
+    // Funzione per applicare il sorting
+    function applySorting(columnIndex, direction) {
+        const rows = Array.from(table.getElementsByTagName('tbody')[0].rows);
+        const isAscending = direction;
+
+        rows.sort((a, b) => {
+            const aText = a.cells[columnIndex].textContent.trim();
+            const bText = b.cells[columnIndex].textContent.trim();
+            return isAscending ? aText.localeCompare(bText) : bText.localeCompare(aText);
+        });
+
+        // Raggruppa le righe con lo stesso valore
+        let currentValue = '';
+        let colorGroup = 1;
+        
+        rows.forEach(row => {
+            const cellValue = row.cells[columnIndex].textContent.trim();
+            if (cellValue !== currentValue) {
+                currentValue = cellValue;
+                colorGroup = colorGroup === 1 ? 2 : 1;
+            }
+            row.setAttribute('data-sort-group', `${isAscending ? 'asc' : 'desc'}-${colorGroup}`);
+        });
+
+        rows.forEach(row => table.getElementsByTagName('tbody')[0].appendChild(row));
+        sortDirection[columnIndex] = direction;
+    }
+
+    // Carica e applica l'ultimo sorting
+    const lastSorting = JSON.parse(localStorage.getItem('taskLastSorting'));
+    if (lastSorting) {
+        applySorting(lastSorting.columnIndex, lastSorting.direction);
+    } else {
+        // Default sorting sulla data
+        applySorting(2, true); // 2 è l'indice della colonna Date
+    }
+
+    // Aggiungi event listeners per il sorting
     for (let i = 0; i < headers.length; i++) {
         headers[i].addEventListener('click', function() {
-            const columnIndex = i;
-            const rows = Array.from(table.getElementsByTagName('tbody')[0].rows);
-            const isAscending = sortDirection[columnIndex];
-            rows.sort((a, b) => {
-                const aText = a.cells[columnIndex].textContent.trim();
-                const bText = b.cells[columnIndex].textContent.trim();
-                return isAscending ? aText.localeCompare(bText) : bText.localeCompare(aText);
-            });
-            sortDirection[columnIndex] = !isAscending; // Toggle sort direction
-            rows.forEach(row => table.getElementsByTagName('tbody')[0].appendChild(row)); // Reorder rows
+            const newDirection = !sortDirection[i];
+            applySorting(i, newDirection);
+            
+            // Salva il nuovo stato di sorting
+            localStorage.setItem('taskLastSorting', JSON.stringify({
+                columnIndex: i,
+                direction: newDirection
+            }));
         });
     }
 }

@@ -40,9 +40,6 @@ async function initializeDashboard() {
         handleNetworkError(error);
     }
 
-    // Initial fetch of projects
-    await fetchProjects();
-
     // Enable column resizing
     enableColumnResizing();
 
@@ -54,6 +51,9 @@ async function initializeDashboard() {
 
     // Inizializza la gestione della visibilità delle colonne
     initializeColumnVisibility();
+
+    // Initial fetch of projects (includerà il sorting)
+    await fetchProjects();
 }
 
 // Funzione per inizializzare la gestione della visibilità delle colonne
@@ -146,6 +146,28 @@ async function toggleArchiveProject(projectId, archive) {
     }
 }
 
+// Funzione helper per applicare l'ultimo sorting
+function applyLastSorting() {
+    const table = document.getElementById('projects-table');
+    const lastSorting = JSON.parse(localStorage.getItem('lastSorting'));
+    if (lastSorting) {
+        const headers = table.getElementsByTagName('th');
+        if (headers[lastSorting.columnIndex]) {
+            // Se la direzione salvata è false (discendente), clicca due volte per ottenere l'ordine discendente
+            headers[lastSorting.columnIndex].click();
+            if (!lastSorting.direction) {
+                headers[lastSorting.columnIndex].click();
+            }
+        }
+    } else {
+        // Se non c'è un sorting salvato, usa product kind come default
+        const productKindHeader = table.getElementsByTagName('th')[1];
+        if (productKindHeader) {
+            productKindHeader.click();
+        }
+    }
+}
+
 // Function to fetch project data from the backend
 async function fetchProjects() {
     console.log('Fetching projects...');
@@ -163,6 +185,9 @@ async function fetchProjects() {
         if (filteringApi && typeof filteringApi.applyFilters === 'function') {
             filteringApi.applyFilters();
         }
+
+        // Applica l'ultimo sorting dopo che i dati sono stati caricati e filtrati
+        applyLastSorting();
     } catch (error) {
         handleNetworkError(error);
     }
@@ -324,8 +349,8 @@ function addProject() {
         { name: 'factoryModelNumber', type: 'text', editable: true },
         { name: 'startDate', type: 'date', editable: true },
         { name: 'endDate', type: 'date', editable: true },
-        { name: 'status', type: 'text', editable: false, defaultValue: 'In Progress' },
-        { name: 'assignedTo', type: 'text', editable: false, defaultValue: 'Not Assigned' },
+        { name: 'status', type: 'text', editable: false, defaultValue: '-' },
+        { name: 'assignedTo', type: 'text', editable: false, defaultValue: '-' },
         { name: 'priority', type: 'text', editable: true }
     ];
 
@@ -409,8 +434,6 @@ function addProject() {
             factoryModelNumber: newRow.cells[7].firstChild.value,
             startDate: newRow.cells[8].firstChild.value,
             endDate: newRow.cells[9].firstChild.value,
-            status: 'In Progress', // Status iniziale per nuovo progetto
-            assignedTo: 'Not Assigned',
             priority: newRow.cells[12].firstChild.value
         };
 
@@ -425,7 +448,7 @@ function addProject() {
 
             if (response.ok) {
                 console.log('Project added successfully');
-                fetchProjects(); // Refresh the project list
+                await fetchProjects(); // Refresh the project list and apply sorting
             } else {
                 console.error('Failed to add project');
             }
@@ -548,7 +571,7 @@ function editProject(row, projectId) {
 
             if (response.ok) {
                 console.log('Project updated successfully');
-                fetchProjects(); // Refresh the project list
+                await fetchProjects(); // Refresh the project list and apply sorting
             } else {
                 console.error('Failed to update project');
             }
@@ -559,23 +582,31 @@ function editProject(row, projectId) {
     actionsCell.appendChild(saveBtn);
 }
 
-// Function to confirm deletion
-function confirmDelete(projectId) {
-    if (confirm("Are you sure you want to delete this project?")) {
-        deleteProject(projectId);
-    }
-}
-
-// Function to delete a project
-async function deleteProject(projectId) {
+// Function to handle project deletion
+async function confirmDelete(projectId) {
     try {
         const response = await fetch(`/api/projects/${projectId}`, {
             method: 'DELETE',
         });
 
-        if (response.ok) {
+        if (response.status === 409) {
+            // Se il progetto ha voci di cronologia
+            const data = await response.json();
+            if (confirm(data.message)) {
+                // Se l'utente conferma, riprova con force=true
+                const forceResponse = await fetch(`/api/projects/${projectId}?force=true`, {
+                    method: 'DELETE',
+                });
+                
+                if (forceResponse.ok) {
+                    console.log('Project and history successfully deleted');
+                    await fetchProjects(); // Refresh the project list and apply sorting
+                }
+            }
+        } else if (response.ok) {
+            // Se il progetto è vuoto, viene eliminato direttamente
             console.log('Project deleted successfully');
-            fetchProjects(); // Refresh the project list
+            await fetchProjects(); // Refresh the project list and apply sorting
         } else {
             console.error('Failed to delete project');
         }
@@ -657,16 +688,48 @@ function enableColumnSorting() {
     const headers = table.getElementsByTagName('th');
     let sortDirection = Array(headers.length).fill(true); // true for ascending, false for descending
 
+    // Carica l'ultimo stato di sorting dal localStorage
+    const lastSorting = JSON.parse(localStorage.getItem('lastSorting'));
+    if (lastSorting) {
+        sortDirection[lastSorting.columnIndex] = lastSorting.direction;
+    }
+
     for (let i = 0; i < headers.length - 1; i++) { // Exclude the last column (Actions)
         headers[i].addEventListener('click', function() {
             const columnIndex = i;
             const rows = Array.from(table.getElementsByTagName('tbody')[0].rows);
             const isAscending = sortDirection[columnIndex];
+
+            // Salva l'ultimo sorting nel localStorage
+            localStorage.setItem('lastSorting', JSON.stringify({
+                columnIndex: columnIndex,
+                direction: !isAscending // Salva la prossima direzione
+            }));
+
+            // Rimuovi le classi di sorting da tutte le righe
+            rows.forEach(row => {
+                row.classList.remove('sorted-asc-1', 'sorted-asc-2', 'sorted-desc-1', 'sorted-desc-2');
+            });
+
             rows.sort((a, b) => {
                 const aText = a.cells[columnIndex].textContent.trim();
                 const bText = b.cells[columnIndex].textContent.trim();
                 return isAscending ? aText.localeCompare(bText) : bText.localeCompare(aText);
             });
+
+            // Raggruppa le righe con lo stesso valore
+            let currentValue = '';
+            let colorGroup = 1;
+            
+            rows.forEach(row => {
+                const cellValue = row.cells[columnIndex].textContent.trim();
+                if (cellValue !== currentValue) {
+                    currentValue = cellValue;
+                    colorGroup = colorGroup === 1 ? 2 : 1;
+                }
+                row.classList.add(isAscending ? `sorted-asc-${colorGroup}` : `sorted-desc-${colorGroup}`);
+            });
+
             sortDirection[columnIndex] = !isAscending; // Toggle sort direction
             rows.forEach(row => table.getElementsByTagName('tbody')[0].appendChild(row)); // Reorder rows
         });

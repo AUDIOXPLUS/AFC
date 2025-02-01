@@ -517,24 +517,24 @@ th i {
     background-color: #e74c3c;
 }
 
-.edit-btn, .delete-btn, .crud-btn {
-    padding: 6px 12px;
-    margin-right: 10px;
+.edit-btn, .delete-btn, .crud-btn, .archive-btn, .unarchive-btn {
+    padding: 3px 6px;
+    margin-right: 4px;
     border: none;
-    border-radius: 4px;
+    border-radius: 3px;
     cursor: pointer;
-    font-size: 0.9em;
+    font-size: 0.8em;
     transition: all 0.3s ease;
     font-weight: 500;
 }
 
 .set-completed-btn, #save-role-btn {
-    padding: 8px 16px;
-    margin-right: 10px;
+    padding: 3px 6px;
+    margin-right: 4px;
     border: none;
-    border-radius: 4px;
+    border-radius: 3px;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 0.8em;
     transition: all 0.3s ease;
     font-weight: 500;
 }
@@ -558,6 +558,15 @@ th i {
 .edit-btn {
     background-color: #3498db;
     color: white;
+}
+
+.archive-btn, .unarchive-btn {
+    background-color: #95a5a6;
+    color: white;
+}
+
+.archive-btn:hover, .unarchive-btn:hover {
+    background-color: #7f8c8d;
 }
 
 .crud-btn {
@@ -595,6 +604,23 @@ th i {
 tr.completed {
     background-color: #e0e0e0;
     opacity: 0.7;
+}
+
+/* Stili per le righe ordinate */
+tr.sorted-asc-1 {
+    background-color: #e3f2fd; /* Azzurro chiaro per il primo gruppo ascendente */
+}
+
+tr.sorted-asc-2 {
+    background-color: #fff3e0; /* Arancione chiaro per il secondo gruppo ascendente */
+}
+
+tr.sorted-desc-1 {
+    background-color: #e8f5e9; /* Verde chiaro per il primo gruppo discendente */
+}
+
+tr.sorted-desc-2 {
+    background-color: #fce4ec; /* Rosa chiaro per il secondo gruppo discendente */
 }
 
 /* New styles for input elements in the table */

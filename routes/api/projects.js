@@ -173,15 +173,44 @@ router.get('/:id', checkAuthentication, (req, res) => {
 
 // Endpoint per aggiungere un progetto
 router.post('/', checkAuthentication, (req, res) => {
-    const { factory, brand, range, line, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, priority, status } = req.body;
-    const query = `INSERT INTO projects (factory, brand, range, line, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, priority, status) 
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-    req.db.run(query, [factory, brand, range, line, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, priority, status], function(err) {
+    const { factory, brand, range, line, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, priority } = req.body;
+    
+    // Prima query: inserimento del progetto
+    const projectQuery = `INSERT INTO projects (factory, brand, range, line, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, priority) 
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    
+    req.db.run(projectQuery, [factory, brand, range, line, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, priority], function(err) {
         if (err) {
             console.error('Errore nell\'inserimento del progetto:', err);
             return res.status(500).send('Errore del server');
         }
-        res.status(201).json({ id: this.lastID });
+        
+        const projectId = this.lastID;
+        
+        // Ottieni l'ID della fase "Initial Brief"
+        const getPhaseQuery = `SELECT id FROM phases WHERE name = 'Initial Brief' LIMIT 1`;
+                
+        req.db.get(getPhaseQuery, [], function(err, phaseRow) {
+            if (err) {
+                console.error('Errore nel recupero della fase:', err);
+                return res.status(500).send('Errore del server');
+            }
+
+            const phaseId = phaseRow ? phaseRow.id : null;
+            const historyQuery = `INSERT INTO project_history (project_id, date, phase, description, status, assigned_to) 
+                                VALUES (?, ?, ?, ?, ?, ?)`;
+            
+            const currentDate = new Date().toISOString().split('T')[0];
+            const description = 'Project created';
+            
+            req.db.run(historyQuery, [projectId, currentDate, phaseId, description, 'In Progress', req.session.user.name], function(err) {
+                if (err) {
+                    console.error('Errore nell\'inserimento della cronologia:', err);
+                    return res.status(500).send('Errore del server');
+                }
+                res.status(201).json({ id: projectId });
+            });
+        });
     });
 });
 
@@ -200,13 +229,46 @@ router.put('/:id', checkAuthentication, (req, res) => {
 
 // Endpoint per eliminare un progetto
 router.delete('/:id', checkAuthentication, (req, res) => {
-    const query = `DELETE FROM projects WHERE id = ?`;
-    req.db.run(query, req.params.id, function(err) {
+    const projectId = req.params.id;
+    const forceDelete = req.query.force === 'true';
+
+    // Prima verifichiamo se esistono voci di cronologia
+    const checkHistoryQuery = `SELECT COUNT(*) as count FROM project_history WHERE project_id = ?`;
+    req.db.get(checkHistoryQuery, [projectId], function(err, row) {
         if (err) {
-            console.error('Errore nell\'eliminazione del progetto:', err);
-            return res.status(500).send('Errore del server');
+            console.error('Errore nella verifica della cronologia:', err);
+            return res.status(500).send('Server error');
         }
-        res.status(200).send('Progetto eliminato con successo');
+
+        // Se esistono voci di cronologia e non è stata forzata l'eliminazione
+        if (row.count > 0 && !forceDelete) {
+            return res.status(409).json({
+                error: 'Non-empty Project',
+                message: `This project contains ${row.count} history entries. Are you sure you want to delete it?`,
+                requiresConfirmation: true,
+                entriesCount: row.count
+            });
+        }
+
+        // Se non ci sono voci di cronologia o è stata confermata l'eliminazione
+        // Prima eliminiamo tutte le voci di cronologia associate al progetto
+        const deleteHistoryQuery = `DELETE FROM project_history WHERE project_id = ?`;
+        req.db.run(deleteHistoryQuery, [projectId], function(err) {
+            if (err) {
+                console.error('Errore nell\'eliminazione della cronologia del progetto:', err);
+                return res.status(500).send('Server error');
+            }
+
+            // Poi eliminiamo il progetto
+            const deleteProjectQuery = `DELETE FROM projects WHERE id = ?`;
+            req.db.run(deleteProjectQuery, [projectId], function(err) {
+                if (err) {
+                    console.error('Errore nell\'eliminazione del progetto:', err);
+                    return res.status(500).send('Server error');
+                }
+                res.status(200).send('Project and history successfully deleted');
+            });
+        });
     });
 });
 
