@@ -1,3 +1,18 @@
+/* Definizione della variabile projectId
+   Estrae l'ID del progetto dalla query string dell'URL.
+   Vengono verificati i parametri "projectId" e "id", ad esempio ?projectId=123 o ?id=123
+*/
+const urlParams = new URLSearchParams(window.location.search);
+let projectId = urlParams.get('projectId');
+if (!projectId) {
+    projectId = urlParams.get('id');
+}
+if (!projectId) {
+    console.error("projectId non definito nell'URL");
+    document.body.innerHTML = "<h1>Errore: projectId non definito nell'URL</h1>";
+    throw new Error("projectId non definito");
+}
+
 // Funzione di utilità per gestire gli errori di rete
 function handleNetworkError(error) {
     console.error('Network error:', error);
@@ -26,17 +41,28 @@ document.addEventListener('DOMContentLoaded', function() {
         window.location.href = 'login.html';
         return;
     }
-    // Carica le fasi dal server
-    fetch('/api/phases')
-        .then(response => response.json())
-        .then(phases => {
-            window.projectPhases = phases;
-            window.dispatchEvent(new CustomEvent('phasesLoaded', { detail: phases }));
-        })
-        .catch(error => handleNetworkError(error));
+    // Carica i dati necessari
+    Promise.all([
+        // Carica le fasi
+        fetch('/api/phases').then(response => window.handleResponse(response)),
+        // Carica i membri del team
+        fetch('/api/team-members').then(response => window.handleResponse(response)),
+        // Carica l'utente corrente
+        fetch('/api/users/current').then(response => window.handleResponse(response))
+    ])
+    .then(([phases, teamMembers, currentUser]) => {
+        window.projectPhases = phases;
+        window.dispatchEvent(new CustomEvent('phasesLoaded', { detail: phases }));
+        window.teamMembers = teamMembers;
+        window.currentUserId = currentUser.id;
 
-    // Inizializza il filtraggio
-    enableFiltering();
+        // Inizializza il filtraggio
+        enableFiltering();
+
+        // Carica la cronologia del progetto
+        window.fetchProjectHistory(projectId);
+    })
+    .catch(error => handleNetworkError(error));
 });
 
 // Funzione per abilitare il filtraggio live
@@ -239,6 +265,7 @@ window.displayProjectHistory = function(history) {
 
         // Gestisce la cella dei file associati alla voce della cronologia
         const filesCell = row.insertCell(5);
+
         const uploadContainer = document.createElement('div');
         uploadContainer.className = 'file-upload-container';
         
@@ -329,41 +356,6 @@ window.displayProjectHistory = function(history) {
             });
             fileItem.appendChild(deleteBtn);
             
-            // Gestisce il blocco e lo sblocco dei file
-            if (file.locked_by) {
-                const unlockBtn = document.createElement('button');
-                unlockBtn.className = 'unlock-btn';
-                const unlockIcon = document.createElement('i');
-                unlockIcon.className = 'fas fa-unlock';
-                unlockBtn.appendChild(unlockIcon);
-
-                const fileLockedBy = String(file.locked_by);
-                const userId = String(window.currentUserId);
-                unlockBtn.disabled = fileLockedBy !== userId;
-
-                unlockBtn.addEventListener('click', async () => {
-                    await window.unlockFile(file.id);
-                    window.updateFilesCell(entry.id);
-                });
-                fileItem.appendChild(unlockBtn);
-                
-                const lockedBySpan = document.createElement('span');
-                lockedBySpan.className = 'locked-by';
-                lockedBySpan.textContent = `Locked by ${file.locked_by_name || '-'}`;
-                fileItem.appendChild(lockedBySpan);
-            } else {
-                const lockBtn = document.createElement('button');
-                lockBtn.className = 'lock-btn';
-                lockBtn.setAttribute('data-file-id', file.id);
-                const lockIcon = document.createElement('i');
-                lockIcon.className = 'fas fa-lock';
-                lockBtn.appendChild(lockIcon);
-                lockBtn.addEventListener('click', async () => {
-                    await window.lockFile(file.id);
-                    window.updateFilesCell(entry.id);
-                });
-                fileItem.appendChild(lockBtn);
-            }
             
             fileList.appendChild(fileItem);
         });
@@ -371,6 +363,36 @@ window.displayProjectHistory = function(history) {
 
         // Gestisce le azioni della riga della cronologia
         const actionsCell = row.insertCell(6);
+
+        // Aggiunge il lucchetto per la privacy
+        const privacyBtn = document.createElement('button');
+        privacyBtn.className = entry.private_by !== null ? 'privacy-btn text-danger' : 'privacy-btn text-dark';
+        privacyBtn.setAttribute('data-entry-id', entry.id);
+        const privacyIcon = document.createElement('i');
+        // Mostra il lucchetto chiuso rosso se il record è privato, altrimenti lucchetto aperto nero
+        privacyIcon.className = entry.private_by !== null ? 'fas fa-lock' : 'fas fa-unlock';
+        privacyBtn.appendChild(privacyIcon);
+        privacyBtn.addEventListener('click', async function() {
+            try {
+                const response = await fetch(`/api/projects/${projectId}/history/${entry.id}/privacy`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({private: !entry.private_by})
+                });
+                const result = await window.handleResponse(response);
+                entry.private_by = result.private_by;
+                // Aggiorna l'icona in base al nuovo stato
+                console.log('Nuovo stato privacy dopo click:', result.private_by);
+                privacyBtn.className = result.private_by !== null ? 'privacy-btn text-danger' : 'privacy-btn text-dark';
+                privacyIcon.className = result.private_by !== null ? 'fas fa-lock' : 'fas fa-unlock';
+                // Aggiorna il phase summary dopo aver cambiato la privacy
+                window.updatePhaseSummary();
+            } catch(e) {
+                console.error('Errore nel modificare la privacy:', e);
+            }
+        });
+        actionsCell.appendChild(privacyBtn);
+
         const editBtn = document.createElement('button');
         editBtn.className = 'edit-btn';
         editBtn.textContent = 'Edit';
@@ -461,6 +483,7 @@ window.updateFilesCell = async function(entryId) {
     const filesCell = row.cells[5];
     filesCell.innerHTML = '';
 
+
     const uploadContainer = document.createElement('div');
     uploadContainer.className = 'file-upload-container';
     
@@ -549,40 +572,6 @@ window.updateFilesCell = async function(entryId) {
         });
         fileItem.appendChild(deleteBtn);
         
-        // Gestisce il blocco e lo sblocco dei file
-        if (file.locked_by) {
-            const unlockBtn = document.createElement('button');
-            unlockBtn.className = 'unlock-btn';
-            const unlockIcon = document.createElement('i');
-            unlockIcon.className = 'fas fa-unlock';
-            unlockBtn.appendChild(unlockIcon);
-
-            const fileLockedBy = String(file.locked_by);
-            const userId = String(window.currentUserId);
-            unlockBtn.disabled = fileLockedBy !== userId;
-
-            unlockBtn.addEventListener('click', async () => {
-                await window.unlockFile(file.id);
-                window.updateFilesCell(entryId);
-            });
-            fileItem.appendChild(unlockBtn);
-            
-            const lockedBySpan = document.createElement('span');
-            lockedBySpan.className = 'locked-by';
-            lockedBySpan.textContent = `Locked by ${file.locked_by_name}`;
-            fileItem.appendChild(lockedBySpan);
-        } else {
-            const lockBtn = document.createElement('button');
-            lockBtn.className = 'lock-btn';
-            const lockIcon = document.createElement('i');
-            lockIcon.className = 'fas fa-lock';
-            lockBtn.appendChild(lockIcon);
-            lockBtn.addEventListener('click', async () => {
-                await window.lockFile(file.id);
-                window.updateFilesCell(entryId);
-            });
-            fileItem.appendChild(lockBtn);
-        }
         
         fileList.appendChild(fileItem);
     });
@@ -713,6 +702,7 @@ window.addHistoryEntry = function(projectId) {
         }
     });
 
+    // Cella per i file
     const filesCell = newRow.insertCell(5);
     const uploadContainer = document.createElement('div');
     uploadContainer.className = 'file-upload-container';
@@ -732,6 +722,14 @@ window.addHistoryEntry = function(projectId) {
     filesCell.appendChild(uploadContainer);
 
     const actionsCell = newRow.insertCell(6);
+    const privacyBtn = document.createElement('button');
+    privacyBtn.className = 'privacy-btn text-dark';
+    const privacyIcon = document.createElement('i');
+    privacyIcon.className = 'fas fa-unlock';
+    privacyBtn.appendChild(privacyIcon);
+    privacyBtn.disabled = true; // Disabilitato finché non viene salvata la voce
+    actionsCell.appendChild(privacyBtn);
+
     const saveBtn = document.createElement('button');
     saveBtn.textContent = 'Save';
     saveBtn.addEventListener('click', () => window.saveNewHistoryEntry(projectId, newRow));
@@ -925,10 +923,33 @@ window.editHistoryEntry = function(entryId) {
                 });
 
                 if (response.ok) {
-                    for (let i = 0; i < 5; i++) {
-                        cells[i].textContent = updatedEntry[Object.keys(updatedEntry)[i]];
-                    }
+                    const result = await window.handleResponse(response);
                     actionsCell.innerHTML = '';
+
+                    // Aggiunge il lucchetto per la privacy
+                    const privacyBtn = document.createElement('button');
+                    privacyBtn.className = result.private_by !== null ? 'privacy-btn text-danger' : 'privacy-btn text-dark';
+                    privacyBtn.setAttribute('data-entry-id', entryId);
+                    const privacyIcon = document.createElement('i');
+                    privacyIcon.className = result.private_by !== null ? 'fas fa-lock' : 'fas fa-unlock';
+                    privacyBtn.appendChild(privacyIcon);
+                    privacyBtn.addEventListener('click', async function() {
+                        try {
+                            const response = await fetch(`/api/projects/${projectId}/history/${entryId}/privacy`, {
+                                method: 'PUT',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({private: !result.private_by})
+                            });
+                            const result = await window.handleResponse(response);
+                            privacyBtn.className = result.private_by !== null ? 'privacy-btn text-danger' : 'privacy-btn text-dark';
+                            privacyIcon.className = result.private_by !== null ? 'fas fa-lock' : 'fas fa-unlock';
+                            window.updatePhaseSummary();
+                        } catch(e) {
+                            console.error('Errore nel modificare la privacy:', e);
+                        }
+                    });
+                    actionsCell.appendChild(privacyBtn);
+
                     const editBtn = document.createElement('button');
                     editBtn.className = 'edit-btn';
                     editBtn.textContent = 'Edit';
@@ -997,54 +1018,7 @@ window.downloadFile = function(fileId) {
     }
 };
 
-/**
- * Blocca un file per prevenire modifiche simultanee.
- * @param {number} fileId - L'ID del file da bloccare.
- */
-window.lockFile = async function(fileId) {
-    try {
-        const response = await fetch(`/api/files/${fileId}/lock`, {
-            method: 'POST'
-        });
-        if (!response.ok) {
-            throw new Error(`HTTP error: ${response.status}`);
-        }
-        await window.handleResponse(response);
-        // Trova l'entryId dal DOM risalendo alla riga della tabella
-        const fileItem = document.querySelector(`button[data-file-id="${fileId}"]`).closest('.file-item');
-        const filesCell = fileItem.closest('td');
-        const row = filesCell.closest('tr');
-        const entryId = row.getAttribute('data-entry-id');
-        window.updateFilesCell(entryId);
-    } catch (error) {
-        handleNetworkError(error);
-    }
-};
 
-/**
- * Sblocca un file precedentemente bloccato.
- * @param {number} fileId - L'ID del file da sbloccare.
- */
-window.unlockFile = async function(fileId) {
-    console.log('Chiamata a unlockFile con fileId:', fileId);
-    try {
-        const response = await fetch(`/api/files/${fileId}/unlock`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-        await window.handleResponse(response);
-        // Trova l'entryId dal DOM risalendo alla riga della tabella
-        const fileItem = document.querySelector(`button[data-file-id="${fileId}"]`).closest('.file-item');
-        const filesCell = fileItem.closest('td');
-        const row = filesCell.closest('tr');
-        const entryId = row.getAttribute('data-entry-id');
-        window.updateFilesCell(entryId);
-    } catch (error) {
-        handleNetworkError(error);
-    }
-};
 
 /**
  * Elimina un file associato a una voce della cronologia.

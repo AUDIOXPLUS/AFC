@@ -370,6 +370,9 @@ async function displayProjects(projects) {
     // Crea tutte le righe in modo asincrono
     await Promise.all(projects.map(project => createTableRow(project)));
     console.log('Projects displayed successfully');
+    // Memorizza gli ID dei progetti autorizzati per il controllo in project-details.html
+    const allowedIds = projects.map(project => String(project.id));
+    localStorage.setItem('allowedProjectIds', JSON.stringify(allowedIds));
     
     // Ripristina le larghezze delle colonne dopo aver caricato i dati
     restoreColumnWidths();

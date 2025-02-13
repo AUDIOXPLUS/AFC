@@ -6,9 +6,44 @@ const bodyParser = require('body-parser');
 const path = require('path');
 const routes = require('./routes');
 const sqlite3 = require('sqlite3').verbose();
+const cron = require('node-cron');
+const OnedriveBackupManager = require('./database/onedrive-backup');
+const onedriveConfig = require('./database/onedrive-config');
 
 const app = express();
 const PORT = 3000;
+
+// Inizializza il backup manager
+let backupManager = null;
+try {
+    backupManager = new OnedriveBackupManager(
+        onedriveConfig.clientId,
+        onedriveConfig.clientSecret,
+        onedriveConfig.tenantId,
+        onedriveConfig.refreshToken
+    );
+    console.log('Manager di backup OneDrive inizializzato');
+} catch (error) {
+    console.error('Errore nell\'inizializzazione del backup manager:', error);
+}
+
+// Schedula i backup automatici
+if (backupManager) {
+    cron.schedule(onedriveConfig.backupSchedule, async () => {
+        console.log('Avvio backup automatico...');
+        try {
+            const success = await backupManager.performBackup();
+            if (success) {
+                console.log('Backup completato con successo');
+            } else {
+                console.error('Backup fallito');
+            }
+        } catch (error) {
+            console.error('Errore durante il backup:', error);
+        }
+    });
+    console.log('Backup automatico schedulato:', onedriveConfig.backupSchedule);
+}
 
 // Usa il percorso assoluto per il database
 const dbPath = path.join(__dirname, 'database', 'AFC.db');
@@ -81,14 +116,43 @@ app.use(express.static(path.join(__dirname)));
 // Gestione graceful shutdown
 process.on('SIGTERM', () => {
     console.log('Ricevuto segnale SIGTERM, chiusura in corso...');
-    db.close((err) => {
-        if (err) {
-            console.error('Errore durante la chiusura del database:', err);
-        } else {
-            console.log('Database chiuso correttamente');
-        }
-        process.exit(0);
-    });
+    
+    // Esegui un backup finale prima della chiusura
+    if (backupManager) {
+        console.log('Esecuzione backup finale...');
+        backupManager.performBackup()
+            .then(() => {
+                console.log('Backup finale completato');
+                db.close((err) => {
+                    if (err) {
+                        console.error('Errore durante la chiusura del database:', err);
+                    } else {
+                        console.log('Database chiuso correttamente');
+                    }
+                    process.exit(0);
+                });
+            })
+            .catch(error => {
+                console.error('Errore durante il backup finale:', error);
+                db.close((err) => {
+                    if (err) {
+                        console.error('Errore durante la chiusura del database:', err);
+                    } else {
+                        console.log('Database chiuso correttamente');
+                    }
+                    process.exit(1);
+                });
+            });
+    } else {
+        db.close((err) => {
+            if (err) {
+                console.error('Errore durante la chiusura del database:', err);
+            } else {
+                console.log('Database chiuso correttamente');
+            }
+            process.exit(0);
+        });
+    }
 });
 
 process.on('SIGINT', () => {

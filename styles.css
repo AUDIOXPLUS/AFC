@@ -192,6 +192,17 @@ nav ul li a:hover, nav ul li a.active {
     color: #a0b3c6;
 }
 
+/* Stile per l'icona del lucchetto */
+.fa-lock {
+    color: #e74c3c; /* Rosso */
+    font-size: 0.8em; /* Stessa dimensione del testo degli altri pulsanti */
+}
+
+.fa-unlock {
+    color: #2c3e50; /* Grigio scuro/nero */
+    font-size: 0.8em; /* Stessa dimensione del testo degli altri pulsanti */
+}
+
 .notification-bell.has-notifications i {
     color: #f1c40f;
     animation: bell-shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
@@ -303,7 +314,7 @@ main > .table-actions, main > .add-btn {
 .filter-group {
     display: flex;
     align-items: center;
-    margin-right: 15px;
+    margin-right: 8px; /* Ridotto da 15px a 8px */
     margin-bottom: 5px;
 }
 
@@ -313,7 +324,7 @@ main > .table-actions, main > .add-btn {
     border: 1px solid #ddd;
     border-radius: 3px;
     font-size: 12px;
-    width: 100px;
+    width: 90px; /* Ridotto da 100px a 90px */
     box-sizing: border-box; /* Assicura che padding e bordo siano inclusi nella larghezza */
     background-color: #fff; /* Imposta lo sfondo bianco come gli altri input */
 }
@@ -624,7 +635,7 @@ th i {
     background-color: #e74c3c;
 }
 
-.edit-btn, .delete-btn, .crud-btn, .archive-btn, .unarchive-btn {
+.edit-btn, .delete-btn, .crud-btn, .archive-btn, .unarchive-btn, .privacy-btn {
     padding: 2px 3px; /* Ridotto ulteriormente il padding dei pulsanti */
     margin-right: 1px; /* Ridotto ulteriormente il margine tra i pulsanti */
     border: none;
@@ -977,7 +988,7 @@ table select:hover {
 }
 
 .lock-btn {
-    background-color: #e67e22;
+    background-color: #e74c3c; /* Cambiato da arancione a rosso */
     color: white;
 }
 
@@ -1342,16 +1353,66 @@ input[type="file"] {
     }
 
     /* Ottimizza i filtri per mobile */
-    .filters {
-        flex-direction: column;
-        align-items: stretch;
+@media screen and (max-width: 768px) {
+    body .filters {
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        background-color: white;
+        padding: 6px;
+        border-radius: 5px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+        white-space: nowrap;
+        gap: 8px;
+        height: 40px;
+        flex-wrap: nowrap !important;
+        width: calc(100vw - 40px);
     }
 
-    .filter-group {
-        width: 100%;
-        margin-right: 0;
-        margin-bottom: 8px;
+    body .filter-group {
+        flex: 0 0 auto;
+        margin-right: 8px;
+        min-width: fit-content;
     }
+
+    body .filter-group input[type="text"],
+    body .filter-group input[type="date"],
+    body #status-dropdown-btn {
+        width: 120px;
+        min-width: 120px;
+    }
+
+    body #search-projects {
+        width: 150px;
+        min-width: 150px;
+    }
+}
+
+.filters::-webkit-scrollbar {
+    height: 4px;
+}
+
+.filters::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 2px;
+}
+
+.filters::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 2px;
+}
+
+.filters::-webkit-scrollbar-thumb:hover {
+    background: #666;
+}
+
+.filter-group {
+    flex-shrink: 0;
+    margin-right: 8px;
+}
 
     .filter-group input[type="text"],
     .filter-group input[type="date"],
@@ -1387,8 +1448,14 @@ input[type="file"] {
     nav ul li a {
         width: 100%;
         text-align: center;
-        padding: 4px;
+        padding: 2px;
         font-size: 13px;
+        line-height: 1.2;
+    }
+
+    nav ul li {
+        margin: 2px 0;
+        width: 100%;
     }
 
     .user-info {

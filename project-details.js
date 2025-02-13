@@ -16,6 +16,13 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
     const urlParams = new URLSearchParams(window.location.search);
     window.projectId = urlParams.get('id'); // Dichiarato come variabile globale
+    // Controllo autorizzazione: se l'ID del progetto non è presente nella lista autorizzata salvata, inibisci l'accesso.
+    let allowedProjectIds = JSON.parse(localStorage.getItem('allowedProjectIds') || '[]');
+    if (!allowedProjectIds.includes(window.projectId)) {
+        console.error('Accesso negato: l\'utente non ha i permessi per visualizzare i dettagli del progetto.');
+        window.location.href = 'projects.html';
+        return;
+    }
     window.currentUserId = null; // Memorizza l'ID utente corrente per le operazioni sui file
 
     // Recupera e visualizza il nome utente
@@ -129,16 +136,19 @@ window.updatePhaseSummary = function() {
 
     // Itera su tutte le righe della tabella
     for (let i = 0; i < rows.length; i++) {
-        const date = new Date(rows[i].cells[0].textContent.trim());
-        const phase = rows[i].cells[1].textContent.trim();
-        const description = rows[i].cells[2].textContent.trim();
+        // Considera solo le righe visibili (non filtrate e non private)
+        if (rows[i].style.display !== 'none') {
+            const date = new Date(rows[i].cells[0].textContent.trim());
+            const phase = rows[i].cells[1].textContent.trim();
+            const description = rows[i].cells[2].textContent.trim();
 
-        // Se la fase non esiste o se questa entry è più recente
-        if (!latestEntries[phase] || date > latestEntries[phase].date) {
-            latestEntries[phase] = {
-                date: date,
-                description: description
-            };
+            // Se la fase non esiste o se questa entry è più recente
+            if (!latestEntries[phase] || date > latestEntries[phase].date) {
+                latestEntries[phase] = {
+                    date: date,
+                    description: description
+                };
+            }
         }
     }
 

@@ -2,7 +2,7 @@
 async function checkAuthStatus() {
     try {
         // Make a call to the session verification endpoint
-        const response = await fetch('/api/session-user');
+        const response = await fetch('/api/session-user', { cache: 'no-store' });
         
         // Log per debug
         console.log('Auth check response:', {

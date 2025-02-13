@@ -14,6 +14,45 @@ const backupManager = require('./database/backup-database');
 // Inizializza il sistema di backup
 backupManager.setupBackupDirectories();
 
+// Endpoint per il backup manuale con SSE
+app.get('/backup/manual', (req, res) => {
+    // Configura l'header per SSE
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    // Invia aggiornamento iniziale
+    res.write(`data: ${JSON.stringify({ progress: 0, status: 'Avvio backup...' })}\n\n`);
+
+    // Esegui il backup
+    backupManager.runBackup()
+        .then(() => {
+            // Backup completato con successo
+            res.write(`data: ${JSON.stringify({ 
+                progress: 100, 
+                status: 'Backup completato con successo!',
+                success: true 
+            })}\n\n`);
+            res.end();
+        })
+        .catch(error => {
+            // Errore durante il backup
+            console.error('Errore durante il backup manuale:', error);
+            res.write(`data: ${JSON.stringify({ 
+                progress: 100, 
+                status: 'Errore durante il backup: ' + error.message,
+                success: false 
+            })}\n\n`);
+            res.end();
+        });
+
+    // Gestione della chiusura della connessione
+    req.on('close', () => {
+        res.end();
+    });
+});
+
+
 // Timer per il controllo dell'inattività
 setInterval(backupManager.checkAndConsolidate, 5 * 60 * 1000); // Controlla ogni 5 minuti
 
@@ -37,7 +76,11 @@ db.run = function(...args) {
         args[args.length - 1] = function(err) {
             if (!err) {
                 // Se la query è andata a buon fine, esegui il backup istantaneo
-                backupManager.performInstantBackup();
+                if (backupManager && typeof backupManager.performInstantBackup === 'function') {
+        backupManager.performInstantBackup();
+    } else {
+        console.error("backupManager.performInstantBackup non definita");
+    }
             }
             callback.apply(this, arguments);
         };
@@ -167,6 +210,23 @@ app.use(express.static(__dirname));
 // Endpoint per il healthcheck
 app.get('/healthcheck', (req, res) => {
     res.status(200).send('OK');
+});
+
+app.get('/api/backup-history', (req, res) => {
+    const backupTypes = ['daily', 'weekly', 'monthly', 'yearly'];
+    const backups = {};
+    const baseDir = path.join(__dirname, 'database', 'backups');
+    backupTypes.forEach(type => {
+        const dir = path.join(baseDir, type);
+        if (fs.existsSync(dir)) {
+            backups[type] = fs.readdirSync(dir)
+                .filter(f => f.startsWith('AFC.db.backup-'))
+                .sort();
+        } else {
+            backups[type] = [];
+        }
+    });
+    res.json(backups);
 });
 
 // Endpoint per ottenere gli utenti connessi

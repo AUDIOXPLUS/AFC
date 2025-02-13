@@ -1,195 +1,243 @@
-#!/usr/bin/env node
-
-/**
- * Sistema di backup avanzato per il database AFC
- * Gestisce backup istantanei, temporanei, stabili, settimanali e annuali
- */
-
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { exec } = require('child_process');
+const sqlite3 = require('sqlite3').verbose();
+const dns = require('dns').promises;
 
-// Configurazione
-const config = {
-    // Directory contenente il database
-    dbDir: path.join(__dirname),
-    // Nome del file database
-    dbName: 'AFC.db',
-    // Directory dove salvare i backup
-    backupDir: path.join(__dirname, 'backups'),
-    // Sottodirectory per i diversi tipi di backup
-    instantBackupDir: 'instant',
-    tempBackupDir: 'temp',
-    stableBackupDir: 'stable',
-    weeklyBackupDir: 'weekly',
-    yearlyBackupDir: 'yearly',
-    // Tempo di inattività prima di consolidare i backup istantanei (in millisecondi)
-    inactivityThreshold: 60 * 60 * 1000, // 1 ora
-    // Numero di giorni prima di creare un backup stabile
-    daysForStable: 3,
-    // Numero di backup stabili prima di creare un backup settimanale
-    stablesForWeekly: 3
-};
+// Costanti per i percorsi
+const DB_PATH = path.join(__dirname, 'AFC.db');
+const BACKUP_DIR = path.join(__dirname, 'backups');
+const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
+const BACKUP_TYPES = ['daily', 'weekly', 'monthly', 'yearly'];
 
-/**
- * Crea le directory necessarie per i backup
- */
+// Assicurati che le directory esistano
+[BACKUP_DIR, ...BACKUP_TYPES.map(type => path.join(BACKUP_DIR, type))].forEach(dir => {
+    if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+    }
+});
+// Nuova funzione per configurare esplicitamente le directory di backup
 function setupBackupDirectories() {
-    const dirs = [
-        config.backupDir,
-        path.join(config.backupDir, config.instantBackupDir),
-        path.join(config.backupDir, config.tempBackupDir),
-        path.join(config.backupDir, config.stableBackupDir),
-        path.join(config.backupDir, config.weeklyBackupDir),
-        path.join(config.backupDir, config.yearlyBackupDir)
-    ];
-
-    dirs.forEach(dir => {
+    [BACKUP_DIR, ...BACKUP_TYPES.map(type => path.join(BACKUP_DIR, type))].forEach(dir => {
         if (!fs.existsSync(dir)) {
             fs.mkdirSync(dir, { recursive: true });
-            console.log('Directory creata:', dir);
+            console.log(`Directory created: ${dir}`);
         }
     });
 }
 
 /**
- * Esegue il backup del database
- * @param {string} type - Tipo di backup (instant, temp, stable, weekly, yearly)
- * @returns {string} Path del file di backup creato
+ * Verifica se il sistema si trova in Cina
+ * @returns {Promise<boolean>}
  */
-function performBackup(type) {
+async function isInChina() {
     try {
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const backupDir = path.join(config.backupDir, config[`${type}BackupDir`]);
-        const backupFile = path.join(backupDir, `AFC.db.${type}-${timestamp}`);
-        const dbPath = path.join(config.dbDir, config.dbName);
+        // Prova a risolvere google.com (bloccato in Cina) e baidu.com (accessibile in Cina)
+        const [googleResults, baiduResults] = await Promise.all([
+            dns.resolve('google.com').catch(() => null),
+            dns.resolve('baidu.com').catch(() => null)
+        ]);
 
-        if (!fs.existsSync(dbPath)) {
-            throw new Error(`Database non trovato: ${dbPath}`);
-        }
-
-        execSync(`sqlite3 ${dbPath} ".backup '${backupFile}'"`);
-        console.log(`Backup ${type} completato:`, backupFile);
-        
-        return backupFile;
+        // Se google.com non è accessibile ma baidu.com lo è, probabilmente siamo in Cina
+        return !googleResults && baiduResults;
     } catch (error) {
-        console.error(`Errore durante il backup ${type}:`, error);
-        return null;
+        console.error('Errore nel rilevamento della regione:', error);
+        // In caso di errore, assumiamo di essere nella regione globale
+        return false;
     }
 }
 
 /**
- * Consolida i backup istantanei in un backup temporaneo
+ * Esegue il backup del database
+ * @param {string} type - Tipo di backup ('daily', 'weekly', 'monthly', 'yearly')
+ * @returns {Promise<string>} - Percorso del file di backup creato
  */
-function consolidateInstantBackups() {
-    const instantDir = path.join(config.backupDir, config.instantBackupDir);
-    const files = fs.readdirSync(instantDir);
-    
-    if (files.length > 0) {
-        // Prendi l'ultimo backup istantaneo
-        const lastBackup = files.sort().pop();
-        const sourcePath = path.join(instantDir, lastBackup);
-        
-        // Crea un nuovo backup temporaneo
-        performBackup('temp');
-        
-        // Elimina tutti i backup istantanei
-        files.forEach(file => {
-            fs.unlinkSync(path.join(instantDir, file));
+async function backupDatabase(type = 'daily') {
+    return new Promise((resolve, reject) => {
+        // Crea il nome del file di backup con timestamp
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const backupPath = path.join(
+            BACKUP_DIR,
+            type,
+            `AFC.db.backup-${timestamp}`
+        );
+
+        // Log dell'operazione
+        console.log(`[${timestamp}] Avvio backup ${type} del database...`);
+
+        // Apri il database
+        const db = new sqlite3.Database(DB_PATH);
+
+        // Esegui il backup
+        db.serialize(() => {
+            db.run('VACUUM INTO ?', backupPath, (err) => {
+                db.close();
+                
+                if (err) {
+                    console.error(`[${timestamp}] Errore durante il backup:`, err);
+                    reject(err);
+                    return;
+                }
+
+                console.log(`[${timestamp}] Backup locale completato con successo in: ${backupPath}`);
+                resolve(backupPath);
+            });
         });
-        
-        console.log('Backup istantanei consolidati in backup temporaneo');
-    }
+    });
 }
 
 /**
- * Consolida i backup temporanei in un backup stabile
+ * Esegue un comando rclone
+ * @param {string} command - Comando rclone da eseguire
+ * @returns {Promise<void>}
  */
-function consolidateTempBackups() {
-    const tempDir = path.join(config.backupDir, config.tempBackupDir);
-    const files = fs.readdirSync(tempDir);
-    
-    // Se abbiamo abbastanza backup temporanei (36 = 12 backup al giorno per 3 giorni)
-    if (files.length >= 36) {
-        // Prendi l'ultimo backup temporaneo
-        const lastBackup = files.sort().pop();
-        const sourcePath = path.join(tempDir, lastBackup);
-        
-        // Crea un nuovo backup stabile
-        performBackup('stable');
-        
-        // Elimina tutti i backup temporanei
-        files.forEach(file => {
-            fs.unlinkSync(path.join(tempDir, file));
+async function executeRcloneCommand(command) {
+    return new Promise((resolve, reject) => {
+        exec(command, { maxBuffer: 100 * 1024 * 1024 }, (error, stdout, stderr) => {
+            if (error) {
+                console.error('Errore durante l\'esecuzione del comando:', error);
+                reject(error);
+                return;
+            }
+            
+            if (stderr) {
+                console.error('Warning durante l\'esecuzione:', stderr);
+            }
+            
+            resolve(stdout);
         });
+    });
+}
+
+/**
+ * Sincronizza i backup su OneDrive
+ * @returns {Promise<void>}
+ */
+async function syncToOneDrive() {
+    try {
+        // Verifica la regione
+        const inChina = await isInChina();
+        console.log(`Rilevata regione: ${inChina ? 'Cina' : 'Globale'}`);
+
+        console.log('Avvio sincronizzazione con OneDrive...');
+
+        // Sincronizza i backup del database
+        console.log('Sincronizzazione backup database...');
+        await executeRcloneCommand(`rclone sync "${BACKUP_DIR}" "afc-backup:AFC_Backups/database" --stats-one-line`);
         
-        console.log('Backup temporanei consolidati in backup stabile');
+        // Sincronizza i file caricati
+        console.log('Sincronizzazione files...');
+        await executeRcloneCommand(`rclone sync "${UPLOADS_DIR}" "afc-backup:AFC_Backups/uploads" --stats-one-line --exclude ".DS_Store"`);
+        
+        console.log('Sincronizzazione completata con successo');
+    } catch (error) {
+        console.error('Errore durante la sincronizzazione:', error);
+        throw error;
     }
 }
 
 /**
- * Consolida i backup stabili in un backup settimanale
+ * Rimuove i backup più vecchi
+ * @param {string} type - Tipo di backup
+ * @param {number} keep - Numero di file da mantenere
  */
-function consolidateStableBackups() {
-    const stableDir = path.join(config.backupDir, config.stableBackupDir);
-    const files = fs.readdirSync(stableDir);
+function cleanOldBackups(type, keep) {
+    const typeDir = path.join(BACKUP_DIR, type);
     
-    // Se abbiamo 3 backup stabili
-    if (files.length >= 3) {
-        // Prendi l'ultimo backup stabile
-        const lastBackup = files.sort().pop();
-        const sourcePath = path.join(stableDir, lastBackup);
-        
-        // Crea un nuovo backup settimanale
-        performBackup('weekly');
-        
-        // Elimina tutti i backup stabili
-        files.forEach(file => {
-            fs.unlinkSync(path.join(stableDir, file));
-        });
-        
-        console.log('Backup stabili consolidati in backup settimanale');
-    }
-}
+    // Se la directory non esiste, non fare nulla
+    if (!fs.existsSync(typeDir)) return;
 
-/**
- * Gestisce il backup annuale
- */
-function handleYearlyBackup() {
-    const now = new Date();
-    const isLastDayOfYear = now.getMonth() === 11 && now.getDate() === 31;
-    
-    if (isLastDayOfYear) {
-        performBackup('yearly');
-        console.log('Backup annuale creato');
-    }
-}
+    const files = fs.readdirSync(typeDir)
+        .filter(file => file.startsWith('AFC.db.backup-'))
+        .map(file => ({
+            name: file,
+            path: path.join(typeDir, file),
+            time: fs.statSync(path.join(typeDir, file)).mtime.getTime()
+        }))
+        .sort((a, b) => b.time - a.time);
 
-/**
- * Verifica se c'è stata inattività per il periodo specificato
- */
-function checkInactivity() {
-    const dbPath = path.join(config.dbDir, config.dbName);
-    const stats = fs.statSync(dbPath);
-    const now = new Date();
-    return (now - stats.mtime) >= config.inactivityThreshold;
-}
-
-// Funzioni di esportazione per l'integrazione con il server
-module.exports = {
-    performInstantBackup: () => performBackup('instant'),
-    checkAndConsolidate: () => {
-        if (checkInactivity()) {
-            consolidateInstantBackups();
-            consolidateTempBackups();
-            consolidateStableBackups();
-            handleYearlyBackup();
+    // Rimuovi i file più vecchi
+    files.slice(keep).forEach(file => {
+        try {
+            fs.unlinkSync(file.path);
+            console.log(`Rimosso backup vecchio: ${file.name}`);
+        } catch (err) {
+            console.error(`Errore nella rimozione di ${file.name}:`, err);
         }
-    },
-    setupBackupDirectories
-};
+    });
 
-// Se eseguito direttamente, inizializza le directory
-if (require.main === module) {
-    setupBackupDirectories();
+    // Log del numero di backup mantenuti
+    console.log(`Mantenuti ${Math.min(files.length, keep)} backup ${type}`);
 }
+
+/**
+ * Esegue il processo completo di backup
+ */
+async function runBackup() {
+    try {
+        const now = new Date();
+        console.log(`\n=== Avvio backup ${now.toISOString()} ===\n`);
+
+        // Determina il tipo di backup in base al giorno
+        const isYearly = now.getMonth() === 0 && now.getDate() === 1;
+        const isMonthly = now.getDate() === 1;
+        const isWeekly = now.getDay() === 0; // Domenica
+
+        // Esegui i backup necessari
+        if (isYearly) {
+            await backupDatabase('yearly');
+            cleanOldBackups('yearly', 5); // Mantieni ultimi 5 backup annuali
+        }
+        if (isMonthly) {
+            await backupDatabase('monthly');
+            cleanOldBackups('monthly', 12); // Mantieni ultimi 12 backup mensili
+        }
+        if (isWeekly) {
+            await backupDatabase('weekly');
+            cleanOldBackups('weekly', 4); // Mantieni ultimi 4 backup settimanali
+        }
+
+        // Esegui sempre il backup giornaliero
+        await backupDatabase('daily');
+        cleanOldBackups('daily', 7); // Mantieni ultimi 7 backup giornalieri
+
+        // Sincronizza con OneDrive
+        await syncToOneDrive();
+
+        console.log(`\n=== Backup completato con successo ${now.toISOString()} ===\n`);
+    } catch (error) {
+        console.error('Errore durante il processo di backup:', error);
+        process.exit(1);
+    }
+}
+
+function performInstantBackup() {
+    backupDatabase('daily')
+        .then((backupPath) => {
+            console.log(`Backup istantaneo completato in: ${backupPath}`);
+        })
+        .catch((err) => {
+            console.error("Errore durante il backup istantaneo:", err);
+        });
+}
+
+function checkAndConsolidate() {
+    // Implementa qui la logica per controllare e consolidare i backup se necessario.
+    console.log("checkAndConsolidate: nessuna azione richiesta al momento");
+}
+
+// Se eseguito direttamente, avvia il backup
+if (require.main === module) {
+    runBackup();
+}
+
+// Esporta anche la funzione setupBackupDirectories
+module.exports = {
+    backupDatabase,
+    syncToOneDrive,
+    cleanOldBackups,
+    runBackup,
+    isInChina,
+    setupBackupDirectories,
+    checkAndConsolidate
+};

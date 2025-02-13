@@ -288,11 +288,24 @@ router.get('/:id/phases', checkAuthentication, (req, res) => {
 // Endpoint per ottenere la cronologia di un progetto
 router.get('/:id/history', checkAuthentication, (req, res) => {
     const projectId = req.params.id;
-    const query = 'SELECT * FROM project_history WHERE project_id = ?';
-    req.db.all(query, [projectId], (err, rows) => {
+    const userId = req.session.user.id;
+    
+    // Query modificata per mostrare tutti i record pubblici E i record privati dell'utente corrente
+    const query = `
+        SELECT ph.*, u.id as user_id 
+        FROM project_history ph
+        LEFT JOIN users u ON ph.assigned_to = u.name
+        WHERE ph.project_id = ? 
+        AND (ph.private_by IS NULL OR ph.private_by = ?)
+        ORDER BY ph.date DESC
+    `;
+    
+    // Imposta un timeout di 5 secondi per l'operazione
+    req.db.configure('busyTimeout', 5000);
+    req.db.all(query, [projectId, userId], (err, rows) => {
         if (err) {
-            console.error('Error fetching project history:', err);
-            return res.status(500).send('Server error');
+            console.error('Errore nel recupero della cronologia:', err);
+            return res.status(500).json({ error: 'Errore del server' });
         }
         res.json(rows);
     });
@@ -314,6 +327,31 @@ router.post('/:id/history', checkAuthentication, (req, res) => {
             return res.status(500).send('Errore del server');
         }
         res.status(201).json({ id: this.lastID });
+    });
+});
+
+// Endpoint per aggiornare la visibilità di una voce della cronologia
+router.put('/:projectId/history/:historyId/privacy', checkAuthentication, (req, res) => {
+    const { projectId, historyId } = req.params;
+    const { private } = req.body;
+    const userId = req.session.user.id;
+
+    // Aggiorna il campo private_by nella tabella project_history
+    const query = `UPDATE project_history SET private_by = ? WHERE id = ? AND project_id = ?`;
+
+    // Se private è true, impostiamo private_by all'ID dell'utente corrente
+    // Se private è false, impostiamo private_by a NULL per rendere il record pubblico
+    const privateBy = private ? userId : null;
+
+    req.db.run(query, [privateBy, historyId, projectId], function(err) {
+        if (err) {
+            console.error('Errore durante l\'aggiornamento della visibilità:', err);
+            return res.status(500).json({ error: 'Errore del server durante l\'aggiornamento della visibilità' });
+        }
+        if (this.changes === 0) {
+            return res.status(404).json({ error: 'Record della cronologia non trovato' });
+        }
+        res.json({ private: private, private_by: privateBy });
     });
 });
 
@@ -407,6 +445,8 @@ router.post('/:id/reset-new-status', checkAuthentication, (req, res) => {
         )
     `;
 
+    // Imposta un timeout di 5 secondi per l'operazione
+    req.db.configure('busyTimeout', 5000);
     req.db.run(query, [projectId, userId], function(err) {
         if (err) {
             console.error('Errore nel reset dello stato nuovo:', err);

@@ -70,8 +70,318 @@
                     </tbody>
                 </table>
             </section>
+
+            <section class="backup-history-section">
+                <h2>Backup History</h2>
+                <div class="backup-container">
+                    <div class="backup-actions">
+                        <div class="backup-control">
+                            <button id="backupNowBtn" class="primary-btn">
+                                <i class="fas fa-database"></i> Backup Now
+                            </button>
+                            <div id="backupProgress" class="backup-progress" style="display: none;">
+                                <div class="progress-bar">
+                                    <div class="progress-fill"></div>
+                                </div>
+                                <span class="progress-status">Backup in progress...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="backup-info">
+                        <p><i class="fas fa-info-circle"></i> To restore a backup, please contact your system administrator with the desired backup filename.</p>
+                    </div>
+                    <div id="backupList">Loading backup history...</div>
+                    <div class="pagination" id="backupPagination"></div>
+                </div>
+            </section>
         </main>
 
+    <script>
+        const ITEMS_PER_PAGE = 5;
+        let backupData = {};
+        let currentPage = 1;
+
+        function displayBackups(page) {
+            const backupListDiv = document.getElementById('backupList');
+            let html = '<div class="data-table-container">';
+            
+            for (const type in backupData) {
+                const sortedBackups = backupData[type].sort((a, b) => {
+                    const dateA = new Date(a.match(/\d{4}-\d{2}-\d{2}/)[0]);
+                    const dateB = new Date(b.match(/\d{4}-\d{2}-\d{2}/)[0]);
+                    return dateB - dateA; // Changed to show newest first
+                });
+
+                // Daily backups are always expanded, others are collapsible
+                const isExpanded = type === 'daily';
+                html += `
+                    <div class="backup-type-section">
+                        <div class="backup-type-header" ${type !== 'daily' ? 'onclick="toggleBackupSection(\'' + type + '\')"' : ''}>
+                            <h3>
+                                ${type !== 'daily' ? '<i class="fas fa-chevron-right section-arrow"></i>' : ''}
+                                ${type.charAt(0).toUpperCase() + type.slice(1)} Backups
+                            </h3>
+                        </div>
+                        <table class="data-table ${!isExpanded ? 'collapsed' : ''}" id="backup-table-${type}">
+                            <thead>
+                                <tr>
+                                    <th>Backup File</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+
+                const start = (page - 1) * ITEMS_PER_PAGE;
+                const end = start + ITEMS_PER_PAGE;
+                const pageBackups = sortedBackups.slice(start, end);
+
+                if (pageBackups.length === 0) {
+                    html += '<tr><td>No backups available.</td></tr>';
+                } else {
+                    pageBackups.forEach(filename => {
+                        html += `
+                            <tr>
+                                <td><i class="fas fa-database"></i> ${filename}</td>
+                            </tr>
+                        `;
+                    });
+                }
+
+                html += '</tbody></table></div>';
+            }
+
+            html += '</div>';
+            backupListDiv.innerHTML = html;
+
+            // Aggiorna la paginazione
+            updatePagination();
+        }
+
+        function updatePagination() {
+            const paginationDiv = document.getElementById('backupPagination');
+            const maxPages = Math.max(...Object.values(backupData).map(backups => 
+                Math.ceil(backups.length / ITEMS_PER_PAGE)
+            ));
+
+            let html = '<div class="pagination-controls">';
+            if (maxPages > 1) {
+                html += `
+                    <button onclick="changePage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                `;
+
+                for (let i = 1; i <= maxPages; i++) {
+                    html += `
+                        <button onclick="changePage(${i})" class="${i === currentPage ? 'active' : ''}">
+                            ${i}
+                        </button>
+                    `;
+                }
+
+                html += `
+                    <button onclick="changePage(${currentPage + 1})" ${currentPage === maxPages ? 'disabled' : ''}>
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                `;
+            }
+            html += '</div>';
+            paginationDiv.innerHTML = html;
+        }
+
+        function changePage(page) {
+            const maxPages = Math.max(...Object.values(backupData).map(backups => 
+                Math.ceil(backups.length / ITEMS_PER_PAGE)
+            ));
+
+            if (page >= 1 && page <= maxPages) {
+                currentPage = page;
+                displayBackups(currentPage);
+            }
+        }
+
+        function loadBackupHistory() {
+            fetch('/api/backup-history')
+                .then(response => response.json())
+                .then(data => {
+                    backupData = data;
+                    displayBackups(currentPage);
+                })
+                .catch(err => {
+                    console.error('Error fetching backup history:', err);
+                    document.getElementById('backupList').innerHTML = 
+                        '<p class="error-message">Error loading backup history.</p>';
+                });
+        }
+    </script>
+
+    <style>
+        .backup-history-section {
+            margin-top: 20px;
+        }
+
+        .backup-actions {
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: flex-start;
+        }
+
+        .primary-btn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background-color 0.3s;
+        }
+
+        .primary-btn:hover {
+            background-color: #0056b3;
+        }
+
+        .primary-btn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .primary-btn i {
+            font-size: 14px;
+        }
+        
+        .backup-container {
+            background-color: #fff;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+
+        .backup-info {
+            background-color: #e8f4ff;
+            border-left: 4px solid #007bff;
+            padding: 10px 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .backup-info p {
+            margin: 0;
+            color: #333;
+        }
+
+        .backup-info .fa-info-circle {
+            color: #007bff;
+            margin-right: 8px;
+        }
+
+        .backup-type-section {
+            margin-bottom: 30px;
+        }
+
+        .backup-type-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            cursor: pointer;
+        }
+
+        .backup-type-header h3 {
+            color: #333;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-arrow {
+            transition: transform 0.3s ease;
+        }
+
+        .section-arrow.expanded {
+            transform: rotate(90deg);
+        }
+
+        .data-table.collapsed {
+            display: none;
+        }
+
+        /* Daily backup section shouldn't show pointer cursor */
+        .backup-type-section:first-child .backup-type-header {
+            cursor: default;
+        }
+
+        .pagination-controls {
+            display: flex;
+            justify-content: center;
+            gap: 5px;
+            margin-top: 20px;
+        }
+
+        .pagination-controls button {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            background: #fff;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .pagination-controls button.active {
+            background: #007bff;
+            color: #fff;
+            border-color: #007bff;
+        }
+
+        .pagination-controls button:disabled {
+            background: #f5f5f5;
+            cursor: not-allowed;
+        }
+
+        .error-message {
+            color: #dc3545;
+            padding: 10px;
+            text-align: center;
+        }
+
+        .fa-database {
+            color: #007bff;
+            margin-right: 5px;
+        }
+
+        .backup-control {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .backup-progress {
+            width: 300px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background-color: #e9ecef;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: #007bff;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .progress-status {
+            display: block;
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
     <script src="utils.js"></script>
     <script src="auth.js"></script>
     <script src="users.js"></script>
@@ -79,12 +389,72 @@
     <script src="phases.js"></script>
     <script src="product-kinds.js"></script>
     <script>
+        function toggleBackupSection(type) {
+            const table = document.getElementById(`backup-table-${type}`);
+            const arrow = table.previousElementSibling.querySelector('.section-arrow');
+            
+            table.classList.toggle('collapsed');
+            arrow.classList.toggle('expanded');
+        }
+
+        // Gestisce il backup manuale
+        function performManualBackup() {
+            const button = document.getElementById('backupNowBtn');
+            const progressBar = document.getElementById('backupProgress');
+            const progressFill = progressBar.querySelector('.progress-fill');
+            const progressStatus = progressBar.querySelector('.progress-status');
+            
+            button.disabled = true;
+            progressBar.style.display = 'block';
+            progressFill.style.width = '0%';
+            
+            const eventSource = new EventSource('/backup/manual');
+            
+            eventSource.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                
+                // Aggiorna la progress bar
+                progressFill.style.width = `${data.progress}%`;
+                progressStatus.textContent = data.status;
+                
+                if (data.progress === 100) {
+                    eventSource.close();
+                    button.disabled = false;
+                    
+                    // Nascondi la progress bar dopo 3 secondi
+                    setTimeout(() => {
+                        progressBar.style.display = 'none';
+                    }, 3000);
+                    
+                    if (data.success) {
+                        // Aspetta 1 secondo per dare tempo al server di completare il processo
+                        setTimeout(() => {
+                            loadBackupHistory();
+                        }, 1000);
+                    } else {
+                        console.error('Errore durante il backup:', data.status);
+                    }
+                }
+            };
+            
+            eventSource.onerror = function() {
+                eventSource.close();
+                button.disabled = false;
+                progressBar.style.display = 'none';
+                console.error('Errore nella connessione SSE');
+            };
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
+            loadBackupHistory();
             displayLoggedInUser();
             updateConnectedUsers(); // Aggiorna la lista degli utenti connessi
             // Aggiorna la lista ogni 30 secondi
             setInterval(updateConnectedUsers, 30000);
             initializeNotifications(); // Inizializza le notifiche
+
+            // Aggiungi l'event listener per il pulsante di backup
+            document.getElementById('backupNowBtn').addEventListener('click', performManualBackup);
         });
     </script>
 </body>

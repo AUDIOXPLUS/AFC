@@ -12,6 +12,46 @@ const productKindsRouter = require('./routes/api/product-kinds');
 const teamMembersRouter = require('./routes/api/team-members');
 const tasksRouter = require('./routes/api/tasks');
 const { router: filesRouter, upload } = require('./routes/api/files');
+const { backupDatabase } = require('./database/backup-database');
+
+// Endpoint per avviare un backup manuale
+router.post('/backup/manual', checkAuthentication, async (req, res) => {
+    // Invia l'header per supportare SSE (Server-Sent Events)
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    try {
+        // Invia aggiornamento iniziale
+        res.write(`data: ${JSON.stringify({ progress: 0, status: 'Starting backup...' })}\n\n`);
+
+        // Backup del database
+        res.write(`data: ${JSON.stringify({ progress: 30, status: 'Creating database backup...' })}\n\n`);
+        const backupPath = await backupDatabase('daily');
+        
+        // Sincronizzazione con OneDrive
+        res.write(`data: ${JSON.stringify({ progress: 60, status: 'Syncing with OneDrive...' })}\n\n`);
+        await syncToOneDrive();
+
+        // Backup completato
+        res.write(`data: ${JSON.stringify({ 
+            progress: 100, 
+            status: 'Backup completed successfully', 
+            success: true,
+            path: backupPath 
+        })}\n\n`);
+        
+        res.end();
+    } catch (error) {
+        console.error('Errore durante il backup manuale:', error);
+        res.write(`data: ${JSON.stringify({ 
+            progress: 100,
+            status: 'Backup failed: ' + error.message,
+            success: false
+        })}\n\n`);
+        res.end();
+    }
+});
 
 // Monta i router sulle rispettive route
 router.use('/', authRouter);
