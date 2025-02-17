@@ -19,10 +19,6 @@
                 <li><a href="configuration.html">Configuration</a></li>
             </ul>
         </nav>
-        <div class="connected-users">
-            <span>Connected Users: </span>
-            <div id="connected-users-list"></div>
-        </div>
         <div class="user-info">
             <div class="notification-bell" id="notification-bell">
                 <i class="fas fa-bell"></i>
@@ -130,8 +126,6 @@
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             displayLoggedInUser();
-            updateConnectedUsers();
-            setInterval(updateConnectedUsers, 30000);
             initializeNotifications(); // Inizializza le notifiche
             initializeDashboard();
         });

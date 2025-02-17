@@ -1,9 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
     initializeUsersPage();
     displayLoggedInUser();
-    updateConnectedUsers(); // Aggiorna la lista degli utenti connessi
-    // Aggiorna la lista ogni 30 secondi
-    setInterval(updateConnectedUsers, 30000);
     initializeNotifications(); // Inizializza le notifiche
 });
 
@@ -53,25 +50,6 @@ function initializeNotifications() {
     // Aggiorna il contatore delle notifiche ogni minuto
     updateNotificationCount();
     setInterval(updateNotificationCount, 60000);
-}
-
-// Funzione per aggiornare la lista degli utenti connessi
-async function updateConnectedUsers() {
-    try {
-        const response = await fetch('/api/connected-users');
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const users = await response.json();
-        
-        // Aggiorna la lista degli utenti connessi
-        const usersList = document.getElementById('connected-users-list');
-        if (usersList) {
-            usersList.innerHTML = users.map(user => user.name).join(', ');
-        }
-    } catch (error) {
-        console.error('Error retrieving connected users:', error);
-    }
 }
 
 function initializeUsersPage() {

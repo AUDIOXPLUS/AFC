@@ -1,5 +1,5 @@
 FROM node:lts-alpine
-RUN apk add --no-cache curl
+RUN apk add --no-cache curl python3 make g++ gcc
 WORKDIR /usr/src/app
 COPY ["package.json", "package-lock.json*", "npm-shrinkwrap.json*", "./"]
 RUN npm install --silent

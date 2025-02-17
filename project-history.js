@@ -428,7 +428,13 @@ window.displayProjectHistory = function(history) {
                 });
 
                 if (response.ok) {
-                    window.location.reload();
+                    // Aggiorna subito la cronologia
+                    await window.fetchProjectHistory(projectId);
+                    window.updatePhaseSummary();
+                    // Gestisce la risposta in background
+                    window.handleResponse(response).catch(error => {
+                        console.error('Errore nel processare la risposta:', error);
+                    });
                 } else {
                     console.error('Errore nell\'aggiornare la voce della cronologia');
                 }
@@ -764,13 +770,19 @@ window.saveNewHistoryEntry = async function(projectId, row) {
             throw new Error(`Errore durante il salvataggio: ${response.statusText}`);
         }
 
-        const savedEntry = await window.handleResponse(response);
-
-        if (savedEntry && savedEntry.id) {
-            await window.fetchProjectHistory(projectId);
-        } else {
-            console.error('Errore: la risposta del server non contiene un ID valido.');
-        }
+        // Aggiorna subito la cronologia
+        await window.fetchProjectHistory(projectId);
+        window.updatePhaseSummary();
+        
+        // Gestisce la risposta in background
+        window.handleResponse(response).then(savedEntry => {
+            if (!savedEntry || !savedEntry.id) {
+                console.error('Errore: la risposta del server non contiene un ID valido.');
+                alert('Errore durante il salvataggio della voce');
+            }
+        }).catch(error => {
+            console.error('Errore nel processare la risposta:', error);
+        });
 
     } catch (error) {
         handleNetworkError(error);
@@ -923,46 +935,13 @@ window.editHistoryEntry = function(entryId) {
                 });
 
                 if (response.ok) {
-                    const result = await window.handleResponse(response);
-                    actionsCell.innerHTML = '';
-
-                    // Aggiunge il lucchetto per la privacy
-                    const privacyBtn = document.createElement('button');
-                    privacyBtn.className = result.private_by !== null ? 'privacy-btn text-danger' : 'privacy-btn text-dark';
-                    privacyBtn.setAttribute('data-entry-id', entryId);
-                    const privacyIcon = document.createElement('i');
-                    privacyIcon.className = result.private_by !== null ? 'fas fa-lock' : 'fas fa-unlock';
-                    privacyBtn.appendChild(privacyIcon);
-                    privacyBtn.addEventListener('click', async function() {
-                        try {
-                            const response = await fetch(`/api/projects/${projectId}/history/${entryId}/privacy`, {
-                                method: 'PUT',
-                                headers: {'Content-Type': 'application/json'},
-                                body: JSON.stringify({private: !result.private_by})
-                            });
-                            const result = await window.handleResponse(response);
-                            privacyBtn.className = result.private_by !== null ? 'privacy-btn text-danger' : 'privacy-btn text-dark';
-                            privacyIcon.className = result.private_by !== null ? 'fas fa-lock' : 'fas fa-unlock';
-                            window.updatePhaseSummary();
-                        } catch(e) {
-                            console.error('Errore nel modificare la privacy:', e);
-                        }
+                    // Aggiorna subito la cronologia
+                    await window.fetchProjectHistory(projectId);
+                    window.updatePhaseSummary();
+                    // Gestisce la risposta in background
+                    window.handleResponse(response).catch(error => {
+                        console.error('Errore nel processare la risposta:', error);
                     });
-                    actionsCell.appendChild(privacyBtn);
-
-                    const editBtn = document.createElement('button');
-                    editBtn.className = 'edit-btn';
-                    editBtn.textContent = 'Edit';
-                    editBtn.addEventListener('click', () => window.editHistoryEntry(entryId));
-                    actionsCell.appendChild(editBtn);
-
-                    const deleteBtn = document.createElement('button');
-                    deleteBtn.className = 'delete-btn';
-                    deleteBtn.textContent = 'Delete';
-                    deleteBtn.addEventListener('click', () => window.confirmDelete(entryId));
-                    actionsCell.appendChild(deleteBtn);
-
-                    window.location.reload();
                 } else {
                     console.error('Errore nell\'aggiornare la voce della cronologia');
                 }
@@ -996,10 +975,20 @@ window.deleteHistoryEntry = async function(entryId) {
             method: 'DELETE',
         });
 
-        await window.handleResponse(response);
-        const row = document.querySelector(`tr[data-entry-id='${entryId}']`);
-        if (row) {
-            row.remove();
+        if (response.ok) {
+            // Rimuove subito la riga dalla UI
+            const row = document.querySelector(`tr[data-entry-id='${entryId}']`);
+            if (row) {
+                row.remove();
+            }
+            // Aggiorna il riepilogo delle fasi
+            window.updatePhaseSummary();
+            // Gestisce la risposta in background
+            window.handleResponse(response).catch(error => {
+                console.error('Errore nel processare la risposta:', error);
+            });
+        } else {
+            console.error('Errore nell\'eliminare la voce della cronologia');
         }
     } catch (error) {
         handleNetworkError(error);
@@ -1037,17 +1026,23 @@ window.deleteFile = async function(fileId) {
             }
         });
         
-        if (!response.ok) {
+        if (response.ok) {
+            // Trova l'entryId dal DOM risalendo alla riga della tabella
+            const fileItem = document.querySelector(`button[data-file-id="${fileId}"]`).closest('.file-item');
+            const filesCell = fileItem.closest('td');
+            const row = filesCell.closest('tr');
+            const entryId = row.getAttribute('data-entry-id');
+            
+            // Aggiorna subito la UI
+            window.updateFilesCell(entryId);
+            
+            // Gestisce la risposta in background
+            window.handleResponse(response).catch(error => {
+                console.error('Errore nel processare la risposta:', error);
+            });
+        } else {
             throw new Error(`HTTP error: ${response.status}`);
         }
-        
-        await window.handleResponse(response);
-        // Trova l'entryId dal DOM risalendo alla riga della tabella
-        const fileItem = document.querySelector(`button[data-file-id="${fileId}"]`).closest('.file-item');
-        const filesCell = fileItem.closest('td');
-        const row = filesCell.closest('tr');
-        const entryId = row.getAttribute('data-entry-id');
-        window.updateFilesCell(entryId);
     } catch (error) {
         handleNetworkError(error);
     }
