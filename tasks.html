@@ -33,11 +33,12 @@
             <input type="text" id="filter-input" placeholder="User">
             <input type="text" id="factory-filter" placeholder="Factory">
             <input type="text" id="model-filter" placeholder="Model n">
-<div class="status-dropdown">
-<button id="status-dropdown-btn">
-    Status
-</button>
-    <div id="status-filter" class="dropdown-content">
+            <input type="text" id="priority-filter" placeholder="Priority">
+            <div class="status-dropdown">
+                <button id="status-dropdown-btn">
+                    Status
+                </button>
+                <div id="status-filter" class="dropdown-content">
                     <label><input type="checkbox" value="In Progress" data-abbr="IP"> In Progress</label>
                     <label><input type="checkbox" value="Completed" data-abbr="CO"> Completed</label>
                     <label><input type="checkbox" value="On Hold" data-abbr="OH"> On Hold</label>
@@ -54,6 +55,7 @@
                         <th>Date <i class="fas fa-sort"></i></th>
                         <th>Task <i class="fas fa-sort"></i></th>
                         <th>Assigned To <i class="fas fa-sort"></i></th>
+                        <th>Priority <i class="fas fa-sort"></i></th>
                         <th>Status <i class="fas fa-sort"></i></th>
                         <!-- Removed Actions column -->
                     </tr>

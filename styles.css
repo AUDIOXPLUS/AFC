@@ -476,12 +476,19 @@ main > .table-actions, main > .add-btn {
 /* Stili per il contenitore della tabella */
 .table-wrapper {
     flex: 1;
-    overflow: auto;
+    overflow-y: auto;
+    overflow-x: auto;
     background-color: white;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     position: relative;
     margin: 0;
     border-radius: 0;
+    min-width: 0; /* Permette il contenitore di restringersi */
+}
+
+table {
+    width: max-content; /* Permette alla tabella di espandersi in base al contenuto */
+    min-width: 100%; /* Ma occupa almeno il 100% dello spazio disponibile */
 }
 
 /* Stile per rendere l'header della tabella sticky */

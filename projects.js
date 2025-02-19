@@ -837,6 +837,27 @@ function enableColumnSorting() {
             rows.sort((a, b) => {
                 const aText = a.cells[columnIndex].textContent.trim();
                 const bText = b.cells[columnIndex].textContent.trim();
+
+                // Gestione speciale per la colonna priority (indice 12)
+                if (columnIndex === 12) {
+                    // Converti in numeri, se non è un numero sarà NaN
+                    const aNum = parseInt(aText);
+                    const bNum = parseInt(bText);
+                    
+                    // Se entrambi sono numeri, confronta numericamente
+                    if (!isNaN(aNum) && !isNaN(bNum)) {
+                        return isAscending ? aNum - bNum : bNum - aNum;
+                    }
+                    
+                    // Se solo uno è numero, quello va prima
+                    if (!isNaN(aNum)) return isAscending ? -1 : 1;
+                    if (!isNaN(bNum)) return isAscending ? 1 : -1;
+                    
+                    // Se nessuno è numero, confronta come testo
+                    return isAscending ? aText.localeCompare(bText) : bText.localeCompare(aText);
+                }
+
+                // Per tutte le altre colonne, usa il confronto normale
                 return isAscending ? aText.localeCompare(bText) : bText.localeCompare(aText);
             });
 

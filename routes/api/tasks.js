@@ -36,7 +36,8 @@ router.get('/', checkAuthentication, async (req, res) => {
                 ph.description, 
                 ph.assigned_to AS assignedTo, 
                 ph.status,
-                ph.is_new
+                ph.is_new,
+                p.priority
             FROM 
                 project_history ph
             JOIN 

@@ -220,7 +220,8 @@ async function displayTasks(tasks) {
         row.insertCell(2).textContent = task.date;
         row.insertCell(3).textContent = task.description;
         row.insertCell(4).textContent = task.assignedTo;
-        row.insertCell(5).textContent = task.status;
+        row.insertCell(5).textContent = task.priority || '-';
+        row.insertCell(6).textContent = task.status;
 
         // Applica il colore di sfondo e del font in base all'utente assegnato
         const assignedMember = teamMembers.find(member => member.name === task.assignedTo);
@@ -267,7 +268,7 @@ function enableLiveFiltering() {
     // Gestione filtri testo
     const textFilterInputs = document.querySelectorAll('.filters input[type="text"]');
     const tableRows = document.getElementById('task-table').getElementsByTagName('tbody')[0].rows;
-    const filterIndices = [4, 0, 1]; // Indici delle colonne da filtrare: [Assigned To, Factory, Model Number]
+    const filterIndices = [4, 0, 1, 5]; // Indici delle colonne da filtrare: [Assigned To, Factory, Model Number, Priority]
 
     // Funzione per aggiornare il display degli stati selezionati
     function updateStatusDisplay() {
@@ -332,7 +333,7 @@ function enableLiveFiltering() {
 
             // Controllo filtro status
             if (isMatch && selectedStatuses.length > 0) {
-                const statusCell = row.cells[5];
+                const statusCell = row.cells[6]; // Aggiornato l'indice per la colonna status
                 const statusText = statusCell.textContent.trim();
                 if (!selectedStatuses.includes(statusText)) {
                     isMatch = false;
@@ -542,6 +543,27 @@ function enableColumnSorting() {
         rows.sort((a, b) => {
             const aText = a.cells[columnIndex].textContent.trim();
             const bText = b.cells[columnIndex].textContent.trim();
+
+            // Gestione speciale per la colonna priority (indice 5)
+            if (columnIndex === 5) {
+                // Converti in numeri, se non è un numero sarà NaN
+                const aNum = parseInt(aText);
+                const bNum = parseInt(bText);
+                
+                // Se entrambi sono numeri, confronta numericamente
+                if (!isNaN(aNum) && !isNaN(bNum)) {
+                    return isAscending ? aNum - bNum : bNum - aNum;
+                }
+                
+                // Se solo uno è numero, quello va prima
+                if (!isNaN(aNum)) return isAscending ? -1 : 1;
+                if (!isNaN(bNum)) return isAscending ? 1 : -1;
+                
+                // Se nessuno è numero, confronta come testo
+                return isAscending ? aText.localeCompare(bText) : bText.localeCompare(aText);
+            }
+
+            // Per tutte le altre colonne, usa il confronto normale
             return isAscending ? aText.localeCompare(bText) : bText.localeCompare(aText);
         });
 
