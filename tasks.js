@@ -220,8 +220,8 @@ async function displayTasks(tasks) {
         row.insertCell(2).textContent = task.date;
         row.insertCell(3).textContent = task.description;
         row.insertCell(4).textContent = task.assignedTo;
-        row.insertCell(5).textContent = task.priority || '-';
-        row.insertCell(6).textContent = task.status;
+        row.insertCell(5).textContent = task.status;
+        row.insertCell(6).textContent = task.priority || '-';
 
         // Applica il colore di sfondo e del font in base all'utente assegnato
         const assignedMember = teamMembers.find(member => member.name === task.assignedTo);
@@ -268,7 +268,7 @@ function enableLiveFiltering() {
     // Gestione filtri testo
     const textFilterInputs = document.querySelectorAll('.filters input[type="text"]');
     const tableRows = document.getElementById('task-table').getElementsByTagName('tbody')[0].rows;
-    const filterIndices = [4, 0, 1, 5]; // Indici delle colonne da filtrare: [Assigned To, Factory, Model Number, Priority]
+    const filterIndices = [4, 0, 1, 6]; // Indici delle colonne da filtrare: [Assigned To, Factory, Model Number, Priority]
 
     // Funzione per aggiornare il display degli stati selezionati
     function updateStatusDisplay() {
@@ -333,7 +333,7 @@ function enableLiveFiltering() {
 
             // Controllo filtro status
             if (isMatch && selectedStatuses.length > 0) {
-                const statusCell = row.cells[6]; // Aggiornato l'indice per la colonna status
+                const statusCell = row.cells[5];
                 const statusText = statusCell.textContent.trim();
                 if (!selectedStatuses.includes(statusText)) {
                     isMatch = false;
@@ -357,7 +357,8 @@ function enableLiveFiltering() {
                 return {
                     assignedTo: '',
                     factory: '',
-                    modelNumber: ''
+                    modelNumber: '',
+                    priority: ''
                 };
             }
 
@@ -365,14 +366,16 @@ function enableLiveFiltering() {
             const allowedValues = {
                 assignedTo: new Set(tasks.map(t => t.assignedTo)),
                 factory: new Set(tasks.map(t => t.factory)),
-                modelNumber: new Set(tasks.map(t => t.modelNumber))
+                modelNumber: new Set(tasks.map(t => t.modelNumber)),
+                priority: new Set(tasks.map(t => t.priority))
             };
 
             // Verifica la compatibilità dei filtri
             const newFilters = {
                 assignedTo: filters.text[0],
                 factory: filters.text[1],
-                modelNumber: filters.text[2]
+                modelNumber: filters.text[2],
+                priority: filters.text[3]
             };
 
             // Resetta i filtri non compatibili
@@ -395,7 +398,8 @@ function enableLiveFiltering() {
             return {
                 assignedTo: '',
                 factory: '',
-                modelNumber: ''
+                modelNumber: '',
+                priority: ''
             };
         }
     }
@@ -403,25 +407,35 @@ function enableLiveFiltering() {
     // Funzione per caricare e applicare i filtri salvati
     async function loadSavedFilters() {
         const savedFilters = localStorage.getItem('taskFilters');
+        let filters;
         if (savedFilters) {
-            const filters = JSON.parse(savedFilters);
-            
-            // Verifica la compatibilità dei filtri con i permessi
-            const validatedFilters = await checkFilterPermissions(filters);
-            
-            // Applica i filtri di testo validati
-            textFilterInputs[0].value = validatedFilters.assignedTo;
-            textFilterInputs[1].value = validatedFilters.factory;
-            textFilterInputs[2].value = validatedFilters.modelNumber;
-            
-            // Applica i filtri di stato
-            statusCheckboxes.forEach(checkbox => {
-                checkbox.checked = filters.status.includes(checkbox.value);
-            });
-            
-            // Applica i filtri
-            applyFilters();
+            filters = JSON.parse(savedFilters);
+            if (!filters.text) {
+                filters.text = ['', '', '', '']; // Initialize empty filters for all text inputs
+            }
+        } else {
+            filters = {
+                text: ['', '', '', ''],
+                status: []
+            };
         }
+        
+        // Verifica la compatibilità dei filtri con i permessi
+        const validatedFilters = await checkFilterPermissions(filters);
+        
+        // Applica i filtri di testo validati
+        textFilterInputs[0].value = validatedFilters.assignedTo || '';
+        textFilterInputs[1].value = validatedFilters.factory || '';
+        textFilterInputs[2].value = validatedFilters.modelNumber || '';
+        textFilterInputs[3].value = validatedFilters.priority || '';
+        
+        // Applica i filtri di stato
+        statusCheckboxes.forEach(checkbox => {
+            checkbox.checked = filters.status.includes(checkbox.value);
+        });
+        
+        // Applica i filtri
+        applyFilters();
     }
 
     // Event listeners per i filtri
@@ -544,18 +558,18 @@ function enableColumnSorting() {
             const aText = a.cells[columnIndex].textContent.trim();
             const bText = b.cells[columnIndex].textContent.trim();
 
-            // Gestione speciale per la colonna priority (indice 5)
-            if (columnIndex === 5) {
-                // Converti in numeri, se non è un numero sarà NaN
-                const aNum = parseInt(aText);
-                const bNum = parseInt(bText);
+            // Gestione speciale per la colonna priority (indice 6)
+            if (columnIndex === 6) {
+                // Converti in numeri se possibile
+                const aNum = parseFloat(aText);
+                const bNum = parseFloat(bText);
                 
                 // Se entrambi sono numeri, confronta numericamente
                 if (!isNaN(aNum) && !isNaN(bNum)) {
                     return isAscending ? aNum - bNum : bNum - aNum;
                 }
                 
-                // Se solo uno è numero, quello va prima
+                // Se solo uno è numero, il numero va prima
                 if (!isNaN(aNum)) return isAscending ? -1 : 1;
                 if (!isNaN(bNum)) return isAscending ? 1 : -1;
                 
@@ -563,7 +577,7 @@ function enableColumnSorting() {
                 return isAscending ? aText.localeCompare(bText) : bText.localeCompare(aText);
             }
 
-            // Per tutte le altre colonne, usa il confronto normale
+            // Per tutte le altre colonne, mantieni il comportamento originale
             return isAscending ? aText.localeCompare(bText) : bText.localeCompare(aText);
         });
 

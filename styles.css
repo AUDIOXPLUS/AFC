@@ -99,9 +99,6 @@ body {
     margin: 0;
     padding: 0;
     background-color: #f0f0f0;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
 }
 
 /* Classe per indicare che il sistema sta elaborando */
@@ -134,6 +131,89 @@ nav {
     margin-right: 20px;
     text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
     display: inline-block; /* Ensure the logo is inline */
+}
+
+/* Stile per la versione nel menu */
+.version-text {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #a0b3c6;
+    font-size: 14px;
+    cursor: pointer;
+    transition: color 0.3s ease;
+}
+
+.version-text:hover {
+    color: white;
+}
+
+/* Stile per il popup del log delle versioni */
+.version-log {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    z-index: 1001;
+    min-width: 400px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.version-log.show {
+    display: block;
+}
+
+.version-log h2 {
+    color: #2c3e50;
+    margin-bottom: 15px;
+    font-size: 18px;
+}
+
+.version-log table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    table-layout: fixed;
+}
+
+.version-log th, .version-log td {
+    padding: 8px;
+    text-align: left;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+/* Imposta larghezza fissa per la colonna date */
+.version-log th:first-child,
+.version-log td:first-child {
+    width: 85px; /* Larghezza ottimale per contenere la data (es: "19/02/25") */
+}
+
+/* La colonna description prenderà il resto dello spazio disponibile */
+.version-log th:last-child,
+.version-log td:last-child {
+    width: auto;
+}
+
+/* Overlay per lo sfondo scuro quando il popup è aperto */
+.version-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+}
+
+.version-overlay.show {
+    display: block;
 }
 
 nav ul {
@@ -252,16 +332,12 @@ nav ul li a:hover, nav ul li a.active {
 }
 
 main {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    height: calc(100vh - 50px);
-    padding: 0;
+    padding: 10px 20px; /* Ridotto padding superiore da 20px a 10px */
 }
 
 h1, main > h2 {
-    margin: 10px 20px;
+    margin-bottom: 10px;
+    margin-top: 5px;
     color: #2c3e50;
     font-size: 20px;
     display: inline-block;
@@ -270,12 +346,12 @@ h1, main > h2 {
 
 main > .table-actions, main > .add-btn {
     display: inline-block;
-    margin: 10px 20px;
+    margin: 0 0 10px 30px;
     vertical-align: middle;
 }
 
 .filters {
-    margin: 0 20px 10px 20px;
+    margin-bottom: 20px;
     display: flex;
     align-items: center;
     background-color: white;
@@ -475,20 +551,17 @@ main > .table-actions, main > .add-btn {
 
 /* Stili per il contenitore della tabella */
 .table-wrapper {
-    flex: 1;
-    overflow-y: auto;
+    width: 100%;
+    max-width: 100%;
     overflow-x: auto;
     background-color: white;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    /* Aggiungiamo position relative per il posizionamento dell'header sticky */
     position: relative;
-    margin: 0;
-    border-radius: 0;
-    min-width: 0; /* Permette il contenitore di restringersi */
-}
-
-table {
-    width: max-content; /* Permette alla tabella di espandersi in base al contenuto */
-    min-width: 100%; /* Ma occupa almeno il 100% dello spazio disponibile */
+    /* Aggiungiamo overflow-y auto per gestire lo scroll verticale */
+    overflow-y: auto;
+    /* Altezza massima per garantire lo scroll mantenendo uno spazio minimo dal fondo */
+    max-height: calc(100vh - 175px);
 }
 
 /* Stile per rendere l'header della tabella sticky */
