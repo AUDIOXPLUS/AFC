@@ -49,7 +49,7 @@ if (backupManager) {
 const dbPath = path.join(__dirname, 'database', 'AFC.db');
 console.log('Percorso database:', dbPath);
 
-// Inizializza il database
+// Inizializza il database con supporto UTF-8
 const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
     if (err) {
         console.error('Errore di connessione al database:', err);
@@ -57,6 +57,14 @@ const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CR
         process.exit(1);
     } else {
         console.log('Connessione al database riuscita');
+        // Imposta encoding UTF-8
+        db.run('PRAGMA encoding = "UTF-8";', (err) => {
+            if (err) {
+                console.error('Errore nell\'impostare encoding UTF-8:', err);
+            } else {
+                console.log('Encoding UTF-8 impostato correttamente');
+            }
+        });
         // Aggiunto test di connessione
         db.get('SELECT 1;', (err, row) => {
             if (err) {
@@ -68,9 +76,17 @@ const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CR
     }
 });
 
-// Middleware
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+// Middleware con supporto UTF-8
+app.use(bodyParser.json({ extended: true, charset: 'utf-8' }));
+app.use(bodyParser.urlencoded({ extended: true, charset: 'utf-8' }));
+app.use(express.json({ charset: 'utf-8' }));
+
+// Imposta l'encoding per tutte le risposte
+app.use((req, res, next) => {
+    res.charset = 'utf-8';
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    next();
+});
 app.use(session({
     secret: process.env.JWT_SECRET || 'default-secret',
     resave: false,

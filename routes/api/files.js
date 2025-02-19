@@ -42,7 +42,16 @@ const storage = multer.diskStorage({
     }
 });
 
-const upload = multer({ storage: storage });
+const upload = multer({ 
+    storage: storage,
+    fileFilter: function (req, file, cb) {
+        // Decodifica il nome del file da Buffer a stringa UTF-8
+        const decodedFilename = Buffer.from(file.originalname, 'binary').toString('utf8');
+        // Sostituisce il nome originale con quello decodificato
+        file.originalname = decodedFilename;
+        cb(null, true);
+    }
+});
 
 // Endpoint per visualizzare un file
 router.get('/:fileId/view', checkAuthentication, (req, res) => {

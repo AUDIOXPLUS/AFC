@@ -72,6 +72,24 @@ document.addEventListener('DOMContentLoaded', async function() {
             document.getElementById('project-model-number').textContent = project.modelNumber;
             document.title = `Project Details: ${project.modelNumber}`;
             
+            // Recupera lo status dalla cronologia filtrata
+            const historyResponse = await fetch(`/api/projects/${projectId}/history`);
+            const history = await window.handleResponse(historyResponse);
+            
+            // Determina lo status da mostrare
+            let statusToShow = '-';
+            if (history.length > 0) {
+                // La cronologia è già filtrata per mostrare solo entry pubbliche o dell'utente corrente
+                const activeEntry = history.find(entry => entry.status !== 'Completed');
+                if (!activeEntry) {
+                    statusToShow = 'Completed';
+                } else if (activeEntry.status === 'On Hold') {
+                    statusToShow = 'On Hold';
+                } else {
+                    statusToShow = activeEntry.status;
+                }
+            }
+            
             // Aggiorna il riepilogo del progetto
             const detailsDiv = document.getElementById('project-details');
             detailsDiv.innerHTML = `
@@ -82,7 +100,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 <p><strong>Client:</strong> ${project.client || '-'}</p>
                 <p><strong>Start Date:</strong> ${project.startDate || '-'}</p>
                 <p><strong>End Date:</strong> ${project.endDate || '-'}</p>
-                <p><strong>Status:</strong> ${project.status || '-'}</p>
+                <p><strong>Status:</strong> ${statusToShow}</p>
             `;
         } catch (error) {
             handleNetworkError(error);

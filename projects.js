@@ -215,29 +215,70 @@ async function getProjectStatus(projectId) {
             };
         }
 
-        // Cerca la prima entry non completata
-        const activeEntry = history.find(entry => entry.status !== 'Completed');
+        // Filtra le entry pubbliche e private
+        const publicEntries = history.filter(entry => entry.private_by === null);
+        const privateEntries = history.filter(entry => entry.private_by !== null);
 
-        // Se tutte le entry sono completate
-        if (!activeEntry) {
-            console.log('All entries completed, using last entry:', history[0]); // Debug log
+        // Verifica se tutte le entry pubbliche sono completate
+        const allPublicEntriesCompleted = publicEntries.every(entry => entry.status === 'Completed');
+
+        // Se tutte le entry pubbliche sono completate, mostra "Completed"
+        // anche se ci sono entry private non completate
+        if (allPublicEntriesCompleted && publicEntries.length > 0) {
+            console.log('All public entries completed, showing Completed status'); // Debug log
             return {
                 status: 'Completed',
                 assignedTo: history[0].assigned_to || 'Not Assigned'
             };
         }
 
-        // Se l'entry non completata è "On Hold"
+        // Cerca la prima entry non completata
+        const activeEntry = history.find(entry => entry.status !== 'Completed');
+
+        // Se la prima entry non completata è privata
+        if (activeEntry.private_by !== null) {
+            // Se l'utente corrente è l'utente private_by, mostra lo status normalmente
+            if (activeEntry.private_by === window.currentUserId) {
+                if (activeEntry.status === 'On Hold') {
+                    return {
+                        status: 'On Hold',
+                        assignedTo: activeEntry.assigned_to || 'Not Assigned'
+                    };
+                }
+                return {
+                    status: `${activeEntry.description} (${activeEntry.status})`,
+                    assignedTo: activeEntry.assigned_to || 'Not Assigned'
+                };
+            }
+            
+            // Se l'utente non è il proprietario, cerca la prima entry non completata pubblica
+            // o una entry privata di cui l'utente è proprietario
+            for (let entry of history) {
+                if (entry.status !== 'Completed') {
+                    if (entry.private_by === null || entry.private_by === window.currentUserId) {
+                        if (entry.status === 'On Hold') {
+                            return {
+                                status: 'On Hold',
+                                assignedTo: entry.assigned_to || 'Not Assigned'
+                            };
+                        }
+                        return {
+                            status: `${entry.description} (${entry.status})`,
+                            assignedTo: entry.assigned_to || 'Not Assigned'
+                        };
+                    }
+                }
+            }
+        }
+
+        // Se l'entry non completata è pubblica
         if (activeEntry.status === 'On Hold') {
-            console.log('Found On Hold entry:', activeEntry); // Debug log
             return {
                 status: 'On Hold',
                 assignedTo: activeEntry.assigned_to || 'Not Assigned'
             };
         }
 
-        // Altrimenti ritorna la descrizione dell'entry non completata
-        console.log('Using active entry:', activeEntry); // Debug log
         return {
             status: `${activeEntry.description} (${activeEntry.status})`,
             assignedTo: activeEntry.assigned_to || 'Not Assigned'
