@@ -99,6 +99,9 @@ body {
     margin: 0;
     padding: 0;
     background-color: #f0f0f0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
 }
 
 /* Classe per indicare che il sistema sta elaborando */
@@ -249,12 +252,16 @@ nav ul li a:hover, nav ul li a.active {
 }
 
 main {
-    padding: 10px 20px; /* Ridotto padding superiore da 20px a 10px */
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    height: calc(100vh - 50px);
+    padding: 0;
 }
 
 h1, main > h2 {
-    margin-bottom: 10px;
-    margin-top: 5px;
+    margin: 10px 20px;
     color: #2c3e50;
     font-size: 20px;
     display: inline-block;
@@ -263,12 +270,12 @@ h1, main > h2 {
 
 main > .table-actions, main > .add-btn {
     display: inline-block;
-    margin: 0 0 10px 30px;
+    margin: 10px 20px;
     vertical-align: middle;
 }
 
 .filters {
-    margin-bottom: 20px;
+    margin: 0 20px 10px 20px;
     display: flex;
     align-items: center;
     background-color: white;
@@ -468,17 +475,13 @@ main > .table-actions, main > .add-btn {
 
 /* Stili per il contenitore della tabella */
 .table-wrapper {
-    width: 100%;
-    max-width: 100%;
-    overflow-x: auto;
+    flex: 1;
+    overflow: auto;
     background-color: white;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    /* Aggiungiamo position relative per il posizionamento dell'header sticky */
     position: relative;
-    /* Aggiungiamo overflow-y auto per gestire lo scroll verticale */
-    overflow-y: auto;
-    /* Altezza massima per garantire lo scroll */
-    max-height: calc(100vh - 250px);
+    margin: 0;
+    border-radius: 0;
 }
 
 /* Stile per rendere l'header della tabella sticky */
