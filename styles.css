@@ -561,7 +561,11 @@ main > .table-actions, main > .add-btn {
     /* Aggiungiamo overflow-y auto per gestire lo scroll verticale */
     overflow-y: auto;
     /* Altezza massima per garantire lo scroll mantenendo uno spazio minimo dal fondo */
+<<<<<<< HEAD
     max-height: calc(100vh - 175px);
+=======
+    max-height: calc(100vh - 175px);
+>>>>>>> d0a704b3722fa5ebe03a4db12ca5510bf19c1c19
 }
 
 /* Stile per rendere l'header della tabella sticky */
