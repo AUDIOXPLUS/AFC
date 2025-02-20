@@ -266,6 +266,13 @@ window.displayProjectHistory = function(history) {
         // Gestisce la cella dei file associati alla voce della cronologia
         const filesCell = row.insertCell(5);
 
+        // Crea il container principale con display flex
+        const buttonsContainer = document.createElement('div');
+        buttonsContainer.style.display = 'flex';
+        buttonsContainer.style.gap = '10px';
+        buttonsContainer.style.marginBottom = '10px';
+
+        // Crea il container per l'upload
         const uploadContainer = document.createElement('div');
         uploadContainer.className = 'file-upload-container';
         
@@ -274,6 +281,7 @@ window.displayProjectHistory = function(history) {
         fileInput.name = 'files';
         fileInput.multiple = true;
         fileInput.required = true;
+        fileInput.style.marginRight = '10px';
         fileInput.addEventListener('change', async function(e) {
             if (this.files.length > 0) {
                 // Disabilita l'input durante l'upload
@@ -311,10 +319,90 @@ window.displayProjectHistory = function(history) {
             }
         });
         uploadContainer.appendChild(fileInput);
-        filesCell.appendChild(uploadContainer);
+        buttonsContainer.appendChild(uploadContainer);
 
         // Recupera e visualizza i file associati alla voce della cronologia
         const files = await window.fetchEntryFiles(entry.id);
+        // Aggiungi il pulsante "Download All" se ci sono file
+        if (files.length > 0) {
+            const downloadAllBtn = document.createElement('button');
+            downloadAllBtn.className = 'download-all-btn';
+downloadAllBtn.innerHTML = '<i class="fas fa-download" style="color:#000;"></i>';
+downloadAllBtn.title = 'Download All';
+downloadAllBtn.style.alignSelf = 'center';
+downloadAllBtn.style.height = fileInput.offsetHeight + 'px';
+downloadAllBtn.style.padding = '0 10px';
+            buttonsContainer.insertBefore(downloadAllBtn, uploadContainer);
+            downloadAllBtn.addEventListener('click', async () => {
+                // Crea un div per il messaggio di notifica
+                const notificationDiv = document.createElement('div');
+                notificationDiv.style.position = 'fixed';
+                notificationDiv.style.bottom = '20px';
+                notificationDiv.style.right = '20px';
+                notificationDiv.style.padding = '15px';
+                notificationDiv.style.backgroundColor = '#f0f9ff';
+                notificationDiv.style.border = '1px solid #bae6fd';
+                notificationDiv.style.borderRadius = '4px';
+                notificationDiv.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                notificationDiv.style.zIndex = '1000';
+                document.body.appendChild(notificationDiv);
+
+                // Scarica i file
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    const link = document.createElement('a');
+                    link.href = `/api/files/${file.id}/download`;
+                    link.download = file.filename;
+                    link.style.display = 'none';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    
+                    // Aggiungi una pausa tra i download
+                    if (i < files.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                }
+
+                // Mostra il messaggio di completamento
+                const downloadPath = 'Downloads';
+                notificationDiv.innerHTML = `
+                    <div style="margin-bottom: 10px">
+                        Files have been downloaded to your default download folder:<br>
+                        <strong>${downloadPath}</strong>
+                    </div>
+                `;
+
+                // Se il browser supporta l'API File System Access, aggiungi il pulsante per aprire la cartella
+                if ('showDirectoryPicker' in window) {
+                    const openFolderBtn = document.createElement('button');
+                    openFolderBtn.textContent = 'Open Download Folder';
+                    openFolderBtn.style.padding = '5px 10px';
+                    openFolderBtn.style.backgroundColor = '#0ea5e9';
+                    openFolderBtn.style.color = 'white';
+                    openFolderBtn.style.border = 'none';
+                    openFolderBtn.style.borderRadius = '4px';
+                    openFolderBtn.style.cursor = 'pointer';
+                    openFolderBtn.addEventListener('click', async () => {
+                        try {
+                            const dirHandle = await window.showDirectoryPicker();
+                            // Il browser ha già aperto la cartella selezionata
+                        } catch (err) {
+                            console.error('Error opening folder:', err);
+                        }
+                    });
+                    notificationDiv.appendChild(openFolderBtn);
+                }
+
+                // Rimuovi la notifica dopo 10 secondi
+                setTimeout(() => {
+                    document.body.removeChild(notificationDiv);
+                }, 10000);
+            });
+        }
+
+        filesCell.appendChild(buttonsContainer);
+
         const fileList = document.createElement('div');
         fileList.className = 'file-list';
         files.forEach(file => {
@@ -490,6 +578,13 @@ window.updateFilesCell = async function(entryId) {
     filesCell.innerHTML = '';
 
 
+    // Crea il container principale con display flex
+    const buttonsContainer = document.createElement('div');
+    buttonsContainer.style.display = 'flex';
+    buttonsContainer.style.gap = '10px';
+    buttonsContainer.style.marginBottom = '10px';
+
+    // Crea il container per l'upload
     const uploadContainer = document.createElement('div');
     uploadContainer.className = 'file-upload-container';
     
@@ -498,6 +593,7 @@ window.updateFilesCell = async function(entryId) {
     fileInput.name = 'files';
     fileInput.multiple = true;
     fileInput.required = true;
+    fileInput.style.marginRight = '10px';
     fileInput.addEventListener('change', async function(e) {
         if (this.files.length > 0) {
             // Disabilita l'input durante l'upload
@@ -535,7 +631,113 @@ window.updateFilesCell = async function(entryId) {
         }
     });
     uploadContainer.appendChild(fileInput);
-    filesCell.appendChild(uploadContainer);
+    buttonsContainer.appendChild(uploadContainer);
+
+    // Aggiungi il pulsante "Download All" se ci sono file
+    if (files.length > 0) {
+        const downloadAllBtn = document.createElement('button');
+        downloadAllBtn.className = 'download-all-btn';
+downloadAllBtn.innerHTML = '<i class="fas fa-download"></i>';
+downloadAllBtn.style.alignSelf = 'center';
+downloadAllBtn.style.height = fileInput.offsetHeight + 'px';
+downloadAllBtn.style.padding = '0 10px';
+        buttonsContainer.insertBefore(downloadAllBtn, uploadContainer);
+        downloadAllBtn.addEventListener('click', async () => {
+            // Crea un div per il messaggio di notifica
+            const notificationDiv = document.createElement('div');
+            notificationDiv.style.position = 'fixed';
+            notificationDiv.style.bottom = '20px';
+            notificationDiv.style.right = '20px';
+            notificationDiv.style.padding = '15px';
+            notificationDiv.style.backgroundColor = '#f0f9ff';
+            notificationDiv.style.border = '1px solid #bae6fd';
+            notificationDiv.style.borderRadius = '4px';
+            notificationDiv.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+            notificationDiv.style.zIndex = '1000';
+            notificationDiv.style.maxWidth = '400px';
+
+            // Aggiungi pulsante di chiusura
+            const closeBtn = document.createElement('button');
+            closeBtn.innerHTML = '&times;';
+            closeBtn.style.position = 'absolute';
+            closeBtn.style.right = '5px';
+            closeBtn.style.top = '5px';
+            closeBtn.style.border = 'none';
+            closeBtn.style.background = 'none';
+            closeBtn.style.fontSize = '20px';
+            closeBtn.style.cursor = 'pointer';
+            closeBtn.style.color = '#64748b';
+            closeBtn.onclick = () => document.body.removeChild(notificationDiv);
+            notificationDiv.appendChild(closeBtn);
+
+            document.body.appendChild(notificationDiv);
+
+            // Scarica i file
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const link = document.createElement('a');
+                link.href = `/api/files/${file.id}/download`;
+                link.download = file.filename;
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                // Aggiorna il messaggio di progresso
+                notificationDiv.innerHTML = `
+                    <button style="position: absolute; right: 5px; top: 5px; border: none; background: none; font-size: 20px; cursor: pointer; color: #64748b;" onclick="this.parentElement.remove()">&times;</button>
+                    <div style="margin-right: 20px">
+                        Downloading files... (${i + 1}/${files.length})
+                    </div>
+                `;
+                
+                // Aggiungi una pausa tra i download
+                if (i < files.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+            }
+
+            // Mostra il messaggio di completamento
+            notificationDiv.innerHTML = `
+                <button style="position: absolute; right: 5px; top: 5px; border: none; background: none; font-size: 20px; cursor: pointer; color: #64748b;" onclick="this.parentElement.remove()">&times;</button>
+                <div style="margin-right: 20px">
+                    Files have been downloaded to your default download folder:<br>
+                    <strong>Downloads</strong>
+                </div>
+            `;
+
+            // Se il browser supporta l'API File System Access, aggiungi il pulsante per aprire la cartella
+            if ('showDirectoryPicker' in window) {
+                const openFolderBtn = document.createElement('button');
+                openFolderBtn.textContent = 'Open Download Folder';
+                openFolderBtn.style.marginTop = '10px';
+                openFolderBtn.style.padding = '5px 10px';
+                openFolderBtn.style.backgroundColor = '#0ea5e9';
+                openFolderBtn.style.color = 'white';
+                openFolderBtn.style.border = 'none';
+                openFolderBtn.style.borderRadius = '4px';
+                openFolderBtn.style.cursor = 'pointer';
+                openFolderBtn.addEventListener('click', async () => {
+                    try {
+                        const dirHandle = await window.showDirectoryPicker();
+                        // Il browser ha già aperto la cartella selezionata
+                    } catch (err) {
+                        console.error('Error opening folder:', err);
+                    }
+                });
+                notificationDiv.appendChild(openFolderBtn);
+            }
+
+            // Rimuovi la notifica dopo 10 secondi se non è già stata chiusa
+            setTimeout(() => {
+                if (document.body.contains(notificationDiv)) {
+                    document.body.removeChild(notificationDiv);
+                }
+            }, 10000);
+        });
+    }
+
+    filesCell.appendChild(buttonsContainer);
 
     const fileList = document.createElement('div');
     fileList.className = 'file-list';

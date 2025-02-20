@@ -117,7 +117,10 @@ router.get('/:fileId/download', checkAuthentication, (req, res) => {
             return res.status(404).json({ error: 'File not found' });
         }
 
-        res.download(filePath, file.filename);
+        // Forza il download del file invece di aprirlo nel browser
+        res.setHeader('Content-Type', 'application/octet-stream');
+        res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
+        res.sendFile(filePath);
     });
 });
 
