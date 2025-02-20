@@ -1,5 +1,6 @@
 // Dati del version log
 const versionLogData = [
+    { date: '20/02/25', description: 'Added preview all and download all files' },
     { date: '19/02/25', description: 'Fixed bugs for private records' },
     { date: '19/02/25', description: 'Added version log' },
     { date: '19/02/25', description: 'Fixed full screen view' },
@@ -51,7 +52,7 @@ function initializeVersionLog() {
     const versionText = document.createElement('div');
     versionText.id = 'version-text';
     versionText.className = 'version-text';
-    versionText.textContent = 'V3.2';
+    versionText.textContent = 'V3.3';
     
     // Inserisci il testo della versione dopo il logo
     const logo = nav.querySelector('.logo');

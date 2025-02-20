@@ -269,7 +269,7 @@ window.displayProjectHistory = function(history) {
         // Crea il container principale con display flex
         const buttonsContainer = document.createElement('div');
         buttonsContainer.style.display = 'flex';
-        buttonsContainer.style.gap = '10px';
+        buttonsContainer.style.gap = '5px';
         buttonsContainer.style.marginBottom = '10px';
 
         // Crea il container per l'upload
@@ -282,6 +282,47 @@ window.displayProjectHistory = function(history) {
         fileInput.multiple = true;
         fileInput.required = true;
         fileInput.style.marginRight = '10px';
+fileInput.style.display = 'none';
+
+const browseIcon = document.createElement('i');
+browseIcon.className = 'fas fa-folder-open';
+browseIcon.style.color = 'black';
+browseIcon.style.cursor = 'pointer';
+browseIcon.style.fontSize = '14px';
+browseIcon.setAttribute('title', 'Upload File');
+
+browseIcon.addEventListener('click', function() {
+    fileInput.click();
+});
+
+uploadContainer.appendChild(fileInput);
+uploadContainer.appendChild(browseIcon);
+
+uploadContainer.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    uploadContainer.style.backgroundColor = '#e6ffe6'; // Feedback visivo
+});
+
+uploadContainer.addEventListener('dragleave', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    uploadContainer.style.backgroundColor = ''; // Ripristina colore originale
+});
+
+uploadContainer.addEventListener('drop', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    uploadContainer.style.backgroundColor = ''; // Ripristina colore originale
+
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+        fileInput.files = files;
+        const event = new Event('change', { bubbles: true });
+        fileInput.dispatchEvent(event);
+    }
+});
+
         fileInput.addEventListener('change', async function(e) {
             if (this.files.length > 0) {
                 // Disabilita l'input durante l'upload
@@ -308,7 +349,56 @@ window.displayProjectHistory = function(history) {
                     });
                     const result = await window.handleResponse(response);
                     console.log('Upload completato:', result);
-                    window.updateFilesCell(entry.id);
+                    
+                    // Aggiorna solo la lista dei file invece di ricreare l'intera interfaccia
+                    const files = await window.fetchEntryFiles(entry.id);
+                    const fileList = filesCell.querySelector('.file-list');
+                    fileList.innerHTML = '';
+                    
+                    files.forEach(file => {
+                        const fileItem = document.createElement('div');
+                        fileItem.className = 'file-item';
+                        
+                        const fileNameSpan = document.createElement('span');
+                        fileNameSpan.textContent = file.filename;
+                        fileNameSpan.style.cursor = 'pointer';
+                        fileNameSpan.style.textDecoration = 'underline';
+                        fileNameSpan.addEventListener('click', () => {
+                            if (window.isOnlyOfficeCompatible(file.filename)) {
+                                const normalizedPath = window.normalizeFilePath(file.filepath);
+                                window.open(`http://185.250.144.219:3000/onlyoffice/editor?filePath=${normalizedPath}`, '_blank');
+                            } else {
+                                window.open(`/api/files/${file.id}/view`, '_blank');
+                            }
+                        });
+                        fileItem.appendChild(fileNameSpan);
+                        
+                        const downloadBtn = document.createElement('button');
+                        downloadBtn.className = 'download-btn';
+                        downloadBtn.innerHTML = '<i class="fas fa-download"></i>';
+                        downloadBtn.style.marginRight = '5px';
+                        downloadBtn.addEventListener('click', () => window.downloadFile(file.id));
+                        fileItem.appendChild(downloadBtn);
+                        
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.className = 'delete-btn';
+                        deleteBtn.setAttribute('data-file-id', file.id);
+                        deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+                        deleteBtn.style.marginRight = '5px';
+                        deleteBtn.addEventListener('click', async () => {
+                            await window.deleteFile(file.id);
+                            window.updateFilesCell(entry.id);
+                        });
+                        fileItem.appendChild(deleteBtn);
+                        
+                        fileList.appendChild(fileItem);
+                    });
+                    
+                    // Rimuovi il messaggio di stato
+                    statusDiv.remove();
+                    
+                    // Riabilita l'input
+                    this.disabled = false;
                 } catch (error) {
                     console.error('Errore nel caricare i files:', error);
                     statusDiv.textContent = 'Errore durante il caricamento dei file';
@@ -318,7 +408,6 @@ window.displayProjectHistory = function(history) {
                 }
             }
         });
-        uploadContainer.appendChild(fileInput);
         buttonsContainer.appendChild(uploadContainer);
 
         // Recupera e visualizza i file associati alla voce della cronologia
@@ -331,7 +420,7 @@ downloadAllBtn.innerHTML = '<i class="fas fa-download" style="color:#000;"></i>'
 downloadAllBtn.title = 'Download All';
 downloadAllBtn.style.alignSelf = 'center';
 downloadAllBtn.style.height = fileInput.offsetHeight + 'px';
-downloadAllBtn.style.padding = '0 10px';
+downloadAllBtn.style.padding = '0 5px';
             buttonsContainer.insertBefore(downloadAllBtn, uploadContainer);
             downloadAllBtn.addEventListener('click', async () => {
                 // Crea un div per il messaggio di notifica
@@ -401,6 +490,30 @@ downloadAllBtn.style.padding = '0 10px';
             });
         }
 
+        const previewAllBtn = document.createElement('button');
+        previewAllBtn.className = 'preview-all-btn';
+        previewAllBtn.innerHTML = '<i class="fas fa-eye" style="color: black;"></i>';
+        previewAllBtn.title = 'Preview All';
+        previewAllBtn.style.alignSelf = 'center';
+        previewAllBtn.style.height = fileInput.offsetHeight + 'px';
+        previewAllBtn.style.padding = '0 5px';
+        buttonsContainer.insertBefore(previewAllBtn, uploadContainer);
+
+        previewAllBtn.addEventListener('click', async () => {
+            const previewWindow = window.open('all-files-preview.html', '_blank');
+            previewWindow.onload = function() {
+                const previewContainer = previewWindow.document.getElementById('preview-container');
+                files.forEach(file => {
+                    const iframe = document.createElement('iframe');
+                    iframe.src = `/api/files/${file.id}/view`;
+                    iframe.style.width = '100%';
+                    iframe.style.height = '500px';
+                    iframe.style.border = 'none';
+                    previewContainer.appendChild(iframe);
+                });
+            };
+        });
+
         filesCell.appendChild(buttonsContainer);
 
         const fileList = document.createElement('div');
@@ -424,25 +537,23 @@ downloadAllBtn.style.padding = '0 10px';
             });
             fileItem.appendChild(fileNameSpan);
             
-            const downloadBtn = document.createElement('button');
-            downloadBtn.className = 'download-btn';
-            const downloadIcon = document.createElement('i');
-            downloadIcon.className = 'fas fa-download';
-            downloadBtn.appendChild(downloadIcon);
-            downloadBtn.addEventListener('click', () => window.downloadFile(file.id));
-            fileItem.appendChild(downloadBtn);
-            
-            const deleteBtn = document.createElement('button');
-            deleteBtn.className = 'delete-btn';
-            deleteBtn.setAttribute('data-file-id', file.id);
-            const deleteIcon = document.createElement('i');
-            deleteIcon.className = 'fas fa-trash';
-            deleteBtn.appendChild(deleteIcon);
-            deleteBtn.addEventListener('click', async () => {
-                await window.deleteFile(file.id);
-                window.updateFilesCell(entry.id);
-            });
-            fileItem.appendChild(deleteBtn);
+const downloadBtn = document.createElement('button');
+downloadBtn.className = 'download-btn';
+downloadBtn.innerHTML = '<i class="fas fa-download"></i>';
+downloadBtn.style.marginRight = '5px';
+downloadBtn.addEventListener('click', () => window.downloadFile(file.id));
+fileItem.appendChild(downloadBtn);
+
+const deleteBtn = document.createElement('button');
+deleteBtn.className = 'delete-btn';
+deleteBtn.setAttribute('data-file-id', file.id);
+deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+deleteBtn.style.marginRight = '5px';
+deleteBtn.addEventListener('click', async () => {
+    await window.deleteFile(file.id);
+    window.updateFilesCell(entry.id);
+});
+fileItem.appendChild(deleteBtn);
             
             
             fileList.appendChild(fileItem);
@@ -581,7 +692,7 @@ window.updateFilesCell = async function(entryId) {
     // Crea il container principale con display flex
     const buttonsContainer = document.createElement('div');
     buttonsContainer.style.display = 'flex';
-    buttonsContainer.style.gap = '10px';
+    buttonsContainer.style.gap = '5px';
     buttonsContainer.style.marginBottom = '10px';
 
     // Crea il container per l'upload
@@ -594,6 +705,20 @@ window.updateFilesCell = async function(entryId) {
     fileInput.multiple = true;
     fileInput.required = true;
     fileInput.style.marginRight = '10px';
+    fileInput.style.display = 'none';
+
+    const browseIcon = document.createElement('i');
+    browseIcon.className = 'fas fa-folder-open';
+    browseIcon.style.color = 'black';
+    browseIcon.style.cursor = 'pointer';
+    browseIcon.style.fontSize = '14px';
+    browseIcon.setAttribute('title', 'Upload File');
+    browseIcon.addEventListener('click', function() {
+        fileInput.click();
+    });
+    uploadContainer.appendChild(fileInput);
+    uploadContainer.appendChild(browseIcon);
+
     fileInput.addEventListener('change', async function(e) {
         if (this.files.length > 0) {
             // Disabilita l'input durante l'upload
@@ -618,9 +743,154 @@ window.updateFilesCell = async function(entryId) {
                     method: 'POST',
                     body: formData
                 });
-                const result = await window.handleResponse(response);
-                console.log('Upload completato:', result);
-                window.updateFilesCell(entryId);
+                    const result = await window.handleResponse(response);
+                    console.log('Upload completato:', result);
+                    
+                    // Aggiorna solo la lista dei file
+                    const files = await window.fetchEntryFiles(entryId);
+                    
+                    // Aggiorna i pulsanti "Download All" e "Preview All"
+                    const buttonsContainer = filesCell.querySelector('div');
+                    if (buttonsContainer) {
+                        // Rimuovi i vecchi pulsanti
+                        while (buttonsContainer.firstChild) {
+                            if (!buttonsContainer.firstChild.classList.contains('file-upload-container')) {
+                                buttonsContainer.removeChild(buttonsContainer.firstChild);
+                            } else {
+                                break;
+                            }
+                        }
+                        
+                        // Aggiungi i nuovi pulsanti se ci sono file
+                        if (files.length > 0) {
+                            const downloadAllBtn = document.createElement('button');
+                            downloadAllBtn.className = 'download-all-btn';
+                            downloadAllBtn.innerHTML = '<i class="fas fa-download" style="color:#000;"></i>';
+                            downloadAllBtn.title = 'Download All';
+                            downloadAllBtn.style.alignSelf = 'center';
+                            downloadAllBtn.style.height = fileInput.offsetHeight + 'px';
+                            downloadAllBtn.style.padding = '0 5px';
+                            downloadAllBtn.addEventListener('click', async () => {
+                                // Crea un div per il messaggio di notifica
+                                const notificationDiv = document.createElement('div');
+                                notificationDiv.style.position = 'fixed';
+                                notificationDiv.style.bottom = '20px';
+                                notificationDiv.style.right = '20px';
+                                notificationDiv.style.padding = '15px';
+                                notificationDiv.style.backgroundColor = '#f0f9ff';
+                                notificationDiv.style.border = '1px solid #bae6fd';
+                                notificationDiv.style.borderRadius = '4px';
+                                notificationDiv.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                                notificationDiv.style.zIndex = '1000';
+                                document.body.appendChild(notificationDiv);
+
+                                // Scarica i file
+                                for (let i = 0; i < files.length; i++) {
+                                    const file = files[i];
+                                    const link = document.createElement('a');
+                                    link.href = `/api/files/${file.id}/download`;
+                                    link.download = file.filename;
+                                    link.style.display = 'none';
+                                    document.body.appendChild(link);
+                                    link.click();
+                                    document.body.removeChild(link);
+                                    
+                                    // Aggiungi una pausa tra i download
+                                    if (i < files.length - 1) {
+                                        await new Promise(resolve => setTimeout(resolve, 500));
+                                    }
+                                }
+
+                                // Mostra il messaggio di completamento
+                                const downloadPath = 'Downloads';
+                                notificationDiv.innerHTML = `
+                                    <div style="margin-bottom: 10px">
+                                        Files have been downloaded to your default download folder:<br>
+                                        <strong>${downloadPath}</strong>
+                                    </div>
+                                `;
+
+                                // Rimuovi la notifica dopo 10 secondi
+                                setTimeout(() => {
+                                    document.body.removeChild(notificationDiv);
+                                }, 10000);
+                            });
+                            buttonsContainer.insertBefore(downloadAllBtn, uploadContainer);
+                            
+                            const previewAllBtn = document.createElement('button');
+                            previewAllBtn.className = 'preview-all-btn';
+                            previewAllBtn.innerHTML = '<i class="fas fa-eye" style="color: black;"></i>';
+                            previewAllBtn.title = 'Preview All';
+                            previewAllBtn.style.alignSelf = 'center';
+                            previewAllBtn.style.height = fileInput.offsetHeight + 'px';
+                            previewAllBtn.style.padding = '0 5px';
+                            previewAllBtn.addEventListener('click', async () => {
+                                const previewWindow = window.open('all-files-preview.html', '_blank');
+                                previewWindow.onload = function() {
+                                    const previewContainer = previewWindow.document.getElementById('preview-container');
+                                    files.forEach(file => {
+                                        const iframe = document.createElement('iframe');
+                                        iframe.src = `/api/files/${file.id}/view`;
+                                        iframe.style.width = '100%';
+                                        iframe.style.height = '500px';
+                                        iframe.style.border = 'none';
+                                        previewContainer.appendChild(iframe);
+                                    });
+                                };
+                            });
+                            buttonsContainer.insertBefore(previewAllBtn, uploadContainer);
+                        }
+                    }
+                    
+                    // Aggiorna la lista dei file
+                    const fileList = filesCell.querySelector('.file-list');
+                    if (fileList) {
+                        fileList.innerHTML = '';
+                        files.forEach(file => {
+                            const fileItem = document.createElement('div');
+                            fileItem.className = 'file-item';
+                            
+                            const fileNameSpan = document.createElement('span');
+                            fileNameSpan.textContent = file.filename;
+                            fileNameSpan.style.cursor = 'pointer';
+                            fileNameSpan.style.textDecoration = 'underline';
+                            fileNameSpan.addEventListener('click', () => {
+                                if (window.isOnlyOfficeCompatible(file.filename)) {
+                                    const normalizedPath = window.normalizeFilePath(file.filepath);
+                                    window.open(`http://185.250.144.219:3000/onlyoffice/editor?filePath=${normalizedPath}`, '_blank');
+                                } else {
+                                    window.open(`/api/files/${file.id}/view`, '_blank');
+                                }
+                            });
+                            fileItem.appendChild(fileNameSpan);
+                            
+                            const downloadBtn = document.createElement('button');
+                            downloadBtn.className = 'download-btn';
+                            downloadBtn.innerHTML = '<i class="fas fa-download"></i>';
+                            downloadBtn.style.marginRight = '5px';
+                            downloadBtn.addEventListener('click', () => window.downloadFile(file.id));
+                            fileItem.appendChild(downloadBtn);
+                            
+                            const deleteBtn = document.createElement('button');
+                            deleteBtn.className = 'delete-btn';
+                            deleteBtn.setAttribute('data-file-id', file.id);
+                            deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+                            deleteBtn.style.marginRight = '5px';
+                            deleteBtn.addEventListener('click', async () => {
+                                await window.deleteFile(file.id);
+                                window.updateFilesCell(entryId);
+                            });
+                            fileItem.appendChild(deleteBtn);
+                            
+                            fileList.appendChild(fileItem);
+                        });
+                    }
+                    
+                    // Rimuovi il messaggio di stato
+                    statusDiv.remove();
+                    
+                    // Riabilita l'input
+                    this.disabled = false;
             } catch (error) {
                 console.error('Errore nel caricare i files:', error);
                 statusDiv.textContent = 'Errore durante il caricamento dei file';
@@ -630,18 +900,43 @@ window.updateFilesCell = async function(entryId) {
             }
         }
     });
-    uploadContainer.appendChild(fileInput);
     buttonsContainer.appendChild(uploadContainer);
 
     // Aggiungi il pulsante "Download All" se ci sono file
     if (files.length > 0) {
         const downloadAllBtn = document.createElement('button');
         downloadAllBtn.className = 'download-all-btn';
-downloadAllBtn.innerHTML = '<i class="fas fa-download"></i>';
-downloadAllBtn.style.alignSelf = 'center';
-downloadAllBtn.style.height = fileInput.offsetHeight + 'px';
-downloadAllBtn.style.padding = '0 10px';
+        downloadAllBtn.innerHTML = '<i class="fas fa-download" style="color:#000;"></i>';
+        downloadAllBtn.title = 'Download All';
+        downloadAllBtn.style.alignSelf = 'center';
+        downloadAllBtn.style.height = fileInput.offsetHeight + 'px';
+        downloadAllBtn.style.padding = '0 5px';
         buttonsContainer.insertBefore(downloadAllBtn, uploadContainer);
+
+        const previewAllBtn = document.createElement('button');
+        previewAllBtn.className = 'preview-all-btn';
+        previewAllBtn.innerHTML = '<i class="fas fa-eye" style="color: black;"></i>';
+        previewAllBtn.title = 'Preview All';
+        previewAllBtn.style.alignSelf = 'center';
+        previewAllBtn.style.height = fileInput.offsetHeight + 'px';
+        previewAllBtn.style.padding = '0 5px';
+        buttonsContainer.insertBefore(previewAllBtn, uploadContainer);
+
+        previewAllBtn.addEventListener('click', async () => {
+            const previewWindow = window.open('all-files-preview.html', '_blank');
+            previewWindow.onload = function() {
+                const previewContainer = previewWindow.document.getElementById('preview-container');
+                files.forEach(file => {
+                    const iframe = document.createElement('iframe');
+                    iframe.src = `/api/files/${file.id}/view`;
+                    iframe.style.width = '100%';
+                    iframe.style.height = '500px';
+                    iframe.style.border = 'none';
+                    previewContainer.appendChild(iframe);
+                });
+            };
+        });
+
         downloadAllBtn.addEventListener('click', async () => {
             // Crea un div per il messaggio di notifica
             const notificationDiv = document.createElement('div');

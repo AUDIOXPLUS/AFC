@@ -549,8 +549,6 @@ main > .table-actions, main > .add-btn {
     background-color: #27ae60;
 }
 
-}
-
 /* Stili per i permessi di lettura nella tabella CRUD */
 .crud-table .read-permission {
     display: flex;
@@ -2150,17 +2148,18 @@ table select:hover {
     font-size: 11px;
 }
 
-.download-all-btn {
+.download-all-btn, .preview-all-btn {
     background-color: #28a745;
     color: white;
     border: none;
-    padding: 5px 10px;
-    border-radius: 4px;
+    padding: 3px 6px;
+    border-radius: 3px;
     cursor: pointer;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 3px;
+    font-size: 0.9em;
 }
 
 .download-all-btn:hover {
@@ -2210,7 +2209,8 @@ table select:hover {
 }
 
 .file-upload-container {
-    margin-bottom: 10px;
+    margin-bottom: 8px;
+    font-size: 0.9em;
 }
 
 /* Rimuove il testo mantenendo solo il pulsante */
