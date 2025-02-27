@@ -3,7 +3,7 @@ function handleNetworkError(error) {
     console.error('Network error:', error);
     // Se l'errore è di tipo network (offline) o 401 (non autorizzato)
     if (!navigator.onLine || (error.response && error.response.status === 401)) {
-        window.location.href = 'login.html';
+        window.location.replace('login.html');
     }
 }
 
@@ -11,7 +11,7 @@ function handleNetworkError(error) {
 document.addEventListener('DOMContentLoaded', async function() {
     // Verifica lo stato della connessione
     if (!navigator.onLine) {
-        window.location.href = 'login.html';
+        window.location.replace('login.html');
         return;
     }
     const urlParams = new URLSearchParams(window.location.search);
@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
         } else {
             console.error('userData.username is missing or null');
-            window.location.href = '/login.html';
+            window.location.replace('login.html');
             return;
         }
     } catch (error) {
@@ -78,9 +78,12 @@ document.addEventListener('DOMContentLoaded', async function() {
             
             // Determina lo status da mostrare
             let statusToShow = '-';
+            let statusVisible = true;
+            
             if (history.length > 0) {
                 // La cronologia è già filtrata per mostrare solo entry pubbliche o dell'utente corrente
                 const activeEntry = history.find(entry => entry.status !== 'Completed');
+                
                 if (!activeEntry) {
                     statusToShow = 'Completed';
                 } else if (activeEntry.status === 'On Hold') {
@@ -88,11 +91,30 @@ document.addEventListener('DOMContentLoaded', async function() {
                 } else {
                     statusToShow = activeEntry.status;
                 }
+                
+                // Verifica se lo status deve essere visibile in base al campo private_by
+                if (activeEntry && activeEntry.private_by !== null) {
+                    // Se private_by è valorizzato, verifica se l'utente corrente è nella lista
+                    const privateBy = String(activeEntry.private_by);
+                    const currentUserId = String(window.currentUserId);
+                    
+                    if (privateBy === currentUserId) {
+                        // L'utente corrente è il proprietario, lo status è visibile
+                        statusVisible = true;
+                    } else if (privateBy.includes(',')) {
+                        // Verifica se l'utente corrente è nella lista degli utenti condivisi
+                        const userIds = privateBy.split(',');
+                        statusVisible = userIds.includes(currentUserId);
+                    } else {
+                        // L'utente corrente non è il proprietario e non è nella lista, lo status non è visibile
+                        statusVisible = false;
+                    }
+                }
             }
             
             // Aggiorna il riepilogo del progetto
             const detailsDiv = document.getElementById('project-details');
-            detailsDiv.innerHTML = `
+            let htmlContent = `
                 <p><strong>Factory:</strong> ${project.factory || '-'}</p>
                 <p><strong>Model Number:</strong> ${project.modelNumber || '-'}</p>
                 <p><strong>Factory Model Number:</strong> ${project.factoryModelNumber || '-'}</p>
@@ -100,8 +122,14 @@ document.addEventListener('DOMContentLoaded', async function() {
                 <p><strong>Client:</strong> ${project.client || '-'}</p>
                 <p><strong>Start Date:</strong> ${project.startDate || '-'}</p>
                 <p><strong>End Date:</strong> ${project.endDate || '-'}</p>
-                <p><strong>Status:</strong> ${statusToShow}</p>
             `;
+            
+            // Aggiungi lo status solo se è visibile
+            if (statusVisible) {
+                htmlContent += `<p><strong>Status:</strong> ${statusToShow}</p>`;
+            }
+            
+            detailsDiv.innerHTML = htmlContent;
         } catch (error) {
             handleNetworkError(error);
         }

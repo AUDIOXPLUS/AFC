@@ -290,19 +290,34 @@ router.get('/:id/history', checkAuthentication, (req, res) => {
     const projectId = req.params.id;
     const userId = req.session.user.id;
     
-    // Query modificata per mostrare tutti i record pubblici E i record privati dell'utente corrente
+    // Query modificata per mostrare tutti i record pubblici E i record privati visibili all'utente corrente
     const query = `
         SELECT ph.*, u.id as user_id 
         FROM project_history ph
         LEFT JOIN users u ON ph.assigned_to = u.name
         WHERE ph.project_id = ? 
-        AND (ph.private_by IS NULL OR ph.private_by = ?)
+        AND (
+            ph.private_by IS NULL 
+            OR ph.private_by = ? 
+            OR ph.private_by LIKE ? 
+            OR ph.private_by LIKE ? 
+            OR ph.private_by LIKE ?
+        )
         ORDER BY ph.date DESC
     `;
     
+    // Prepara i parametri per la ricerca con separatore virgola
+    const userIdStr = String(userId);
+    const patterns = [
+        `${userIdStr}`,           // ID singolo
+        `${userIdStr},%`,         // Primo elemento della lista
+        `%,${userIdStr},%`,       // Elemento in mezzo alla lista
+        `%,${userIdStr}`          // Ultimo elemento della lista
+    ];
+    
     // Imposta un timeout di 5 secondi per l'operazione
     req.db.configure('busyTimeout', 5000);
-    req.db.all(query, [projectId, userId], (err, rows) => {
+    req.db.all(query, [projectId, userId, patterns[1], patterns[2], patterns[3]], (err, rows) => {
         if (err) {
             console.error('Errore nel recupero della cronologia:', err);
             return res.status(500).json({ error: 'Errore del server' });
@@ -333,15 +348,27 @@ router.post('/:id/history', checkAuthentication, (req, res) => {
 // Endpoint per aggiornare la visibilità di una voce della cronologia
 router.put('/:projectId/history/:historyId/privacy', checkAuthentication, (req, res) => {
     const { projectId, historyId } = req.params;
-    const { private } = req.body;
+    const { private, sharedWith } = req.body;
     const userId = req.session.user.id;
 
     // Aggiorna il campo private_by nella tabella project_history
     const query = `UPDATE project_history SET private_by = ? WHERE id = ? AND project_id = ?`;
 
-    // Se private è true, impostiamo private_by all'ID dell'utente corrente
-    // Se private è false, impostiamo private_by a NULL per rendere il record pubblico
-    const privateBy = private ? userId : null;
+    let privateBy;
+    if (private) {
+        if (sharedWith && Array.isArray(sharedWith) && sharedWith.length > 0) {
+            // Se è privato e condiviso con altri utenti, salva una stringa con l'utente corrente e gli utenti selezionati
+            // Il primo ID è sempre il proprietario, seguito dagli ID degli utenti con cui è condiviso
+            const uniqueUsers = [...new Set([userId, ...sharedWith])]; // Rimuove duplicati
+            privateBy = uniqueUsers.join(',');
+        } else {
+            // Se è privato ma non condiviso, salva solo l'ID dell'utente corrente
+            privateBy = String(userId);
+        }
+    } else {
+        // Se non è privato, impostiamo private_by a NULL per rendere il record pubblico
+        privateBy = null;
+    }
 
     req.db.run(query, [privateBy, historyId, projectId], function(err) {
         if (err) {
@@ -351,7 +378,72 @@ router.put('/:projectId/history/:historyId/privacy', checkAuthentication, (req, 
         if (this.changes === 0) {
             return res.status(404).json({ error: 'Record della cronologia non trovato' });
         }
-        res.json({ private: private, private_by: privateBy });
+        res.json({ private: private, private_by: privateBy, sharedWith: sharedWith });
+    });
+});
+
+// Endpoint per ottenere gli utenti con cui è condivisa una voce della cronologia
+router.get('/:projectId/history/:historyId/shared-users', checkAuthentication, (req, res) => {
+    const { projectId, historyId } = req.params;
+    const userId = req.session.user.id;
+
+    // Prima verifica che l'utente sia il proprietario dell'entry
+    const checkOwnerQuery = `
+        SELECT private_by 
+        FROM project_history 
+        WHERE id = ? AND project_id = ?
+    `;
+
+    req.db.get(checkOwnerQuery, [historyId, projectId], (err, row) => {
+        if (err) {
+            console.error('Errore nel verificare la proprietà:', err);
+            return res.status(500).json({ error: 'Errore del server' });
+        }
+
+        if (!row) {
+            return res.status(404).json({ error: 'Record della cronologia non trovato' });
+        }
+
+        let privateBy = row.private_by;
+        let isOwner = false;
+        let sharedUserIds = [];
+
+        // Controlla se l'utente è il proprietario
+        if (privateBy) {
+            // Dividi la stringa per ottenere gli ID
+            const privateByArray = privateBy.split(',');
+            
+            // Il primo ID è sempre il proprietario
+            isOwner = privateByArray[0] == userId;
+            
+            // Gli altri ID sono gli utenti con cui è condiviso
+            sharedUserIds = privateByArray.slice(1);
+        }
+
+        if (!isOwner) {
+            return res.status(403).json({ error: 'Non sei autorizzato a vedere gli utenti condivisi' });
+        }
+
+        // Se non ci sono utenti condivisi, restituisci un array vuoto
+        if (sharedUserIds.length === 0) {
+            return res.json([]);
+        }
+
+        // Ottieni i dettagli degli utenti condivisi
+        const placeholders = sharedUserIds.map(() => '?').join(',');
+        const getUsersQuery = `
+            SELECT id, name, username 
+            FROM users 
+            WHERE id IN (${placeholders})
+        `;
+
+        req.db.all(getUsersQuery, sharedUserIds, (err, users) => {
+            if (err) {
+                console.error('Errore nel recupero degli utenti condivisi:', err);
+                return res.status(500).json({ error: 'Errore del server' });
+            }
+            res.json(users);
+        });
     });
 });
 
