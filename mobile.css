@@ -1,0 +1,347 @@
+/* 
+ * Mobile CSS per AFC
+ * Questo file contiene stili specifici per dispositivi mobili
+ * Da includere dopo il CSS principale
+ */
+
+/* Stili generali per dispositivi mobili */
+@media screen and (max-width: 768px) {
+    /* Rimuove la rotazione del display principale che potrebbe causare problemi */
+    .main-display {
+        transform: none !important;
+        transform-style: flat !important;
+    }
+    
+    /* Stili per il corpo e il contenitore principale */
+    body {
+        font-size: 14px;
+        padding: 0;
+        margin: 0;
+        overflow-x: auto; /* Modificato da hidden a auto per permettere lo scrolling orizzontale */
+    }
+    
+    main {
+        padding: 8px 10px;
+    }
+    
+    /* Stili per l'header e la navigazione */
+    header {
+        flex-direction: column;
+        padding: 8px 10px;
+    }
+    
+    nav {
+        width: 100%;
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .logo {
+        font-size: 24px;
+        margin-bottom: 8px;
+    }
+    
+    /* Versione nel menu */
+    .version-text {
+        position: static;
+        transform: none;
+        margin: 5px 0;
+        text-align: center;
+        display: block;
+    }
+    
+    nav ul {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        width: 100%;
+        margin-top: 5px;
+    }
+    
+    nav ul li {
+        margin: 2px 5px;
+    }
+    
+    nav ul li a {
+        padding: 5px 8px;
+        font-size: 13px;
+    }
+    
+    .user-info {
+        width: 100%;
+        justify-content: center;
+        margin-top: 8px;
+        font-size: 13px;
+    }
+    
+    /* Stili per i titoli */
+    h1, main > h2 {
+        font-size: 18px;
+        margin-top: 10px;
+        margin-bottom: 8px;
+        display: block;
+        text-align: center;
+    }
+    
+    /* Stili per i pulsanti di azione */
+    main > .table-actions, main > .add-btn {
+        display: block;
+        margin: 0 0 10px 0;
+        text-align: center;
+    }
+    
+    .add-btn {
+        width: 100%;
+        margin: 8px 0;
+        padding: 10px;
+        font-size: 14px;
+        height: auto;
+    }
+    
+    /* Stili per i filtri */
+    .filters {
+        padding: 6px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+        white-space: nowrap;
+        gap: 6px;
+        flex-wrap: nowrap !important;
+        justify-content: flex-start;
+        height: auto;
+        max-width: 100%;
+    }
+    
+    .filters::-webkit-scrollbar {
+        height: 4px;
+    }
+    
+    .filters::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 2px;
+    }
+    
+    .filters::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 2px;
+    }
+    
+    .filters::-webkit-scrollbar-thumb:hover {
+        background: #666;
+    }
+    
+    .filter-group {
+        flex: 0 0 auto;
+        margin-right: 6px;
+        margin-bottom: 6px;
+        min-width: fit-content;
+    }
+    
+    .filter-group input[type="text"],
+    .filter-group input[type="date"],
+    #status-dropdown-btn {
+        width: 110px;
+        min-width: 110px;
+        font-size: 13px;
+        padding: 6px;
+        height: 32px;
+    }
+    
+    #search-projects {
+        width: 140px;
+        min-width: 140px;
+    }
+    
+    /* Stili per la tabella */
+    .table-wrapper {
+        max-height: calc(100vh - 200px);
+        border-radius: 4px;
+        overflow-x: auto; /* Assicura lo scrolling orizzontale */
+        -webkit-overflow-scrolling: touch; /* Migliora lo scrolling su iOS */
+        scrollbar-width: thin; /* Scrollbar sottile per browser che supportano questa proprietà */
+    }
+    
+    table {
+        table-layout: auto;
+        border-collapse: separate;
+        border-spacing: 0;
+        min-width: max-content;
+    }
+    
+    th, td {
+        min-width: 100px;
+        padding: 6px;
+        font-size: 13px;
+        height: 36px;
+        white-space: normal; /* Permette il wrapping del testo */
+    }
+    
+    /* Stile specifico per la colonna Status per renderla più leggibile */
+    td:nth-child(11) {
+        min-width: 120px; /* Aumenta la larghezza minima */
+        white-space: normal; /* Permette il wrapping del testo */
+        overflow: visible; /* Mostra tutto il contenuto */
+        text-overflow: clip; /* Rimuove l'ellipsis */
+    }
+    
+    /* Assicura che la colonna Actions rimanga visibile */
+    th:last-child, td:last-child {
+        position: sticky;
+        right: 0;
+        background-color: inherit;
+        z-index: 2;
+        min-width: 70px;
+        width: 70px;
+        box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+    }
+    
+    /* Stili per i pulsanti nella tabella */
+    .edit-btn, .delete-btn, .crud-btn, .archive-btn, .unarchive-btn, .privacy-btn {
+        padding: 4px 6px;
+        margin-right: 2px;
+        font-size: 12px;
+    }
+    
+    /* Stili per la riga di inserimento */
+    .new-entry-row {
+        background-color: #f8f9fa;
+    }
+    
+    .new-entry-row td {
+        padding: 6px;
+        background-color: #f8f9fa;
+    }
+    
+    .new-entry-input {
+        width: 100% !important;
+        min-width: 100px !important;
+        padding: 8px !important;
+        font-size: 14px !important;
+        height: 36px !important;
+    }
+    
+    /* Stili per il pulsante Save */
+    .save-btn {
+        width: 100% !important;
+        height: 36px !important;
+        padding: 8px !important;
+        font-size: 14px !important;
+    }
+    
+    /* Stili per i dropdown */
+    .dropdown-content {
+        min-width: 140px;
+        max-width: 80vw;
+    }
+    
+    .dropdown-content label {
+        padding: 8px;
+        font-size: 13px;
+    }
+    
+    /* Stili per il popup del log delle versioni */
+    .version-log {
+        width: 90vw;
+        max-width: 90vw;
+        min-width: auto;
+        padding: 15px;
+    }
+    
+    .version-log h2 {
+        font-size: 16px;
+    }
+    
+    .version-log table {
+        font-size: 13px;
+    }
+    
+    /* Stili per i modali */
+    .user-modal {
+        width: 90vw;
+        max-width: 90vw;
+        padding: 15px;
+    }
+    
+    /* Ottimizzazioni per il project-details */
+    .project-summary {
+        flex-direction: column;
+    }
+    
+    .summary-left, .summary-right {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+    
+    /* Ottimizzazioni per la gestione dei file */
+    .file-upload-form {
+        width: 100%;
+    }
+    
+    .file-item {
+        flex-wrap: wrap;
+    }
+    
+    .file-item button {
+        margin-top: 4px;
+    }
+}
+
+/* Stili specifici per dispositivi molto piccoli */
+@media screen and (max-width: 480px) {
+    nav ul {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    nav ul li {
+        width: 100%;
+        text-align: center;
+        margin: 2px 0;
+    }
+    
+    nav ul li a {
+        width: 100%;
+        padding: 8px;
+    }
+    
+    .filter-group input[type="text"],
+    .filter-group input[type="date"],
+    #status-dropdown-btn {
+        width: 100px;
+        min-width: 100px;
+    }
+    
+    th, td {
+        min-width: 80px;
+        padding: 4px;
+        font-size: 12px;
+    }
+    
+    /* Migliora la visualizzazione della colonna Status su dispositivi molto piccoli */
+    td:nth-child(11) {
+        min-width: 100px;
+    }
+    
+    /* Stili per migliorare lo scrolling orizzontale */
+    body {
+        overflow-x: auto; /* Permette lo scrolling orizzontale a livello di body */
+    }
+    
+    .table-wrapper::-webkit-scrollbar {
+        height: 4px; /* Altezza della scrollbar orizzontale */
+    }
+    
+    .table-wrapper::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 2px;
+    }
+    
+    .table-wrapper::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 2px;
+    }
+    
+    .table-wrapper::-webkit-scrollbar-thumb:hover {
+        background: #666;
+    }
+}

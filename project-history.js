@@ -288,7 +288,7 @@ const browseIcon = document.createElement('i');
 browseIcon.className = 'fas fa-folder-open';
 browseIcon.style.color = 'black';
 browseIcon.style.cursor = 'pointer';
-browseIcon.style.fontSize = '14px';
+browseIcon.style.fontSize = '12px';
 browseIcon.setAttribute('title', 'Upload File');
 
 browseIcon.addEventListener('click', function() {
@@ -376,7 +376,6 @@ uploadContainer.addEventListener('drop', function(e) {
                         const downloadBtn = document.createElement('button');
                         downloadBtn.className = 'download-btn';
                         downloadBtn.innerHTML = '<i class="fas fa-download"></i>';
-                        downloadBtn.style.marginRight = '5px';
                         downloadBtn.addEventListener('click', () => window.downloadFile(file.id));
                         fileItem.appendChild(downloadBtn);
                         
@@ -384,7 +383,6 @@ uploadContainer.addEventListener('drop', function(e) {
                         deleteBtn.className = 'delete-btn';
                         deleteBtn.setAttribute('data-file-id', file.id);
                         deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
-                        deleteBtn.style.marginRight = '5px';
                         deleteBtn.addEventListener('click', async () => {
                             await window.deleteFile(file.id);
                             window.updateFilesCell(entry.id);
@@ -490,29 +488,113 @@ downloadAllBtn.style.padding = '0 5px';
             });
         }
 
-        const previewAllBtn = document.createElement('button');
-        previewAllBtn.className = 'preview-all-btn';
-        previewAllBtn.innerHTML = '<i class="fas fa-eye" style="color: black;"></i>';
-        previewAllBtn.title = 'Preview All';
-        previewAllBtn.style.alignSelf = 'center';
-        previewAllBtn.style.height = fileInput.offsetHeight + 'px';
-        previewAllBtn.style.padding = '0 5px';
-        buttonsContainer.insertBefore(previewAllBtn, uploadContainer);
+        // Rimuovi tutti i pulsanti esistenti prima di aggiungerne di nuovi
+        while (buttonsContainer.firstChild) {
+            buttonsContainer.removeChild(buttonsContainer.firstChild);
+        }
+        
+        // Aggiungi i pulsanti "Preview All" e "Download All" solo se ci sono file
+        if (files.length > 0) {
+            // Aggiungi il pulsante "Preview All"
+            const previewAllBtn = document.createElement('button');
+            previewAllBtn.className = 'preview-all-btn';
+            previewAllBtn.innerHTML = '<i class="fas fa-eye" style="color: black;"></i>';
+            previewAllBtn.title = 'Preview All';
+            buttonsContainer.appendChild(previewAllBtn);
+            
+            // Aggiungi il pulsante "Download All"
+            const downloadAllBtn = document.createElement('button');
+            downloadAllBtn.className = 'download-all-btn';
+            downloadAllBtn.innerHTML = '<i class="fas fa-download" style="color:#000;"></i>';
+            downloadAllBtn.title = 'Download All';
+            buttonsContainer.appendChild(downloadAllBtn);
+            
+            downloadAllBtn.addEventListener('click', async () => {
+                // Crea un div per il messaggio di notifica
+                const notificationDiv = document.createElement('div');
+                notificationDiv.style.position = 'fixed';
+                notificationDiv.style.bottom = '20px';
+                notificationDiv.style.right = '20px';
+                notificationDiv.style.padding = '15px';
+                notificationDiv.style.backgroundColor = '#f0f9ff';
+                notificationDiv.style.border = '1px solid #bae6fd';
+                notificationDiv.style.borderRadius = '4px';
+                notificationDiv.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                notificationDiv.style.zIndex = '1000';
+                document.body.appendChild(notificationDiv);
 
-        previewAllBtn.addEventListener('click', async () => {
-            const previewWindow = window.open('all-files-preview.html', '_blank');
-            previewWindow.onload = function() {
-                const previewContainer = previewWindow.document.getElementById('preview-container');
-                files.forEach(file => {
-                    const iframe = document.createElement('iframe');
-                    iframe.src = `/api/files/${file.id}/view`;
-                    iframe.style.width = '100%';
-                    iframe.style.height = '500px';
-                    iframe.style.border = 'none';
-                    previewContainer.appendChild(iframe);
-                });
-            };
-        });
+                // Scarica i file
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    const link = document.createElement('a');
+                    link.href = `/api/files/${file.id}/download`;
+                    link.download = file.filename;
+                    link.style.display = 'none';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    
+                    // Aggiungi una pausa tra i download
+                    if (i < files.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                }
+
+                // Mostra il messaggio di completamento
+                const downloadPath = 'Downloads';
+                notificationDiv.innerHTML = `
+                    <div style="margin-bottom: 10px">
+                        Files have been downloaded to your default download folder:<br>
+                        <strong>${downloadPath}</strong>
+                    </div>
+                `;
+
+                // Se il browser supporta l'API File System Access, aggiungi il pulsante per aprire la cartella
+                if ('showDirectoryPicker' in window) {
+                    const openFolderBtn = document.createElement('button');
+                    openFolderBtn.textContent = 'Open Download Folder';
+                    openFolderBtn.style.padding = '5px 10px';
+                    openFolderBtn.style.backgroundColor = '#0ea5e9';
+                    openFolderBtn.style.color = 'white';
+                    openFolderBtn.style.border = 'none';
+                    openFolderBtn.style.borderRadius = '4px';
+                    openFolderBtn.style.cursor = 'pointer';
+                    openFolderBtn.addEventListener('click', async () => {
+                        try {
+                            const dirHandle = await window.showDirectoryPicker();
+                            // Il browser ha già aperto la cartella selezionata
+                        } catch (err) {
+                            console.error('Error opening folder:', err);
+                        }
+                    });
+                    notificationDiv.appendChild(openFolderBtn);
+                }
+
+                // Rimuovi la notifica dopo 10 secondi
+                setTimeout(() => {
+                    document.body.removeChild(notificationDiv);
+                }, 10000);
+            });
+            
+            // Aggiungi l'event listener per il pulsante "Preview All"
+            previewAllBtn.addEventListener('click', async () => {
+                const previewWindow = window.open('all-files-preview.html', '_blank');
+                previewWindow.onload = function() {
+                    const previewContainer = previewWindow.document.getElementById('preview-container');
+                    files.forEach(file => {
+                        const iframe = document.createElement('iframe');
+                        iframe.src = `/api/files/${file.id}/view`;
+                        iframe.style.width = '100%';
+                        iframe.style.height = '500px';
+                        iframe.style.border = 'none';
+                        previewContainer.appendChild(iframe);
+                    });
+                };
+            });
+        }
+        
+        // Aggiungi il pulsante per l'upload dei file
+        buttonsContainer.appendChild(uploadContainer);
 
         filesCell.appendChild(buttonsContainer);
 
@@ -540,7 +622,6 @@ downloadAllBtn.style.padding = '0 5px';
 const downloadBtn = document.createElement('button');
 downloadBtn.className = 'download-btn';
 downloadBtn.innerHTML = '<i class="fas fa-download"></i>';
-downloadBtn.style.marginRight = '5px';
 downloadBtn.addEventListener('click', () => window.downloadFile(file.id));
 fileItem.appendChild(downloadBtn);
 
@@ -548,7 +629,6 @@ const deleteBtn = document.createElement('button');
 deleteBtn.className = 'delete-btn';
 deleteBtn.setAttribute('data-file-id', file.id);
 deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
-deleteBtn.style.marginRight = '5px';
 deleteBtn.addEventListener('click', async () => {
     await window.deleteFile(file.id);
     window.updateFilesCell(entry.id);
@@ -729,7 +809,7 @@ window.updateFilesCell = async function(entryId) {
     browseIcon.className = 'fas fa-folder-open';
     browseIcon.style.color = 'black';
     browseIcon.style.cursor = 'pointer';
-    browseIcon.style.fontSize = '14px';
+    browseIcon.style.fontSize = '12px';
     browseIcon.setAttribute('title', 'Upload File');
     browseIcon.addEventListener('click', function() {
         fileInput.click();
@@ -885,7 +965,6 @@ window.updateFilesCell = async function(entryId) {
                             const downloadBtn = document.createElement('button');
                             downloadBtn.className = 'download-btn';
                             downloadBtn.innerHTML = '<i class="fas fa-download"></i>';
-                            downloadBtn.style.marginRight = '5px';
                             downloadBtn.addEventListener('click', () => window.downloadFile(file.id));
                             fileItem.appendChild(downloadBtn);
                             
@@ -893,7 +972,6 @@ window.updateFilesCell = async function(entryId) {
                             deleteBtn.className = 'delete-btn';
                             deleteBtn.setAttribute('data-file-id', file.id);
                             deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
-                            deleteBtn.style.marginRight = '5px';
                             deleteBtn.addEventListener('click', async () => {
                                 await window.deleteFile(file.id);
                                 window.updateFilesCell(entryId);
@@ -920,17 +998,9 @@ window.updateFilesCell = async function(entryId) {
     });
     buttonsContainer.appendChild(uploadContainer);
 
-    // Aggiungi il pulsante "Download All" se ci sono file
+    // Aggiungi i pulsanti "Preview All" e "Download All" solo se ci sono file
     if (files.length > 0) {
-        const downloadAllBtn = document.createElement('button');
-        downloadAllBtn.className = 'download-all-btn';
-        downloadAllBtn.innerHTML = '<i class="fas fa-download" style="color:#000;"></i>';
-        downloadAllBtn.title = 'Download All';
-        downloadAllBtn.style.alignSelf = 'center';
-        downloadAllBtn.style.height = fileInput.offsetHeight + 'px';
-        downloadAllBtn.style.padding = '0 5px';
-        buttonsContainer.insertBefore(downloadAllBtn, uploadContainer);
-
+        // Aggiungi il pulsante "Preview All"
         const previewAllBtn = document.createElement('button');
         previewAllBtn.className = 'preview-all-btn';
         previewAllBtn.innerHTML = '<i class="fas fa-eye" style="color: black;"></i>';
@@ -939,6 +1009,16 @@ window.updateFilesCell = async function(entryId) {
         previewAllBtn.style.height = fileInput.offsetHeight + 'px';
         previewAllBtn.style.padding = '0 5px';
         buttonsContainer.insertBefore(previewAllBtn, uploadContainer);
+        
+        // Aggiungi il pulsante "Download All"
+        const downloadAllBtn = document.createElement('button');
+        downloadAllBtn.className = 'download-all-btn';
+        downloadAllBtn.innerHTML = '<i class="fas fa-download" style="color:#000;"></i>';
+        downloadAllBtn.title = 'Download All';
+        downloadAllBtn.style.alignSelf = 'center';
+        downloadAllBtn.style.height = fileInput.offsetHeight + 'px';
+        downloadAllBtn.style.padding = '0 5px';
+        buttonsContainer.insertBefore(downloadAllBtn, uploadContainer);
 
         previewAllBtn.addEventListener('click', async () => {
             const previewWindow = window.open('all-files-preview.html', '_blank');

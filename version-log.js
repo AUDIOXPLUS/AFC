@@ -1,5 +1,8 @@
 // Dati del version log
 const versionLogData = [
+    { date: '27/02/25', description: 'Implemented private record sharing with other users' },
+    { date: '27/02/25', description: 'Fixed icon display bugs in project history' },
+    { date: '27/02/25', description: 'Improved mobile device display' },
     { date: '20/02/25', description: 'Added preview all and download all files' },
     { date: '19/02/25', description: 'Fixed bugs for private records' },
     { date: '19/02/25', description: 'Added version log' },
@@ -52,7 +55,7 @@ function initializeVersionLog() {
     const versionText = document.createElement('div');
     versionText.id = 'version-text';
     versionText.className = 'version-text';
-    versionText.textContent = 'V3.3';
+    versionText.textContent = 'V3.4';
     
     // Inserisci il testo della versione dopo il logo
     const logo = nav.querySelector('.logo');
