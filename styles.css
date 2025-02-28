@@ -590,17 +590,24 @@ th, td {
     transition: width 0.1s ease; /* Transizione fluida per il ridimensionamento */
 }
 
-/* Stile per la colonna Actions - Assicura che i pulsanti rimangano sempre visibili */
+/* Stile per la colonna Actions */
 th:last-child, td:last-child { 
     min-width: 65px; /* Larghezza minima base */
     width: 65px; /* Larghezza base */
     white-space: nowrap; /* Previene il wrapping dei pulsanti */
     padding-right: 2px; /* Spazio minimo a destra */
     padding-left: 2px; /* Spazio minimo a sinistra */
-    position: sticky; /* Mantiene la colonna sempre visibile */
-    right: 0; /* Ancora la colonna al lato destro */
     background-color: inherit; /* Mantiene lo sfondo coerente */
-    z-index: 2; /* Assicura che rimanga sopra le altre colonne */
+}
+
+/* Stile sticky per la colonna Actions solo su desktop */
+@media screen and (min-width: 769px) {
+    th:last-child, td:last-child {
+        position: sticky; /* Mantiene la colonna sempre visibile */
+        right: 0; /* Ancora la colonna al lato destro */
+        z-index: 2; /* Assicura che rimanga sopra le altre colonne */
+        box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+    }
 }
 
 /* Stile specifico per la colonna Actions nella pagina users */

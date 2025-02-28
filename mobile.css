@@ -24,54 +24,101 @@
         padding: 8px 10px;
     }
     
-    /* Stili per l'header e la navigazione */
+    /* Stili per l'header e la navigazione - versione compatta e richiudibile */
     header {
-        flex-direction: column;
-        padding: 8px 10px;
+        flex-direction: column; /* Ripristinato layout verticale */
+        padding: 4px 8px; /* Mantenuto padding ridotto */
+        position: relative; /* Per posizionamento assoluto del toggle */
+    }
+    
+    /* Stile per il pulsante di toggle del menu */
+    .menu-toggle {
+        position: absolute;
+        top: 4px;
+        right: 8px;
+        background: transparent;
+        border: none;
+        color: white;
+        font-size: 18px;
+        cursor: pointer;
+        z-index: 100;
+        padding: 2px 6px;
+        display: block; /* Visibile solo su mobile */
+    }
+    
+    /* Stile per il contenitore del menu che può essere nascosto */
+    .menu-container {
+        width: 100%;
+        overflow: hidden;
+        max-height: 0; /* Inizialmente nascosto */
+        transition: max-height 0.3s ease-in-out;
+    }
+    
+    /* Classe per mostrare il menu */
+    .menu-container.show {
+        max-height: 500px; /* Valore sufficientemente grande */
     }
     
     nav {
         width: 100%;
-        flex-direction: column;
+        flex-direction: column; /* Ripristinato layout verticale */
         align-items: center;
     }
     
+    .logo-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        padding: 2px 0;
+    }
+    
     .logo {
-        font-size: 24px;
-        margin-bottom: 8px;
+        font-size: 20px; /* Mantenuto font-size ridotto */
+        margin-bottom: 0;
     }
     
     /* Versione nel menu */
     .version-text {
         position: static;
         transform: none;
-        margin: 5px 0;
+        margin: 0 5px;
         text-align: center;
-        display: block;
+        display: inline-block;
+        font-size: 11px; /* Mantenuto font-size ridotto */
     }
     
     nav ul {
-        flex-direction: row;
-        flex-wrap: wrap;
-        justify-content: center;
+        flex-direction: column; /* Ripristinato layout verticale */
+        align-items: center;
         width: 100%;
-        margin-top: 5px;
+        margin: 2px 0; /* Ridotto margin */
+        padding: 0;
     }
     
     nav ul li {
-        margin: 2px 5px;
+        width: 100%;
+        text-align: center;
+        margin: 1px 0; /* Ridotto margin */
     }
     
     nav ul li a {
-        padding: 5px 8px;
-        font-size: 13px;
+        padding: 3px 6px; /* Mantenuto padding ridotto */
+        font-size: 12px; /* Mantenuto font-size ridotto */
+        display: block;
+        width: 100%;
     }
     
     .user-info {
         width: 100%;
         justify-content: center;
-        margin-top: 8px;
-        font-size: 13px;
+        margin-top: 2px; /* Ridotto margin-top */
+        font-size: 12px; /* Mantenuto font-size ridotto */
+    }
+    
+    /* Riduce la dimensione dell'icona della campanella */
+    .notification-bell i {
+        font-size: 14px; /* Mantenuto font-size ridotto */
     }
     
     /* Stili per i titoli */
@@ -159,40 +206,65 @@
         overflow-x: auto; /* Assicura lo scrolling orizzontale */
         -webkit-overflow-scrolling: touch; /* Migliora lo scrolling su iOS */
         scrollbar-width: thin; /* Scrollbar sottile per browser che supportano questa proprietà */
+        width: 100%;
+        max-width: 100%;
     }
     
     table {
         table-layout: auto;
         border-collapse: separate;
         border-spacing: 0;
-        min-width: max-content;
+        min-width: max-content; /* Assicura che la tabella sia almeno larga quanto il contenuto */
+        width: auto; /* Permette alla tabella di espandersi oltre la larghezza del contenitore */
     }
+    
+    /* Forza le tabelle ad essere più larghe per garantire lo scrolling orizzontale */
+    #projects-table, #history-table {
+        min-width: 150%; /* Forza la tabella ad essere più larga del contenitore */
+    }
+    
+    /* Rimosso l'indicatore di scrolling orizzontale che poteva sovrapporsi al contenuto */
     
     th, td {
-        min-width: 100px;
-        padding: 6px;
+        min-width: 120px; /* Aumentato da 100px a 120px per maggiore leggibilità */
+        padding: 8px; /* Aumentato da 6px a 8px per maggiore spazio */
         font-size: 13px;
         height: 36px;
-        white-space: normal; /* Permette il wrapping del testo */
+        white-space: nowrap; /* Impedisce il wrapping del testo per vedere tutto il contenuto */
     }
     
-    /* Stile specifico per la colonna Status per renderla più leggibile */
-    td:nth-child(11) {
-        min-width: 120px; /* Aumenta la larghezza minima */
+    /* Stile specifico per le colonne più importanti per renderle più leggibili */
+    td:nth-child(1), th:nth-child(1) { min-width: 140px; } /* Client */
+    td:nth-child(2), th:nth-child(2) { min-width: 140px; } /* Product kind */
+    td:nth-child(3), th:nth-child(3) { min-width: 140px; } /* Factory */
+    td:nth-child(4), th:nth-child(4) { min-width: 140px; } /* Brand */
+    td:nth-child(11), th:nth-child(11) { 
+        min-width: 140px; /* Status - Aumentato da 120px a 140px */
         white-space: normal; /* Permette il wrapping del testo */
         overflow: visible; /* Mostra tutto il contenuto */
         text-overflow: clip; /* Rimuove l'ellipsis */
     }
+    td:nth-child(12), th:nth-child(12) { min-width: 140px; } /* Assigned to */
     
-    /* Assicura che la colonna Actions rimanga visibile */
-    th:last-child, td:last-child {
-        position: sticky;
-        right: 0;
+    /* 
+     * Stile per la colonna Actions - forza la rimozione dell'effetto sticky
+     * Questo risolve il problema della colonna Actions che non scorreva con il resto della tabella
+     * e si sovrapponeva alle altre colonne durante lo scrolling orizzontale.
+     * Utilizziamo selettori molto specifici con !important per sovrascrivere qualsiasi altro stile.
+     */
+    table th:last-child, 
+    table td:last-child,
+    #projects-table th:last-child, 
+    #projects-table td:last-child,
+    .table-wrapper table th:last-child,
+    .table-wrapper table td:last-child {
+        min-width: 80px;
+        width: 80px;
         background-color: inherit;
-        z-index: 2;
-        min-width: 70px;
-        width: 70px;
-        box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+        position: static !important; /* Forza la rimozione dell'effetto sticky */
+        right: auto !important; /* Rimuove l'ancoraggio a destra */
+        z-index: 1 !important; /* Riduce il z-index */
+        box-shadow: none !important; /* Rimuove l'ombra */
     }
     
     /* Stili per i pulsanti nella tabella */
@@ -286,22 +358,79 @@
     }
 }
 
+/* Stili per dispositivi pieghevoli aperti e tablet (larghezza media) */
+@media screen and (min-width: 769px) and (max-width: 1200px) {
+    /* Assicura lo scrolling orizzontale anche su display pieghevoli */
+    body, main, .table-wrapper {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    /* Forza le tabelle ad essere più larghe del contenitore anche su display pieghevoli */
+    #projects-table, #history-table {
+        min-width: 150%; /* Forza la tabella ad essere più larga del contenitore */
+        width: auto !important; /* Assicura che la tabella non si adatti alla larghezza del contenitore */
+    }
+    
+    /* Mantiene celle più larghe anche su display pieghevoli */
+    th, td {
+        min-width: 120px;
+        white-space: nowrap; /* Impedisce il wrapping del testo */
+    }
+    
+    /* Stile specifico per le colonne più importanti */
+    td:nth-child(1), th:nth-child(1) { min-width: 140px; } /* Client */
+    td:nth-child(2), th:nth-child(2) { min-width: 140px; } /* Product kind */
+    td:nth-child(3), th:nth-child(3) { min-width: 140px; } /* Factory */
+    td:nth-child(4), th:nth-child(4) { min-width: 140px; } /* Brand */
+    td:nth-child(11), th:nth-child(11) { min-width: 140px; } /* Status */
+    td:nth-child(12), th:nth-child(12) { min-width: 140px; } /* Assigned to */
+    
+    /* Rimuove l'effetto sticky dalla colonna Actions anche su display pieghevoli */
+    table th:last-child, 
+    table td:last-child,
+    #projects-table th:last-child, 
+    #projects-table td:last-child,
+    .table-wrapper table th:last-child,
+    .table-wrapper table td:last-child {
+        position: static !important;
+        right: auto !important;
+        z-index: 1 !important;
+        box-shadow: none !important;
+    }
+}
+
 /* Stili specifici per dispositivi molto piccoli */
 @media screen and (max-width: 480px) {
-    nav ul {
-        flex-direction: column;
-        align-items: center;
+    /* Mantiene l'header compatto anche su dispositivi molto piccoli */
+    header {
+        padding: 3px 5px; /* Ridotto ulteriormente il padding */
     }
     
-    nav ul li {
-        width: 100%;
-        text-align: center;
-        margin: 2px 0;
+    /* Riduce ulteriormente la dimensione del logo */
+    .logo {
+        font-size: 18px;
     }
     
+    /* Riduce ulteriormente il padding dei link nel menu */
     nav ul li a {
-        width: 100%;
-        padding: 8px;
+        padding: 2px 4px; /* Ridotto ulteriormente il padding */
+        font-size: 11px; /* Ridotto ulteriormente il font-size */
+    }
+    
+    /* Compatta ulteriormente le informazioni utente */
+    .user-info {
+        font-size: 11px; /* Ridotto ulteriormente il font-size */
+    }
+    
+    /* Riduce ulteriormente la dimensione dell'icona della campanella */
+    .notification-bell i {
+        font-size: 12px;
+    }
+    
+    /* Riduce la dimensione del pulsante di toggle */
+    .menu-toggle {
+        font-size: 16px;
     }
     
     .filter-group input[type="text"],
@@ -311,37 +440,42 @@
         min-width: 100px;
     }
     
+    /* Manteniamo le celle più larghe anche su dispositivi molto piccoli */
     th, td {
-        min-width: 80px;
-        padding: 4px;
+        min-width: 100px; /* Aumentato da 80px a 100px */
+        padding: 6px; /* Aumentato da 4px a 6px */
         font-size: 12px;
     }
     
-    /* Migliora la visualizzazione della colonna Status su dispositivi molto piccoli */
-    td:nth-child(11) {
-        min-width: 100px;
-    }
+    /* Migliora la visualizzazione delle colonne importanti su dispositivi molto piccoli */
+    td:nth-child(1), th:nth-child(1) { min-width: 120px; } /* Client */
+    td:nth-child(2), th:nth-child(2) { min-width: 120px; } /* Product kind */
+    td:nth-child(11), th:nth-child(11) { min-width: 120px; } /* Status */
+    td:nth-child(12), th:nth-child(12) { min-width: 120px; } /* Assigned to */
     
     /* Stili per migliorare lo scrolling orizzontale */
     body {
         overflow-x: auto; /* Permette lo scrolling orizzontale a livello di body */
     }
     
+    /* Migliora la visibilità e l'usabilità della scrollbar orizzontale */
     .table-wrapper::-webkit-scrollbar {
-        height: 4px; /* Altezza della scrollbar orizzontale */
+        height: 6px; /* Aumentato da 4px a 6px per una scrollbar più facile da usare */
     }
     
     .table-wrapper::-webkit-scrollbar-track {
         background: #f1f1f1;
-        border-radius: 2px;
+        border-radius: 3px;
     }
     
     .table-wrapper::-webkit-scrollbar-thumb {
         background: #888;
-        border-radius: 2px;
+        border-radius: 3px;
     }
     
     .table-wrapper::-webkit-scrollbar-thumb:hover {
         background: #666;
     }
+    
+    /* Rimosso l'indicatore visivo per lo scrolling orizzontale che poteva sovrapporsi al contenuto */
 }
