@@ -4,9 +4,1476 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>All Files Preview</title>
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        #preview-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .file-preview {
+            position: relative;
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .file-preview iframe {
+            width: 100%;
+            height: 500px;
+            border: none;
+        }
+        
+        .file-preview img {
+            max-width: 100%;
+            display: block;
+            margin: 0 auto;
+            transition: filter 0.3s ease;
+        }
+        
+        .file-preview .text-content {
+            width: 100%;
+            height: 500px;
+            overflow: auto;
+            background-color: #f8f8f8;
+            padding: 10px;
+            border: 1px solid #ddd;
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .file-preview .pdf-viewer {
+            width: 100%;
+            height: 600px;
+            border: 1px solid #ddd;
+        }
+        
+        .file-icon {
+            font-size: 48px;
+            text-align: center;
+            margin: 20px 0;
+            color: #2196F3;
+        }
+        
+        .file-actions {
+            text-align: center;
+            margin: 10px 0;
+        }
+        
+        .loading {
+            filter: blur(5px);
+            opacity: 0.7;
+        }
+        
+        .loading-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 10px 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 10;
+        }
+        
+        .resize-controls {
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .resize-controls button {
+            padding: 5px 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        
+        .resize-controls button:hover {
+            background-color: #45a049;
+        }
+        
+        .resize-controls input[type="number"],
+        .resize-inputs input[type="number"] {
+            width: 43px !important;
+            padding: 2px !important;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        
+        .resize-controls label {
+            margin-right: 5px;
+        }
+        
+        .resize-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .file-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .file-size {
+            font-size: 12px;
+            color: #666;
+            font-weight: normal;
+            margin-left: 10px;
+        }
+        
+        .global-controls {
+            background-color: #e9e9e9;
+            padding: 8px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .global-controls button {
+            padding: 8px 15px;
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        
+        .global-controls button:hover {
+            background-color: #0b7dda;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .image-container {
+            position: relative;
+            width: 100%;
+            overflow: hidden;
+            margin: 0 auto;
+        }
+        
+        .load-original-btn.loaded, #full-res-all-btn.loaded {
+            background-color: #4CAF50 !important;
+            animation: pulse 0.5s ease-in-out;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        
+        .load-original-btn.loading {
+            background-color: #2196F3 !important;
+            cursor: wait;
+        }
+    </style>
 </head>
 <body>
+    <div class="global-controls">
+        <div class="resize-group">
+            <button id="resize-all-btn">Resize All Images</button>
+            <div class="resize-inputs">
+                <label for="global-width">W:</label>
+                <input type="number" id="global-width" placeholder="W">
+                <label for="global-height">H:</label>
+                <input type="number" id="global-height" placeholder="H">
+                <label for="global-maintain-ratio">
+                    <input type="checkbox" id="global-maintain-ratio" checked>
+                    Maintain Aspect Ratio
+                </label>
+            </div>
+        </div>
+        <button id="fit-all-btn">Fit All to View</button>
+        <button id="full-res-all-btn">Full Res All</button>
+        <button id="download-all-btn">Download All</button>
+    </div>
+    
     <div id="preview-container"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Riferimenti agli elementi globali
+            const previewContainer = document.getElementById('preview-container');
+            const resizeAllBtn = document.getElementById('resize-all-btn');
+            const fitAllBtn = document.getElementById('fit-all-btn');
+            const fullResAllBtn = document.getElementById('full-res-all-btn');
+            const downloadAllBtn = document.getElementById('download-all-btn');
+            const globalWidth = document.getElementById('global-width');
+            const globalHeight = document.getElementById('global-height');
+            const globalMaintainRatio = document.getElementById('global-maintain-ratio');
+            
+            // Array per tenere traccia di tutte le immagini
+            let allImages = [];
+            
+            // Funzione per determinare il tipo di file in base all'estensione
+            function getFileType(fileName) {
+                // Decodifica l'URL per gestire caratteri speciali
+                const decodedFileName = decodeURIComponent(fileName);
+                console.log("Nome file decodificato:", decodedFileName);
+                
+                // Rimuovi eventuali parametri URL
+                let cleanFileName = decodedFileName;
+                if (cleanFileName.includes('?')) {
+                    cleanFileName = cleanFileName.split('?')[0];
+                    console.log("Nome file senza parametri:", cleanFileName);
+                }
+                
+                // Estrai l'estensione dal nome del file
+                let extension = '';
+                const lastDotIndex = cleanFileName.lastIndexOf('.');
+                if (lastDotIndex !== -1 && lastDotIndex < cleanFileName.length - 1) {
+                    extension = cleanFileName.substring(lastDotIndex + 1).toLowerCase();
+                }
+                console.log("Estensione rilevata:", extension);
+                
+                // Definisci i tipi di file in base all'estensione
+                const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'];
+                const pdfExtensions = ['pdf'];
+                const textExtensions = ['txt', 'md', 'csv', 'json', 'xml', 'html', 'css', 'js', 'log'];
+                const documentExtensions = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
+                
+                // Verifica il tipo di file in base all'estensione
+                if (imageExtensions.includes(extension)) {
+                    console.log("Tipo rilevato: immagine");
+                    return 'image';
+                } else if (pdfExtensions.includes(extension)) {
+                    console.log("Tipo rilevato: PDF");
+                    return 'pdf';
+                } else if (textExtensions.includes(extension)) {
+                    console.log("Tipo rilevato: testo");
+                    return 'text';
+                } else if (documentExtensions.includes(extension)) {
+                    console.log("Tipo rilevato: documento");
+                    return 'document';
+                } else {
+                    // Se non riusciamo a determinare il tipo di file dall'estensione,
+                    // proviamo a determinarlo dal contenuto dell'URL
+                    console.log("Estensione non riconosciuta, tentativo di determinare il tipo dal contenuto dell'URL");
+                    
+                    // Assumiamo che sia un'immagine per default (comportamento originale)
+                    console.log("Assumendo che sia un'immagine (comportamento originale)");
+                    return 'image';
+                }
+            }
+            
+            // Funzione per intercettare quando gli iframe sono caricati
+            function setupImageObserver() {
+                // Osserva quando vengono aggiunti nuovi iframe al container
+                const observer = new MutationObserver(function(mutations) {
+                    mutations.forEach(function(mutation) {
+                        if (mutation.type === 'childList') {
+                            mutation.addedNodes.forEach(function(node) {
+                                if (node.tagName === 'IFRAME') {
+                                    // Blocca il caricamento dell'iframe e sostituiscilo immediatamente
+                                    // con un placeholder per evitare che il browser carichi il file direttamente
+                                    const iframeSrc = node.src;
+                                    console.log("URL iframe originale:", iframeSrc);
+                                    
+                                    const fileId = iframeSrc.split('/').pop();
+                                    console.log("FileId estratto:", fileId);
+                                    
+                                    // Crea un placeholder per il file
+                                    const placeholder = document.createElement('div');
+                                    placeholder.className = 'file-preview-placeholder';
+                                    placeholder.dataset.fileId = fileId;
+                                    placeholder.dataset.src = iframeSrc;
+                                    
+                                    // Sostituisci l'iframe con il placeholder
+                                    previewContainer.replaceChild(placeholder, node);
+                                    
+                                    // Converti il placeholder in un'anteprima appropriata in base al tipo di file
+                                    convertToFilePreview(placeholder);
+                                }
+                            });
+                        }
+                    });
+                });
+                
+                observer.observe(previewContainer, { childList: true });
+            }
+            
+            // Funzione per convertire un placeholder in un'anteprima di file
+            function convertToFilePreview(placeholder) {
+                const fileId = placeholder.dataset.fileId;
+                const iframeSrc = placeholder.dataset.src;
+                
+                // Crea un nuovo div per l'anteprima del file
+                const filePreview = document.createElement('div');
+                filePreview.className = 'file-preview';
+                
+                // Aggiungi il nome del file (senza la parola "view") e un placeholder per la dimensione
+                const fileNameDiv = document.createElement('div');
+                fileNameDiv.className = 'file-name';
+                let displayName = decodeURIComponent(fileId);
+                // Rimuovi la parola "view" se presente nel nome del file
+                displayName = displayName.replace(/\bview\b/gi, '').trim();
+                
+                // Crea un elemento span per il nome del file
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = displayName;
+                fileNameDiv.appendChild(nameSpan);
+                
+                // Aggiungi un indicatore di caricamento temporaneo
+                const loadingIndicator = document.createElement('div');
+                loadingIndicator.className = 'loading-indicator';
+                loadingIndicator.textContent = 'Detecting file type...';
+                
+                // Sostituisci il placeholder con l'anteprima
+                previewContainer.replaceChild(filePreview, placeholder);
+                filePreview.appendChild(loadingIndicator);
+                
+                // Fai una richiesta HEAD per ottenere il tipo MIME del file
+                fetch(iframeSrc, { method: 'HEAD' })
+                    .then(response => {
+                        // Ottieni il tipo MIME dalla risposta
+                        const contentType = response.headers.get('content-type');
+                        console.log(`Tipo MIME rilevato per ${fileId}: ${contentType}`);
+                        
+                        // Determina il tipo di file in base al tipo MIME
+                        let fileType = 'other';
+                        if (contentType) {
+                            if (contentType.startsWith('image/')) {
+                                fileType = 'image';
+                            } else if (contentType === 'application/pdf') {
+                                fileType = 'pdf';
+                            } else if (contentType.startsWith('text/') || 
+                                       contentType === 'application/json' || 
+                                       contentType === 'application/xml') {
+                                fileType = 'text';
+                            } else if (contentType.startsWith('video/')) {
+                                fileType = 'video';
+                            } else if (contentType.startsWith('audio/')) {
+                                fileType = 'audio';
+                            }
+                        } else {
+                            // Se non riusciamo a determinare il tipo MIME, proviamo con l'estensione
+                            fileType = getFileType(fileId);
+                        }
+                        
+                        console.log(`Tipo di file finale per ${fileId}: ${fileType}`);
+                        
+                        // Aggiungi informazioni sul tipo di file
+                        const fileTypeSpan = document.createElement('span');
+                        fileTypeSpan.textContent = `Tipo: ${fileType.toUpperCase()}`;
+                        fileTypeSpan.style.marginLeft = '10px';
+                        fileTypeSpan.style.fontSize = '12px';
+                        fileTypeSpan.style.color = '#666';
+                        fileNameDiv.appendChild(fileTypeSpan);
+                        
+                        // Rimuovi l'indicatore di caricamento
+                        if (filePreview.contains(loadingIndicator)) {
+                            filePreview.removeChild(loadingIndicator);
+                        }
+                        
+                        // Gestisci diversi tipi di file
+                        if (fileType === 'image') {
+                            // Per le immagini, usa il comportamento esistente
+                            handleImageFile(filePreview, fileId, iframeSrc);
+                        } else if (fileType === 'pdf') {
+                            // Per i PDF, mostra un visualizzatore PDF
+                            handlePdfFile(filePreview, fileId, iframeSrc);
+                        } else if (fileType === 'text') {
+                            // Per i file di testo, mostra il contenuto testuale
+                            handleTextFile(filePreview, fileId, iframeSrc);
+                        } else if (fileType === 'video') {
+                            // Per i video, mostra un player video
+                            handleVideoFile(filePreview, fileId, iframeSrc);
+                        } else if (fileType === 'audio') {
+                            // Per l'audio, mostra un player audio
+                            handleAudioFile(filePreview, fileId, iframeSrc);
+                        } else {
+                            // Per altri tipi di file, mostra un'icona generica e opzioni di download
+                            handleGenericFile(filePreview, fileId, iframeSrc, fileType);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error detecting file type:', error);
+                        
+                        // In caso di errore, usa il comportamento predefinito (immagine)
+                        console.log(`Errore nel rilevamento del tipo di file, assumendo immagine per ${fileId}`);
+                        
+                        // Rimuovi l'indicatore di caricamento
+                        if (filePreview.contains(loadingIndicator)) {
+                            filePreview.removeChild(loadingIndicator);
+                        }
+                        
+                        // Aggiungi informazioni sul tipo di file
+                        const fileTypeSpan = document.createElement('span');
+                        fileTypeSpan.textContent = `Tipo: IMAGE`;
+                        fileTypeSpan.style.marginLeft = '10px';
+                        fileTypeSpan.style.fontSize = '12px';
+                        fileTypeSpan.style.color = '#666';
+                        fileNameDiv.appendChild(fileTypeSpan);
+                        
+                        // Usa il comportamento per le immagini
+                        handleImageFile(filePreview, fileId, iframeSrc);
+                    });
+            }
+            
+            // Funzione per gestire i file video
+            function handleVideoFile(filePreview, fileId, iframeSrc) {
+                // Aggiungi un pulsante di download
+                const actionControls = document.createElement('div');
+                actionControls.className = 'resize-controls';
+                actionControls.innerHTML = `
+                    <div class="resize-group">
+                        <button class="download-btn">Download Video</button>
+                        <span class="file-size">Size: calculating...</span>
+                    </div>
+                `;
+                filePreview.appendChild(actionControls);
+                
+                // Crea un player video
+                const videoPlayer = document.createElement('video');
+                videoPlayer.className = 'video-player';
+                videoPlayer.controls = true;
+                videoPlayer.style.width = '100%';
+                videoPlayer.style.maxHeight = '500px';
+                videoPlayer.src = iframeSrc;
+                videoPlayer.dataset.fileName = fileId;
+                videoPlayer.dataset.fileType = 'video';
+                filePreview.appendChild(videoPlayer);
+                
+                // Aggiungi l'event listener per il download
+                const downloadBtn = filePreview.querySelector('.download-btn');
+                downloadBtn.addEventListener('click', function() {
+                    const link = document.createElement('a');
+                    link.href = iframeSrc;
+                    link.download = fileId;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                });
+                
+                // Stima la dimensione del file
+                fetch(iframeSrc, { method: 'HEAD' })
+                    .then(response => {
+                        const contentLength = response.headers.get('content-length');
+                        if (contentLength) {
+                            const sizeSpan = filePreview.querySelector('.file-size');
+                            if (sizeSpan) {
+                                sizeSpan.textContent = `Size: ${formatFileSize(parseInt(contentLength))}`;
+                            }
+                        }
+                    })
+                    .catch(error => console.error('Error fetching file size:', error));
+            }
+            
+            // Funzione per gestire i file audio
+            function handleAudioFile(filePreview, fileId, iframeSrc) {
+                // Aggiungi un pulsante di download
+                const actionControls = document.createElement('div');
+                actionControls.className = 'resize-controls';
+                actionControls.innerHTML = `
+                    <div class="resize-group">
+                        <button class="download-btn">Download Audio</button>
+                        <span class="file-size">Size: calculating...</span>
+                    </div>
+                `;
+                filePreview.appendChild(actionControls);
+                
+                // Crea un player audio
+                const audioPlayer = document.createElement('audio');
+                audioPlayer.className = 'audio-player';
+                audioPlayer.controls = true;
+                audioPlayer.style.width = '100%';
+                audioPlayer.src = iframeSrc;
+                audioPlayer.dataset.fileName = fileId;
+                audioPlayer.dataset.fileType = 'audio';
+                filePreview.appendChild(audioPlayer);
+                
+                // Aggiungi l'event listener per il download
+                const downloadBtn = filePreview.querySelector('.download-btn');
+                downloadBtn.addEventListener('click', function() {
+                    const link = document.createElement('a');
+                    link.href = iframeSrc;
+                    link.download = fileId;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                });
+                
+                // Stima la dimensione del file
+                fetch(iframeSrc, { method: 'HEAD' })
+                    .then(response => {
+                        const contentLength = response.headers.get('content-length');
+                        if (contentLength) {
+                            const sizeSpan = filePreview.querySelector('.file-size');
+                            if (sizeSpan) {
+                                sizeSpan.textContent = `Size: ${formatFileSize(parseInt(contentLength))}`;
+                            }
+                        }
+                    })
+                    .catch(error => console.error('Error fetching file size:', error));
+            }
+            
+            // Funzione per gestire i file immagine
+            function handleImageFile(filePreview, fileId, iframeSrc) {
+                // Aggiungi i controlli di ridimensionamento
+                const resizeControls = document.createElement('div');
+                resizeControls.className = 'resize-controls';
+                
+                // Crea i controlli di ridimensionamento
+                resizeControls.innerHTML = `
+                    <div class="resize-group">
+                        <label for="width-${fileId}">W:</label>
+                        <input type="number" id="width-${fileId}" placeholder="W" value="800">
+                        <label for="height-${fileId}">H:</label>
+                        <input type="number" id="height-${fileId}" placeholder="H" value="600">
+                        <label for="maintain-ratio-${fileId}">
+                            <input type="checkbox" id="maintain-ratio-${fileId}" checked>
+                            Maintain Aspect Ratio
+                        </label>
+                    </div>
+                    <div class="resize-group">
+                        <button class="resize-btn">Resize</button>
+                        <button class="fit-btn">Fit to View</button>
+                        <button class="load-original-btn">Full Res</button>
+                        <button class="download-btn">Download</button>
+                        <span class="file-size">Size: calculating...</span>
+                    </div>
+                `;
+                
+                filePreview.appendChild(resizeControls);
+                
+                // Crea un contenitore per l'immagine
+                const imageContainer = document.createElement('div');
+                imageContainer.className = 'image-container';
+                filePreview.appendChild(imageContainer);
+                
+                // Crea l'elemento immagine con classe loading
+                const img = document.createElement('img');
+                img.className = 'loading';
+                img.dataset.fileName = fileId;
+                img.dataset.originalSrcUrl = iframeSrc;
+                img.dataset.fileType = 'image';
+                imageContainer.appendChild(img);
+                
+                // Aggiungi un indicatore di caricamento
+                const loadingIndicator = document.createElement('div');
+                loadingIndicator.className = 'loading-indicator';
+                loadingIndicator.textContent = 'Loading thumbnail...';
+                filePreview.appendChild(loadingIndicator);
+                
+                // Carica una thumbnail reale ma molto piccola
+                loadThumbnail(iframeSrc, function(thumbnailSrc, thumbnailWidth, thumbnailHeight) {
+                    // Imposta la thumbnail come src dell'immagine
+                    img.src = thumbnailSrc;
+                    img.dataset.thumbnailSrc = thumbnailSrc;
+                    // Assicurati che l'URL originale sia salvato per il caricamento successivo
+                    img.dataset.originalSrcUrl = iframeSrc;
+                    img.classList.remove('loading');
+                    
+                    // Rimuovi l'indicatore di caricamento
+                    if (filePreview.contains(loadingIndicator)) {
+                        filePreview.removeChild(loadingIndicator);
+                    }
+                    
+                    // Imposta i valori di larghezza e altezza basati sulla thumbnail
+                    const widthInput = filePreview.querySelector(`#width-${fileId}`);
+                    const heightInput = filePreview.querySelector(`#height-${fileId}`);
+                    
+                    // Se abbiamo ottenuto dimensioni dalla thumbnail, usale
+                    if (thumbnailWidth && thumbnailHeight) {
+                        widthInput.value = thumbnailWidth;
+                        heightInput.value = thumbnailHeight;
+                        
+                        // Salva le dimensioni come attributi data
+                        img.dataset.originalWidth = thumbnailWidth;
+                        img.dataset.originalHeight = thumbnailHeight;
+                    } else {
+                        // Altrimenti usa valori predefiniti
+                        widthInput.value = 800;
+                        heightInput.value = 600;
+                        
+                        // Salva le dimensioni predefinite come attributi data
+                        img.dataset.originalWidth = 800;
+                        img.dataset.originalHeight = 600;
+                    }
+                    
+                    // Aggiungi l'immagine all'array di tutte le immagini
+                    allImages.push({
+                        element: img,
+                        preview: filePreview,
+                        container: imageContainer,
+                        type: 'image'
+                    });
+                });
+                
+                // Aggiungi gli event listener per i controlli
+                setupImageControls(filePreview, img, imageContainer);
+            }
+            
+            // Funzione per gestire i file PDF
+            function handlePdfFile(filePreview, fileId, iframeSrc) {
+                // Aggiungi un pulsante di download
+                const actionControls = document.createElement('div');
+                actionControls.className = 'resize-controls';
+                actionControls.innerHTML = `
+                    <div class="resize-group">
+                        <button class="download-btn">Download PDF</button>
+                        <span class="file-size">Size: calculating...</span>
+                    </div>
+                `;
+                filePreview.appendChild(actionControls);
+                
+                // Crea un iframe per visualizzare il PDF
+                const pdfViewer = document.createElement('iframe');
+                pdfViewer.className = 'pdf-viewer';
+                pdfViewer.src = iframeSrc;
+                pdfViewer.dataset.fileName = fileId;
+                pdfViewer.dataset.fileType = 'pdf';
+                filePreview.appendChild(pdfViewer);
+                
+                // Aggiungi l'event listener per il download
+                const downloadBtn = filePreview.querySelector('.download-btn');
+                downloadBtn.addEventListener('click', function() {
+                    const link = document.createElement('a');
+                    link.href = iframeSrc;
+                    link.download = fileId;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                });
+                
+                // Stima la dimensione del file
+                fetch(iframeSrc, { method: 'HEAD' })
+                    .then(response => {
+                        const contentLength = response.headers.get('content-length');
+                        if (contentLength) {
+                            const sizeSpan = filePreview.querySelector('.file-size');
+                            if (sizeSpan) {
+                                sizeSpan.textContent = `Size: ${formatFileSize(parseInt(contentLength))}`;
+                            }
+                        }
+                    })
+                    .catch(error => console.error('Error fetching file size:', error));
+            }
+            
+            // Funzione per gestire i file di testo
+            function handleTextFile(filePreview, fileId, iframeSrc) {
+                // Aggiungi un pulsante di download
+                const actionControls = document.createElement('div');
+                actionControls.className = 'resize-controls';
+                actionControls.innerHTML = `
+                    <div class="resize-group">
+                        <button class="download-btn">Download Text</button>
+                        <span class="file-size">Size: calculating...</span>
+                    </div>
+                `;
+                filePreview.appendChild(actionControls);
+                
+                // Crea un contenitore per il testo
+                const textContainer = document.createElement('div');
+                textContainer.className = 'text-content';
+                textContainer.textContent = 'Loading text content...';
+                textContainer.dataset.fileName = fileId;
+                textContainer.dataset.fileType = 'text';
+                filePreview.appendChild(textContainer);
+                
+                // Carica il contenuto del file di testo
+                fetch(iframeSrc)
+                    .then(response => {
+                        // Aggiorna la dimensione del file
+                        const contentLength = response.headers.get('content-length');
+                        if (contentLength) {
+                            const sizeSpan = filePreview.querySelector('.file-size');
+                            if (sizeSpan) {
+                                sizeSpan.textContent = `Size: ${formatFileSize(parseInt(contentLength))}`;
+                            }
+                        }
+                        return response.text();
+                    })
+                    .then(text => {
+                        textContainer.textContent = text;
+                    })
+                    .catch(error => {
+                        console.error('Error loading text file:', error);
+                        textContainer.textContent = 'Error loading text content. Please try downloading the file instead.';
+                    });
+                
+                // Aggiungi l'event listener per il download
+                const downloadBtn = filePreview.querySelector('.download-btn');
+                downloadBtn.addEventListener('click', function() {
+                    const link = document.createElement('a');
+                    link.href = iframeSrc;
+                    link.download = fileId;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                });
+            }
+            
+            // Funzione per gestire altri tipi di file
+            function handleGenericFile(filePreview, fileId, iframeSrc, fileType) {
+                // Aggiungi un pulsante di download
+                const actionControls = document.createElement('div');
+                actionControls.className = 'resize-controls';
+                actionControls.innerHTML = `
+                    <div class="resize-group">
+                        <button class="download-btn">Download File</button>
+                        <span class="file-size">Size: calculating...</span>
+                    </div>
+                `;
+                filePreview.appendChild(actionControls);
+                
+                // Crea un'icona generica per il file
+                const fileIconContainer = document.createElement('div');
+                fileIconContainer.className = 'file-icon';
+                fileIconContainer.innerHTML = `
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z" stroke="#2196F3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M14 2V8H20" stroke="#2196F3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M12 18V12" stroke="#2196F3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M9 15H15" stroke="#2196F3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                `;
+                filePreview.appendChild(fileIconContainer);
+                
+                // Aggiungi un messaggio informativo
+                const fileMessage = document.createElement('div');
+                fileMessage.className = 'file-actions';
+                fileMessage.innerHTML = `
+                    <p>Questo tipo di file (${fileType}) non può essere visualizzato direttamente.</p>
+                    <p>Utilizza il pulsante di download per accedere al file.</p>
+                `;
+                filePreview.appendChild(fileMessage);
+                
+                // Stima la dimensione del file
+                fetch(iframeSrc, { method: 'HEAD' })
+                    .then(response => {
+                        const contentLength = response.headers.get('content-length');
+                        if (contentLength) {
+                            const sizeSpan = filePreview.querySelector('.file-size');
+                            if (sizeSpan) {
+                                sizeSpan.textContent = `Size: ${formatFileSize(parseInt(contentLength))}`;
+                            }
+                        }
+                    })
+                    .catch(error => console.error('Error fetching file size:', error));
+                
+                // Aggiungi l'event listener per il download
+                const downloadBtn = filePreview.querySelector('.download-btn');
+                downloadBtn.addEventListener('click', function() {
+                    const link = document.createElement('a');
+                    link.href = iframeSrc;
+                    link.download = fileId;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                });
+            }
+            
+            // Funzione per formattare la dimensione del file in KB, MB, ecc.
+            function formatFileSize(bytes) {
+                if (bytes === 0) return '0 Bytes';
+                
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            }
+            
+            // Funzione per stimare la dimensione del file da un'immagine
+            function estimateImageFileSize(img, quality = 0.9) {
+                // Crea un canvas con le dimensioni dell'immagine
+                const canvas = document.createElement('canvas');
+                canvas.width = img.naturalWidth || img.width;
+                canvas.height = img.naturalHeight || img.height;
+                
+                // Disegna l'immagine sul canvas
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                
+                // Ottieni i dati dell'immagine come base64
+                const dataUrl = canvas.toDataURL('image/jpeg', quality);
+                
+                // Calcola la dimensione approssimativa
+                // La stringa base64 è circa 4/3 della dimensione binaria
+                const base64Length = dataUrl.length - 'data:image/jpeg;base64,'.length;
+                const binaryLength = base64Length * 3 / 4;
+                
+                return formatFileSize(binaryLength);
+            }
+            
+            // Funzione per caricare una thumbnail a bassa risoluzione
+            function loadThumbnail(iframeSrc, callback) {
+                // Crea una nuova immagine per caricare l'anteprima
+                const thumbnailImg = new Image();
+                thumbnailImg.crossOrigin = "Anonymous"; // Abilita CORS se necessario
+                
+                thumbnailImg.onload = function() {
+                    // Aggiorna la dimensione del file
+                    const fileSize = estimateImageFileSize(thumbnailImg);
+                    const sizeSpans = document.querySelectorAll('.file-size');
+                    if (sizeSpans.length > 0) {
+                        const lastSizeSpan = sizeSpans[sizeSpans.length - 1];
+                        lastSizeSpan.textContent = `Size: ${fileSize} (estimated)`;
+                    }
+                    
+                    // Crea un canvas per la thumbnail
+                    const canvas = document.createElement('canvas');
+                    
+                    // Imposta dimensioni ridotte (max 500px)
+                    const maxDimension = 500;
+                    let width = thumbnailImg.width;
+                    let height = thumbnailImg.height;
+                    
+                    if (width > height) {
+                        if (width > maxDimension) {
+                            height = Math.round((height * maxDimension) / width);
+                            width = maxDimension;
+                        }
+                    } else {
+                        if (height > maxDimension) {
+                            width = Math.round((width * maxDimension) / height);
+                            height = maxDimension;
+                        }
+                    }
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    
+                    // Disegna l'immagine ridimensionata
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(thumbnailImg, 0, 0, width, height);
+                    
+                    // Ottieni l'URL della thumbnail
+                    const thumbnailSrc = canvas.toDataURL('image/jpeg', 0.5); // Qualità media
+                    
+                    // Chiama il callback con la thumbnail e le dimensioni originali
+                    callback(thumbnailSrc, thumbnailImg.width, thumbnailImg.height);
+                };
+                
+                thumbnailImg.onerror = function() {
+                    console.error('Error loading thumbnail');
+                    // Crea un placeholder generico
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 100;
+                    canvas.height = 75;
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#f0f0f0';
+                    ctx.fillRect(0, 0, 100, 75);
+                    const genericThumbnail = canvas.toDataURL('image/png');
+                    callback(genericThumbnail, 800, 600);
+                };
+                
+                // Carica l'immagine originale per creare la thumbnail
+                thumbnailImg.src = iframeSrc;
+            }
+            
+            // Funzione per creare una versione a bassa risoluzione dell'immagine
+            function createThumbnail(imgSrc, callback) {
+                const img = new Image();
+                img.onload = function() {
+                    // Verifica se l'immagine è già abbastanza piccola
+                    if (img.width <= 100 && img.height <= 100) {
+                        // Se l'immagine è già piccola, usa l'originale
+                        callback(imgSrc);
+                        return;
+                    }
+                    
+                    // Calcola le dimensioni della thumbnail (max 100px di larghezza o altezza)
+                    const maxDimension = 100;
+                    let width = img.width;
+                    let height = img.height;
+                    
+                    if (width > height && width > maxDimension) {
+                        height = Math.floor((height / width) * maxDimension);
+                        width = maxDimension;
+                    } else if (height > maxDimension) {
+                        width = Math.floor((width / height) * maxDimension);
+                        height = maxDimension;
+                    }
+                    
+                    // Assicurati che le dimensioni siano almeno 1px
+                    width = Math.max(1, width);
+                    height = Math.max(1, height);
+                    
+                    // Crea un canvas per la thumbnail
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    
+                    // Disegna l'immagine ridimensionata sul canvas
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Usa un algoritmo di ridimensionamento a bassa qualità per velocizzare
+                    ctx.imageSmoothingQuality = 'low';
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    // Restituisci la thumbnail come data URL con qualità molto bassa
+                    callback(canvas.toDataURL('image/jpeg', 0.2)); // Qualità molto ridotta per velocizzare
+                };
+                img.src = imgSrc;
+            }
+            
+            
+            // Funzione per configurare i controlli di un'immagine
+            function setupImageControls(filePreview, img, imageContainer) {
+                const fileName = img.dataset.fileName;
+                const widthInput = filePreview.querySelector(`#width-${fileName}`);
+                const heightInput = filePreview.querySelector(`#height-${fileName}`);
+                const maintainRatioCheckbox = filePreview.querySelector(`#maintain-ratio-${fileName}`);
+                const resizeBtn = filePreview.querySelector('.resize-btn');
+                const fitBtn = filePreview.querySelector('.fit-btn');
+                const loadOriginalBtn = filePreview.querySelector('.load-original-btn');
+                const downloadBtn = filePreview.querySelector('.download-btn');
+                
+                // Event listener per il ridimensionamento
+                resizeBtn.addEventListener('click', function() {
+                    resizeImage(img, parseInt(widthInput.value), parseInt(heightInput.value));
+                });
+                
+                // Event listener per il fit to view
+                fitBtn.addEventListener('click', function() {
+                    fitImageToView(img, imageContainer, widthInput, heightInput);
+                });
+                
+                // Event listener per caricare l'immagine originale
+                loadOriginalBtn.addEventListener('click', function() {
+                    loadOriginalImage(img, imageContainer);
+                });
+                
+                // Event listener per il download
+                downloadBtn.addEventListener('click', function() {
+                    downloadImage(img);
+                });
+                
+                // Event listener per mantenere le proporzioni
+                widthInput.addEventListener('input', function() {
+                    if (maintainRatioCheckbox.checked) {
+                        const originalWidth = parseInt(img.dataset.originalWidth);
+                        const originalHeight = parseInt(img.dataset.originalHeight);
+                        const ratio = originalHeight / originalWidth;
+                        
+                        const newWidth = parseInt(widthInput.value) || 0;
+                        heightInput.value = Math.round(newWidth * ratio);
+                    }
+                });
+                
+                heightInput.addEventListener('input', function() {
+                    if (maintainRatioCheckbox.checked) {
+                        const originalWidth = parseInt(img.dataset.originalWidth);
+                        const originalHeight = parseInt(img.dataset.originalHeight);
+                        const ratio = originalWidth / originalHeight;
+                        
+                        const newHeight = parseInt(heightInput.value) || 0;
+                        widthInput.value = Math.round(newHeight * ratio);
+                    }
+                });
+            }
+            
+            // Funzione per adattare l'immagine alla vista
+            function fitImageToView(img, container, widthInput, heightInput) {
+                // Aggiungi classe loading e indicatore di caricamento
+                img.classList.add('loading');
+                
+                const loadingIndicator = document.createElement('div');
+                loadingIndicator.className = 'loading-indicator';
+                loadingIndicator.textContent = 'Fitting to view...';
+                container.appendChild(loadingIndicator);
+                
+                // Ottieni le dimensioni del contenitore
+                const containerWidth = container.clientWidth;
+                
+                // Carica l'immagine originale per ottenere le dimensioni corrette
+                const originalImg = new Image();
+                originalImg.onload = function() {
+                    // Calcola le nuove dimensioni mantenendo le proporzioni
+                    const originalWidth = originalImg.width;
+                    const originalHeight = originalImg.height;
+                    const ratio = originalHeight / originalWidth;
+                    
+                    // Calcola la nuova larghezza e altezza
+                    const newWidth = containerWidth;
+                    const newHeight = Math.round(newWidth * ratio);
+                    
+                    // Aggiorna i campi di input
+                    widthInput.value = newWidth;
+                    heightInput.value = newHeight;
+                    
+                    // Ridimensiona l'immagine
+                    resizeImage(img, newWidth, newHeight, loadingIndicator);
+                };
+                // Usa l'immagine originale se disponibile, altrimenti usa l'immagine corrente
+                if (img.dataset.originalSrc) {
+                    originalImg.src = img.dataset.originalSrc;
+                } else {
+                    originalImg.src = img.src;
+                }
+            }
+            
+            // Funzione per ridimensionare un'immagine
+            function resizeImage(img, width, height, existingIndicator) {
+                // Aggiungi classe loading e indicatore di caricamento se non esiste già
+                img.classList.add('loading');
+                
+                let loadingIndicator = existingIndicator;
+                if (!loadingIndicator) {
+                    loadingIndicator = document.createElement('div');
+                    loadingIndicator.className = 'loading-indicator';
+                    loadingIndicator.textContent = 'Resizing...';
+                    img.parentNode.appendChild(loadingIndicator);
+                }
+                
+                // Crea un canvas per il ridimensionamento
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                
+                // Disegna l'immagine ridimensionata sul canvas
+                const ctx = canvas.getContext('2d');
+                
+                // Carica l'immagine per il ridimensionamento
+                const originalImg = new Image();
+                originalImg.onload = function() {
+                    ctx.drawImage(originalImg, 0, 0, width, height);
+                    
+                    // Crea una nuova immagine per il caricamento asincrono
+                    const newImg = new Image();
+                    newImg.onload = function() {
+                        // Aggiorna l'immagine con la versione ridimensionata
+                        img.src = newImg.src;
+                        img.classList.remove('loading');
+                        
+                        // Rimuovi l'indicatore di caricamento
+                        if (loadingIndicator.parentNode && loadingIndicator.parentNode.contains(loadingIndicator)) {
+                            loadingIndicator.parentNode.removeChild(loadingIndicator);
+                        }
+                    };
+                    newImg.src = canvas.toDataURL('image/jpeg');
+                };
+                
+                // Usa l'immagine originale se disponibile, altrimenti usa l'immagine corrente
+                if (img.dataset.originalSrc) {
+                    originalImg.src = img.dataset.originalSrc;
+                } else {
+                    originalImg.src = img.src;
+                }
+            }
+            
+            // Funzione per caricare l'immagine originale con XMLHttpRequest per mostrare il progresso
+            function loadOriginalImage(img, container) {
+                // Verifica se l'immagine originale è già stata caricata
+                if (img.dataset.originalSrc) {
+                    console.log('Original image already loaded, using cached version');
+                    return;
+                }
+                
+                // Mostra solo l'indicatore di caricamento senza sfocare l'immagine
+                const loadingIndicator = document.createElement('div');
+                loadingIndicator.className = 'loading-indicator';
+                loadingIndicator.textContent = 'Loading original image... 0%';
+                container.appendChild(loadingIndicator);
+                
+                // Aggiorna lo stato del pulsante durante il caricamento
+                const loadOriginalBtn = img.parentNode.parentNode.querySelector('.load-original-btn');
+                if (loadOriginalBtn) {
+                    loadOriginalBtn.textContent = 'Loading...';
+                    loadOriginalBtn.disabled = true;
+                    loadOriginalBtn.classList.add('loading');
+                }
+                
+                // Usa XMLHttpRequest per monitorare il progresso del caricamento
+                const xhr = new XMLHttpRequest();
+                xhr.open('GET', img.dataset.originalSrcUrl + '?quality=100', true);
+                xhr.responseType = 'blob';
+                
+                // Monitora il progresso del caricamento
+                xhr.onprogress = function(event) {
+                    if (event.lengthComputable) {
+                        const percentComplete = Math.round((event.loaded / event.total) * 100);
+                        loadingIndicator.textContent = `Loading original image... ${percentComplete}%`;
+                        
+                        // Aggiorna anche la dimensione del file
+                        const fileSize = formatFileSize(event.total);
+                        const sizeSpan = img.parentNode.parentNode.querySelector('.file-size');
+                        if (sizeSpan) {
+                            sizeSpan.textContent = `Size: ${fileSize}`;
+                        }
+                    }
+                };
+                
+                xhr.onload = function() {
+                    if (xhr.status === 200) {
+                        // Ottieni il blob dalla risposta
+                        const blob = xhr.response;
+                        
+                        // Usa FileReader per convertire il blob in un data URL
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            const dataUrl = e.target.result;
+                            
+                            // Crea una nuova immagine per ottenere le dimensioni
+                            const originalImg = new Image();
+                            originalImg.onload = function() {
+                                console.log('Original image loaded successfully');
+                                
+                                // Quando l'immagine originale è caricata, aggiorna l'src
+                                img.src = dataUrl;
+                                img.dataset.originalSrc = dataUrl; // Salva l'immagine originale per usi futuri
+                                img.classList.remove('loading');
+                                
+                                // Aggiorna le dimensioni originali
+                                img.dataset.originalWidth = originalImg.width;
+                                img.dataset.originalHeight = originalImg.height;
+                                
+                                // Aggiorna i campi di input
+                                const fileName = img.dataset.fileName;
+                                const widthInput = container.parentNode.querySelector(`#width-${fileName}`);
+                                const heightInput = container.parentNode.querySelector(`#height-${fileName}`);
+                                
+                                if (widthInput && heightInput) {
+                                    widthInput.value = originalImg.width;
+                                    heightInput.value = originalImg.height;
+                                }
+                                
+                                // Rimuovi l'indicatore di caricamento
+                                if (container.contains(loadingIndicator)) {
+                                    container.removeChild(loadingIndicator);
+                                }
+                                
+                                // Ripristina lo stato del pulsante
+                                if (loadOriginalBtn) {
+                                    loadOriginalBtn.textContent = 'Full Res';
+                                    loadOriginalBtn.disabled = false;
+                                    loadOriginalBtn.classList.remove('loading');
+                                    loadOriginalBtn.classList.add('loaded');
+                                    setTimeout(() => {
+                                        loadOriginalBtn.classList.remove('loaded');
+                                    }, 2000);
+                                }
+                                
+                                // Debug: verifica che l'immagine sia stata effettivamente aggiornata
+                                console.log('Image updated with data URL');
+                            };
+                            
+                            originalImg.onerror = function(e) {
+                                console.error('Error loading original image:', e);
+                                handleLoadError();
+                            };
+                            
+                            // Imposta l'src dell'immagine originale
+                            originalImg.src = dataUrl;
+                        };
+                        
+                        reader.onerror = function() {
+                            console.error('Error reading blob');
+                            handleLoadError();
+                        };
+                        
+                        // Leggi il blob come data URL
+                        reader.readAsDataURL(blob);
+                    } else {
+                        handleLoadError();
+                    }
+                };
+                
+                xhr.onerror = handleLoadError;
+                
+                function handleLoadError() {
+                    console.error('Error loading original image');
+                    
+                    // Gestione dell'errore
+                    img.classList.remove('loading');
+                    loadingIndicator.textContent = 'Error loading original image';
+                    
+                    // Ripristina lo stato del pulsante in caso di errore
+                    if (loadOriginalBtn) {
+                        loadOriginalBtn.textContent = 'Retry';
+                        loadOriginalBtn.disabled = false;
+                        loadOriginalBtn.classList.remove('loading');
+                    }
+                    
+                    // Rimuovi l'indicatore di caricamento dopo 3 secondi
+                    setTimeout(() => {
+                        if (container.contains(loadingIndicator)) {
+                            container.removeChild(loadingIndicator);
+                        }
+                    }, 3000);
+                }
+                
+                // Invia la richiesta
+                xhr.send();
+            }
+            
+            // Funzione per ripristinare un'immagine alle dimensioni originali
+            function resetImage(img, widthInput, heightInput) {
+                // Se l'immagine originale è stata caricata, usa quella
+                if (img.dataset.originalSrc) {
+                    img.src = img.dataset.originalSrc;
+                } else {
+                    // Altrimenti usa la thumbnail
+                    img.src = img.dataset.thumbnailSrc;
+                }
+                
+                widthInput.value = img.dataset.originalWidth;
+                heightInput.value = img.dataset.originalHeight;
+            }
+            
+            // Funzione per scaricare un'immagine
+            function downloadImage(img) {
+                // Crea un link per il download
+                const link = document.createElement('a');
+                link.href = img.src;
+                link.download = img.dataset.fileName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+            
+            // Event listener per il pulsante "Resize All"
+            resizeAllBtn.addEventListener('click', function() {
+                const width = parseInt(globalWidth.value);
+                const height = parseInt(globalHeight.value);
+                
+                if (!width && !height) {
+                    alert('Please enter at least one dimension (width or height)');
+                    return;
+                }
+                
+                allImages.forEach(function(imageObj) {
+                    const img = imageObj.element;
+                    const preview = imageObj.preview;
+                    const fileName = img.dataset.fileName;
+                    
+                    let newWidth = width;
+                    let newHeight = height;
+                    
+                    // Se è selezionato "Maintain Aspect Ratio" e sono specificate entrambe le dimensioni
+                    if (globalMaintainRatio.checked) {
+                        const originalWidth = parseInt(img.dataset.originalWidth);
+                        const originalHeight = parseInt(img.dataset.originalHeight);
+                        const ratio = originalHeight / originalWidth;
+                        
+                        if (width && !height) {
+                            newHeight = Math.round(width * ratio);
+                        } else if (!width && height) {
+                            newWidth = Math.round(height / ratio);
+                        }
+                    }
+                    
+                    // Aggiorna i campi di input dell'immagine
+                    const widthInput = preview.querySelector(`#width-${fileName}`);
+                    const heightInput = preview.querySelector(`#height-${fileName}`);
+                    
+                    if (widthInput && heightInput) {
+                        widthInput.value = newWidth;
+                        heightInput.value = newHeight;
+                    }
+                    
+                    // Ridimensiona l'immagine
+                    resizeImage(img, newWidth, newHeight);
+                });
+            });
+            
+            // Event listener per il pulsante "Fit All to View"
+            fitAllBtn.addEventListener('click', function() {
+                allImages.forEach(function(imageObj) {
+                    const img = imageObj.element;
+                    const preview = imageObj.preview;
+                    const container = imageObj.container;
+                    const fileName = img.dataset.fileName;
+                    
+                    const widthInput = preview.querySelector(`#width-${fileName}`);
+                    const heightInput = preview.querySelector(`#height-${fileName}`);
+                    
+                    if (widthInput && heightInput) {
+                        fitImageToView(img, container, widthInput, heightInput);
+                    }
+                });
+            });
+            
+            // Event listener per il pulsante "Download All"
+            downloadAllBtn.addEventListener('click', function() {
+                allImages.forEach(function(imageObj) {
+                    downloadImage(imageObj.element);
+                });
+            });
+            
+            // Event listener per il pulsante "Full Res All"
+            fullResAllBtn.addEventListener('click', function() {
+                // Mostra un indicatore di caricamento globale
+                const globalLoadingIndicator = document.createElement('div');
+                globalLoadingIndicator.className = 'loading-indicator';
+                globalLoadingIndicator.textContent = 'Loading all images in full resolution...';
+                globalLoadingIndicator.style.zIndex = '1000'; // Assicurati che sia sopra tutto
+                document.body.appendChild(globalLoadingIndicator);
+                
+                // Conta quante immagini devono essere caricate
+                let imagesToLoad = allImages.length;
+                let imagesLoaded = 0;
+                
+                // Funzione da chiamare quando un'immagine è stata caricata
+                const onImageLoaded = function() {
+                    imagesLoaded++;
+                    
+                    // Aggiorna il testo dell'indicatore di caricamento
+                    globalLoadingIndicator.textContent = `Loading all images in full resolution... (${imagesLoaded}/${imagesToLoad})`;
+                    
+                    // Se tutte le immagini sono state caricate, rimuovi l'indicatore
+                    if (imagesLoaded === imagesToLoad) {
+                        if (document.body.contains(globalLoadingIndicator)) {
+                            document.body.removeChild(globalLoadingIndicator);
+                        }
+                        
+                        // Cambia lo stile del pulsante per indicare che è stato completato
+                        fullResAllBtn.classList.add('loaded');
+                        setTimeout(() => {
+                            fullResAllBtn.classList.remove('loaded');
+                        }, 2000);
+                    }
+                };
+                
+                // Carica tutte le immagini in alta risoluzione
+                allImages.forEach(function(imageObj) {
+                    const img = imageObj.element;
+                    const container = imageObj.container;
+                    
+                    // Se l'immagine originale è già stata caricata, incrementa il contatore
+                    if (img.dataset.originalSrc) {
+                        onImageLoaded();
+                        return;
+                    }
+                    
+                    // Usa XMLHttpRequest per caricare l'immagine originale
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('GET', img.dataset.originalSrcUrl + '?quality=100', true);
+                    xhr.responseType = 'blob';
+                    
+                    // Monitora il progresso del caricamento
+                    xhr.onprogress = function(event) {
+                        if (event.lengthComputable) {
+                            const percentComplete = Math.round((event.loaded / event.total) * 100);
+                            globalLoadingIndicator.textContent = `Loading all images in full resolution... (${imagesLoaded}/${imagesToLoad}) - ${percentComplete}% for current image`;
+                            
+                            // Aggiorna anche la dimensione del file
+                            const fileSize = formatFileSize(event.total);
+                            const sizeSpan = img.parentNode.parentNode.querySelector('.file-size');
+                            if (sizeSpan) {
+                                sizeSpan.textContent = `Size: ${fileSize}`;
+                            }
+                        }
+                    };
+                    
+                    xhr.onload = function() {
+                        if (xhr.status === 200) {
+                            // Ottieni il blob dalla risposta
+                            const blob = xhr.response;
+                            
+                            // Usa FileReader per convertire il blob in un data URL
+                            const reader = new FileReader();
+                            reader.onload = function(e) {
+                                const dataUrl = e.target.result;
+                                
+                                // Crea una nuova immagine per ottenere le dimensioni
+                                const originalImg = new Image();
+                                originalImg.onload = function() {
+                                    // Quando l'immagine originale è caricata, aggiorna l'src
+                                    img.src = dataUrl;
+                                    img.dataset.originalSrc = dataUrl; // Salva l'immagine originale per usi futuri
+                                    
+                                    // Aggiorna le dimensioni originali
+                                    img.dataset.originalWidth = originalImg.width;
+                                    img.dataset.originalHeight = originalImg.height;
+                                    
+                                    // Aggiorna i campi di input
+                                    const fileName = img.dataset.fileName;
+                                    const widthInput = container.parentNode.querySelector(`#width-${fileName}`);
+                                    const heightInput = container.parentNode.querySelector(`#height-${fileName}`);
+                                    
+                                    if (widthInput && heightInput) {
+                                        widthInput.value = originalImg.width;
+                                        heightInput.value = originalImg.height;
+                                    }
+                                    
+                                    // Aggiorna lo stato del pulsante
+                                    const loadOriginalBtn = img.parentNode.parentNode.querySelector('.load-original-btn');
+                                    if (loadOriginalBtn) {
+                                        loadOriginalBtn.textContent = 'Full Res';
+                                        loadOriginalBtn.classList.add('loaded');
+                                        setTimeout(() => {
+                                            loadOriginalBtn.classList.remove('loaded');
+                                        }, 2000);
+                                    }
+                                    
+                                    // Incrementa il contatore delle immagini caricate
+                                    onImageLoaded();
+                                };
+                                
+                                originalImg.onerror = function() {
+                                    console.error('Error loading original image:', img.dataset.fileName);
+                                    onImageLoaded();
+                                };
+                                
+                                // Imposta l'src dell'immagine originale
+                                originalImg.src = dataUrl;
+                            };
+                            
+                            reader.onerror = function() {
+                                console.error('Error reading blob');
+                                onImageLoaded();
+                            };
+                            
+                            // Leggi il blob come data URL
+                            reader.readAsDataURL(blob);
+                        } else {
+                            console.error('Error loading original image:', img.dataset.fileName);
+                            onImageLoaded();
+                        }
+                    };
+                    
+                    xhr.onerror = function() {
+                        console.error('Error requesting original image:', img.dataset.fileName);
+                        onImageLoaded();
+                    };
+                    
+                    // Invia la richiesta
+                    xhr.send();
+                });
+            });
+            
+            // Funzione per caricare direttamente le immagini di test (disabilitata)
+            function loadTestImages() {
+                console.log('Test images loading function disabled');
+                // No test images are loaded automatically
+            }
+            
+            // Inizializza solo l'osservatore senza caricare immagini di test
+            setupImageObserver();
+        });
+    </script>
 </body>
 </html>

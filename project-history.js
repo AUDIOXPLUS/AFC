@@ -55,6 +55,7 @@ document.addEventListener('DOMContentLoaded', function() {
         window.dispatchEvent(new CustomEvent('phasesLoaded', { detail: phases }));
         window.teamMembers = teamMembers;
         window.currentUserId = currentUser.id;
+        window.currentUserName = currentUser.name; // Salva il nome dell'utente corrente
 
         // Inizializza il filtraggio
         enableFiltering();
@@ -212,7 +213,22 @@ window.displayProjectHistory = function(history) {
         row.setAttribute('data-entry-id', entry.id);
 
         // Inserisce le celle della tabella con i dati della cronologia
-        row.insertCell(0).textContent = entry.date;
+        const dateCell = row.insertCell(0);
+        dateCell.textContent = entry.date;
+        
+        // Aggiungi il nome dell'utente che ha creato il record come tooltip
+        if (entry.created_by_name) {
+            dateCell.title = `Created by: ${entry.created_by_name}`;
+            dateCell.style.position = 'relative';
+            
+            // Aggiungi un'icona utente accanto alla data
+            const userIcon = document.createElement('i');
+            userIcon.className = 'fas fa-user';
+            userIcon.style.fontSize = '10px';
+            userIcon.style.marginLeft = '5px';
+            userIcon.style.color = '#666';
+            dateCell.appendChild(userIcon);
+        }
         
         // Trova il nome della fase corrispondente
         const phaseCell = row.insertCell(1);
@@ -233,6 +249,9 @@ window.displayProjectHistory = function(history) {
         
         // Crea una cella per la descrizione
         const descCell = row.insertCell(2);
+        
+        // Imposta l'attributo title con la descrizione completa per il tooltip
+        descCell.setAttribute('title', entry.description);
         
         // Funzione per convertire URL in link cliccabili
         const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -690,21 +709,32 @@ fileItem.appendChild(deleteBtn);
         });
         actionsCell.appendChild(privacyBtn);
 
+        // Crea i pulsanti Edit e Delete
         const editBtn = document.createElement('button');
         editBtn.className = 'edit-btn';
         editBtn.textContent = 'Edit';
         editBtn.addEventListener('click', () => window.editHistoryEntry(entry.id));
-        actionsCell.appendChild(editBtn);
-
+        
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'delete-btn';
         deleteBtn.textContent = 'Delete';
         deleteBtn.addEventListener('click', () => window.confirmDelete(entry.id));
-        actionsCell.appendChild(deleteBtn);
+        
+        // Controlla se mostrare i pulsanti Edit e Delete
+        // Sono visibili solo al proprietario del record, all'utente GOD, o a tutti se il record non ha un proprietario
+        const isGodUser = window.currentUserName === 'GOD'; // Verifica se l'utente corrente è GOD
+        const isOwner = entry.created_by && String(entry.created_by) === String(window.currentUserId); // Verifica se l'utente corrente è il proprietario
+        const hasNoOwner = !entry.created_by; // Verifica se il record non ha un proprietario
+        
+        if (isGodUser || isOwner || hasNoOwner) {
+            actionsCell.appendChild(editBtn);
+            actionsCell.appendChild(deleteBtn);
+        }
 
+        // Pulsante Reply
         const setCompletedBtn = document.createElement('button');
         setCompletedBtn.className = 'set-completed-btn';
-        setCompletedBtn.textContent = 'Completed';
+        setCompletedBtn.textContent = 'Reply';
         setCompletedBtn.addEventListener('click', async () => {
             // Mantiene l'ID della fase quando si imposta come completato
             const updatedEntry = {
@@ -728,6 +758,179 @@ fileItem.appendChild(deleteBtn);
                     // Aggiorna subito la cronologia
                     await window.fetchProjectHistory(projectId);
                     window.updatePhaseSummary();
+                    
+                    // Dopo aver impostato il record come completato, crea un nuovo record
+                    // Ottieni il proprietario del record padre
+                    const parentOwner = entry.created_by || window.currentUserId;
+                    
+                    // Crea un nuovo record nella cronologia
+                    const tableBody = document.getElementById('history-table').getElementsByTagName('tbody')[0];
+                    const newRow = tableBody.insertRow(0);
+
+                    const fields = ['date', 'phase', 'description', 'assigned_to', 'status'];
+                    fields.forEach((field, index) => {
+                        const cell = newRow.insertCell(index);
+                        if (field === 'assigned_to') {
+                            const select = document.createElement('select');
+                            window.teamMembers.forEach(member => {
+                                const option = document.createElement('option');
+                                option.value = member.name;
+                                option.textContent = member.name;
+                                // Seleziona l'utente proprietario del record padre
+                                if (String(member.id) === String(parentOwner)) {
+                                    option.selected = true;
+                                }
+                                select.appendChild(option);
+                            });
+                            cell.appendChild(select);
+                        } else if (field === 'date') {
+                            const input = document.createElement('input');
+                            input.type = 'date';
+                            input.name = field;
+                            input.style.backgroundColor = '#ffff99';
+                            // Imposta automaticamente la data odierna
+                            const today = new Date();
+                            const year = today.getFullYear();
+                            const month = String(today.getMonth() + 1).padStart(2, '0');
+                            const day = String(today.getDate()).padStart(2, '0');
+                            input.value = `${year}-${month}-${day}`;
+                            cell.appendChild(input);
+                        } else if (field === 'description') {
+                            const textarea = document.createElement('textarea');
+                            textarea.name = field;
+                            textarea.style.backgroundColor = '#ffff99';
+                            textarea.style.width = '100%';
+                            textarea.style.minHeight = '100px';
+                            textarea.style.resize = 'vertical';
+                            
+                            // Gestione del drag and drop dei file
+                            textarea.addEventListener('dragover', function(e) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                this.style.backgroundColor = '#e6ffe6'; // Feedback visivo
+                            });
+                            
+                            textarea.addEventListener('dragleave', function(e) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                this.style.backgroundColor = '#ffff99'; // Ripristina colore originale
+                            });
+                            
+                            textarea.addEventListener('drop', async function(e) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                this.style.backgroundColor = '#ffff99'; // Ripristina colore originale
+                                
+                                const files = e.dataTransfer.files;
+                                if (files.length > 0) {
+                                    const fileInput = newRow.cells[5].querySelector('input[type="file"]');
+                                    if (fileInput && !fileInput.disabled) {
+                                        // Crea un nuovo FileList con i file trascinati
+                                        const dataTransfer = new DataTransfer();
+                                        for (let i = 0; i < files.length; i++) {
+                                            dataTransfer.items.add(files[i]);
+                                        }
+                                        fileInput.files = dataTransfer.files;
+                                        
+                                        // Simula l'evento change per attivare l'upload
+                                        const event = new Event('change', { bubbles: true });
+                                        fileInput.dispatchEvent(event);
+                                    }
+                                }
+                            });
+                            
+                            // Attiva il campo description per l'input utente
+                            setTimeout(() => {
+                                textarea.focus();
+                            }, 100);
+                            
+                            cell.appendChild(textarea);
+                        } else if (field === 'phase') {
+                            const select = document.createElement('select');
+                            select.style.backgroundColor = '#ffff99';
+                            // Usa la stessa fase del record padre
+                            if (window.projectPhases) {
+                                window.projectPhases.forEach(phase => {
+                                    const option = document.createElement('option');
+                                    option.value = phase.id;
+                                    option.textContent = phase.name;
+                                    if (String(phase.id) === String(entry.phase)) {
+                                        option.selected = true;
+                                    }
+                                    select.appendChild(option);
+                                });
+                            } else {
+                                // Se le fasi non sono ancora state caricate, aggiungi un listener per l'evento phasesLoaded
+                                window.addEventListener('phasesLoaded', (event) => {
+                                    const phases = event.detail;
+                                    phases.forEach(phase => {
+                                        const option = document.createElement('option');
+                                        option.value = phase.id;
+                                        option.textContent = phase.name;
+                                        if (String(phase.id) === String(entry.phase)) {
+                                            option.selected = true;
+                                        }
+                                        select.appendChild(option);
+                                    });
+                                });
+                            }
+                            cell.appendChild(select);
+                        } else if (field === 'status') {
+                            const select = document.createElement('select');
+                            select.style.backgroundColor = '#ffff99';
+                            ['In Progress', 'Completed', 'On Hold', 'Archived'].forEach(status => {
+                                const option = document.createElement('option');
+                                option.value = status;
+                                option.textContent = status;
+                                // Imposta lo stato predefinito a "In Progress"
+                                if (status === 'In Progress') {
+                                    option.selected = true;
+                                }
+                                select.appendChild(option);
+                            });
+                            cell.appendChild(select);
+                        } else {
+                            const input = document.createElement('input');
+                            input.type = 'text';
+                            input.name = field;
+                            input.style.backgroundColor = '#ffff99';
+                            cell.appendChild(input);
+                        }
+                    });
+
+                    // Cella per i file
+                    const filesCell = newRow.insertCell(5);
+                    const uploadContainer = document.createElement('div');
+                    uploadContainer.className = 'file-upload-container';
+                    
+                    const fileInput = document.createElement('input');
+                    fileInput.type = 'file';
+                    fileInput.name = 'files';
+                    fileInput.multiple = true;
+                    fileInput.disabled = true;
+                    
+                    const uploadNote = document.createElement('span');
+                    uploadNote.className = 'upload-note';
+                    uploadNote.textContent = 'Save entry first to upload files';
+                    
+                    uploadContainer.appendChild(fileInput);
+                    uploadContainer.appendChild(uploadNote);
+                    filesCell.appendChild(uploadContainer);
+
+                    const actionsCell = newRow.insertCell(6);
+                    const privacyBtn = document.createElement('button');
+                    privacyBtn.className = 'privacy-btn text-dark';
+                    const privacyIcon = document.createElement('i');
+                    privacyIcon.className = 'fas fa-unlock';
+                    privacyBtn.appendChild(privacyIcon);
+                    privacyBtn.disabled = true; // Disabilitato finché non viene salvata la voce
+                    actionsCell.appendChild(privacyBtn);
+
+                    const saveBtn = document.createElement('button');
+                    saveBtn.textContent = 'Save';
+                    saveBtn.addEventListener('click', () => window.saveNewHistoryEntry(projectId, newRow));
+                    actionsCell.appendChild(saveBtn);
+                    
                     // Gestisce la risposta in background
                     window.handleResponse(response).catch(error => {
                         console.error('Errore nel processare la risposta:', error);
@@ -740,6 +943,244 @@ fileItem.appendChild(deleteBtn);
             }
         });
         actionsCell.appendChild(setCompletedBtn);
+        
+        // Pulsante Forward
+        const forwardBtn = document.createElement('button');
+        forwardBtn.className = 'set-completed-btn';
+        forwardBtn.textContent = 'Forward';
+        forwardBtn.addEventListener('click', async () => {
+            // Mantiene l'ID della fase quando si imposta come completato
+            const updatedEntry = {
+                date: entry.date,
+                phase: entry.phase, // Mantiene l'ID della fase originale
+                description: entry.description,
+                assignedTo: entry.assigned_to,
+                status: 'Completed'
+            };
+
+            try {
+                const response = await fetch(`/api/projects/${projectId}/history/${entry.id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(updatedEntry),
+                });
+
+                if (response.ok) {
+                    // Aggiorna subito la cronologia
+                    await window.fetchProjectHistory(projectId);
+                    window.updatePhaseSummary();
+                    
+                    // Crea un nuovo record nella cronologia
+                    const tableBody = document.getElementById('history-table').getElementsByTagName('tbody')[0];
+                    const newRow = tableBody.insertRow(0);
+
+                    const fields = ['date', 'phase', 'description', 'assigned_to', 'status'];
+                    fields.forEach((field, index) => {
+                        const cell = newRow.insertCell(index);
+                        if (field === 'assigned_to') {
+                            const select = document.createElement('select');
+                            // Lascia il campo vuoto per permettere all'utente di selezionare a chi fare il forward
+                            select.style.backgroundColor = '#ffff99';
+                            select.style.border = '2px solid #ff9900'; // Evidenzia il campo per attirare l'attenzione
+                            
+                            // Aggiungi un'opzione vuota all'inizio
+                            const emptyOption = document.createElement('option');
+                            emptyOption.value = '';
+                            emptyOption.textContent = '-- Select User --';
+                            emptyOption.selected = true;
+                            select.appendChild(emptyOption);
+                            
+                            window.teamMembers.forEach(member => {
+                                const option = document.createElement('option');
+                                option.value = member.name;
+                                option.textContent = member.name;
+                                select.appendChild(option);
+                            });
+                            
+                            // Aggiungi un messaggio di aiuto
+                            const helpText = document.createElement('div');
+                            helpText.textContent = 'Please select a user';
+                            helpText.style.fontSize = '12px';
+                            helpText.style.color = '#ff9900';
+                            
+                            const container = document.createElement('div');
+                            container.appendChild(select);
+                            container.appendChild(helpText);
+                            cell.appendChild(container);
+                            
+                            // Focus sul campo dopo un breve ritardo
+                            setTimeout(() => {
+                                select.focus();
+                            }, 200);
+                        } else if (field === 'date') {
+                            const input = document.createElement('input');
+                            input.type = 'date';
+                            input.name = field;
+                            input.style.backgroundColor = '#ffff99';
+                            // Imposta automaticamente la data odierna
+                            const today = new Date();
+                            const year = today.getFullYear();
+                            const month = String(today.getMonth() + 1).padStart(2, '0');
+                            const day = String(today.getDate()).padStart(2, '0');
+                            input.value = `${year}-${month}-${day}`;
+                            cell.appendChild(input);
+                        } else if (field === 'description') {
+                            const textarea = document.createElement('textarea');
+                            textarea.name = field;
+                            textarea.style.backgroundColor = '#ffff99';
+                            textarea.style.width = '100%';
+                            textarea.style.minHeight = '100px';
+                            textarea.style.resize = 'vertical';
+                            
+                            // Copia la descrizione dall'entry originale
+                            textarea.value = entry.description;
+                            
+                            // Gestione del drag and drop dei file
+                            textarea.addEventListener('dragover', function(e) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                this.style.backgroundColor = '#e6ffe6'; // Feedback visivo
+                            });
+                            
+                            textarea.addEventListener('dragleave', function(e) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                this.style.backgroundColor = '#ffff99'; // Ripristina colore originale
+                            });
+                            
+                            textarea.addEventListener('drop', async function(e) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                this.style.backgroundColor = '#ffff99'; // Ripristina colore originale
+                                
+                                const files = e.dataTransfer.files;
+                                if (files.length > 0) {
+                                    const fileInput = newRow.cells[5].querySelector('input[type="file"]');
+                                    if (fileInput && !fileInput.disabled) {
+                                        // Crea un nuovo FileList con i file trascinati
+                                        const dataTransfer = new DataTransfer();
+                                        for (let i = 0; i < files.length; i++) {
+                                            dataTransfer.items.add(files[i]);
+                                        }
+                                        fileInput.files = dataTransfer.files;
+                                        
+                                        // Simula l'evento change per attivare l'upload
+                                        const event = new Event('change', { bubbles: true });
+                                        fileInput.dispatchEvent(event);
+                                    }
+                                }
+                            });
+                            
+                            cell.appendChild(textarea);
+                        } else if (field === 'phase') {
+                            const select = document.createElement('select');
+                            select.style.backgroundColor = '#ffff99';
+                            // Usa la stessa fase del record padre
+                            if (window.projectPhases) {
+                                window.projectPhases.forEach(phase => {
+                                    const option = document.createElement('option');
+                                    option.value = phase.id;
+                                    option.textContent = phase.name;
+                                    if (String(phase.id) === String(entry.phase)) {
+                                        option.selected = true;
+                                    }
+                                    select.appendChild(option);
+                                });
+                            } else {
+                                // Se le fasi non sono ancora state caricate, aggiungi un listener per l'evento phasesLoaded
+                                window.addEventListener('phasesLoaded', (event) => {
+                                    const phases = event.detail;
+                                    phases.forEach(phase => {
+                                        const option = document.createElement('option');
+                                        option.value = phase.id;
+                                        option.textContent = phase.name;
+                                        if (String(phase.id) === String(entry.phase)) {
+                                            option.selected = true;
+                                        }
+                                        select.appendChild(option);
+                                    });
+                                });
+                            }
+                            cell.appendChild(select);
+                        } else if (field === 'status') {
+                            const select = document.createElement('select');
+                            select.style.backgroundColor = '#ffff99';
+                            ['In Progress', 'Completed', 'On Hold', 'Archived'].forEach(status => {
+                                const option = document.createElement('option');
+                                option.value = status;
+                                option.textContent = status;
+                                // Imposta lo stato predefinito a "In Progress"
+                                if (status === 'In Progress') {
+                                    option.selected = true;
+                                }
+                                select.appendChild(option);
+                            });
+                            cell.appendChild(select);
+                        } else {
+                            const input = document.createElement('input');
+                            input.type = 'text';
+                            input.name = field;
+                            input.style.backgroundColor = '#ffff99';
+                            cell.appendChild(input);
+                        }
+                    });
+
+                    // Cella per i file
+                    const filesCell = newRow.insertCell(5);
+                    const uploadContainer = document.createElement('div');
+                    uploadContainer.className = 'file-upload-container';
+                    
+                    const fileInput = document.createElement('input');
+                    fileInput.type = 'file';
+                    fileInput.name = 'files';
+                    fileInput.multiple = true;
+                    fileInput.disabled = true;
+                    
+                    const uploadNote = document.createElement('span');
+                    uploadNote.className = 'upload-note';
+                    uploadNote.textContent = 'Save entry first to upload files';
+                    
+                    uploadContainer.appendChild(fileInput);
+                    uploadContainer.appendChild(uploadNote);
+                    filesCell.appendChild(uploadContainer);
+
+                    const actionsCell = newRow.insertCell(6);
+                    const privacyBtn = document.createElement('button');
+                    privacyBtn.className = 'privacy-btn text-dark';
+                    const privacyIcon = document.createElement('i');
+                    privacyIcon.className = 'fas fa-unlock';
+                    privacyBtn.appendChild(privacyIcon);
+                    privacyBtn.disabled = true; // Disabilitato finché non viene salvata la voce
+                    actionsCell.appendChild(privacyBtn);
+
+                    const saveBtn = document.createElement('button');
+                    saveBtn.textContent = 'Save';
+                    saveBtn.addEventListener('click', () => {
+                        // Verifica che sia stato selezionato un utente
+                        const assignedToSelect = newRow.cells[3].querySelector('select');
+                        if (assignedToSelect && assignedToSelect.value === '') {
+                            alert('Please select a user to forward to');
+                            assignedToSelect.focus();
+                            return;
+                        }
+                        window.saveNewHistoryEntry(projectId, newRow);
+                    });
+                    actionsCell.appendChild(saveBtn);
+                    
+                    // Gestisce la risposta in background
+                    window.handleResponse(response).catch(error => {
+                        console.error('Errore nel processare la risposta:', error);
+                    });
+                } else {
+                    console.error('Errore nell\'aggiornare la voce della cronologia');
+                }
+            } catch (error) {
+                console.error('Errore durante l\'aggiornamento della voce della cronologia:', error);
+            }
+        });
+        actionsCell.appendChild(forwardBtn);
 
         // Imposta il colore di sfondo e la classe per i task completati
         if (entry.status === 'Completed') {

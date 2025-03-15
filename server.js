@@ -14,6 +14,21 @@ const backupManager = require('./database/backup-database');
 // Inizializza il sistema di backup
 backupManager.setupBackupDirectories();
 
+// Sincronizza i backup da OneDrive alle directory locali
+console.log('Sincronizzazione dei backup da OneDrive...');
+backupManager.syncFromOneDrive()
+    .then((result) => {
+        if (result && result.successCount > 0) {
+            console.log(`Sincronizzazione dei backup da OneDrive completata con successo: ${result.successCount} operazioni completate, ${result.errorCount} operazioni saltate`);
+        } else {
+            console.log('Nessun backup sincronizzato da OneDrive. Verifica la configurazione di rclone.');
+        }
+    })
+    .catch(error => {
+        console.error('Errore durante la sincronizzazione dei backup da OneDrive:', error);
+        console.log('Il server continuerà a funzionare normalmente. Verifica la configurazione di rclone e riprova più tardi.');
+    });
+
 // Endpoint per il backup manuale con SSE
 app.get('/backup/manual', (req, res) => {
     // Configura l'header per SSE
@@ -52,6 +67,75 @@ app.get('/backup/manual', (req, res) => {
     });
 });
 
+// Endpoint per sincronizzare i backup da OneDrive con SSE
+app.get('/backup/pull-onedrive', (req, res) => {
+    // Configura l'header per SSE
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    // Invia aggiornamento iniziale
+    res.write(`data: ${JSON.stringify({ progress: 0, status: 'Avvio sincronizzazione da OneDrive...' })}\n\n`);
+
+    // Verifica che rclone sia configurato correttamente
+    backupManager.executeRcloneCommand('rclone listremotes')
+        .then(remotes => {
+            if (!remotes.includes('afc-backup:')) {
+                throw new Error('Remote "afc-backup" non configurato in rclone');
+            }
+            
+            // Aggiornamento intermedio
+            res.write(`data: ${JSON.stringify({ progress: 20, status: 'Verifica configurazione rclone completata' })}\n\n`);
+            res.write(`data: ${JSON.stringify({ progress: 30, status: 'Sincronizzazione backup giornalieri...' })}\n\n`);
+
+            // Esegui la sincronizzazione da OneDrive
+            return backupManager.syncFromOneDrive();
+        })
+        .then((result) => {
+            // Sincronizzazione completata con successo
+            if (result && result.successCount > 0) {
+                res.write(`data: ${JSON.stringify({ 
+                    progress: 100, 
+                    status: `Sincronizzazione da OneDrive completata con successo! ${result.successCount} operazioni completate, ${result.errorCount} operazioni saltate`,
+                    success: true 
+                })}\n\n`);
+            } else {
+                res.write(`data: ${JSON.stringify({ 
+                    progress: 100, 
+                    status: 'Nessun backup sincronizzato da OneDrive. Verifica che esistano backup su OneDrive.',
+                    success: true 
+                })}\n\n`);
+            }
+            res.end();
+        })
+        .catch(error => {
+            // Errore durante la sincronizzazione
+            console.error('Errore durante la sincronizzazione da OneDrive:', error);
+            
+            // Personalizza il messaggio di errore in base al tipo di errore
+            let errorMessage = error.message;
+            if (error.message.includes('not found')) {
+                errorMessage = 'Remote "afc-backup" non trovato. Eseguire "rclone config" per configurarlo.';
+            } else if (error.message.includes('permission denied')) {
+                errorMessage = 'Permesso negato. Verifica le autorizzazioni di rclone.';
+            } else if (error.message.includes('network error') || error.message.includes('connection reset')) {
+                errorMessage = 'Errore di rete. Verifica la connessione internet e riprova più tardi.';
+            }
+            
+            res.write(`data: ${JSON.stringify({ 
+                progress: 100, 
+                status: 'Errore durante la sincronizzazione da OneDrive: ' + errorMessage,
+                success: false 
+            })}\n\n`);
+            res.end();
+        });
+
+    // Gestione della chiusura della connessione
+    req.on('close', () => {
+        res.end();
+    });
+});
+
 
 // Timer per il controllo dell'inattività
 setInterval(backupManager.checkAndConsolidate, 5 * 60 * 1000); // Controlla ogni 5 minuti
@@ -67,26 +151,6 @@ const db = new sqlite3.Database(path.join(__dirname, 'database', 'AFC.db'), (err
         console.log('Connessione al database riuscita');
     }
 });
-
-// Estendi l'oggetto database per tracciare le modifiche
-const originalRun = db.run;
-db.run = function(...args) {
-    const callback = args[args.length - 1];
-    if (typeof callback === 'function') {
-        args[args.length - 1] = function(err) {
-            if (!err) {
-                // Se la query è andata a buon fine, esegui il backup istantaneo
-                if (backupManager && typeof backupManager.performInstantBackup === 'function') {
-        backupManager.performInstantBackup();
-    } else {
-        console.error("backupManager.performInstantBackup non definita");
-    }
-            }
-            callback.apply(this, arguments);
-        };
-    }
-    return originalRun.apply(this, args);
-};
 
 // Middleware per il parsing delle richieste
 app.use(bodyParser.json());
@@ -212,21 +276,27 @@ app.get('/healthcheck', (req, res) => {
     res.status(200).send('OK');
 });
 
-app.get('/api/backup-history', (req, res) => {
-    const backupTypes = ['daily', 'weekly', 'monthly', 'yearly'];
-    const backups = {};
-    const baseDir = path.join(__dirname, 'database', 'backups');
-    backupTypes.forEach(type => {
-        const dir = path.join(baseDir, type);
-        if (fs.existsSync(dir)) {
-            backups[type] = fs.readdirSync(dir)
-                .filter(f => f.startsWith('AFC.db.backup-'))
-                .sort();
-        } else {
-            backups[type] = [];
-        }
-    });
-    res.json(backups);
+app.get('/api/backup-history', async (req, res) => {
+    try {
+        // Restituisci la lista dei backup locali
+        const backupTypes = ['daily', 'weekly', 'monthly', 'yearly'];
+        const backups = {};
+        const baseDir = path.join(__dirname, 'database', 'backups');
+        backupTypes.forEach(type => {
+            const dir = path.join(baseDir, type);
+            if (fs.existsSync(dir)) {
+                backups[type] = fs.readdirSync(dir)
+                    .filter(f => f.startsWith('AFC.db.backup-'))
+                    .sort();
+            } else {
+                backups[type] = [];
+            }
+        });
+        res.json(backups);
+    } catch (error) {
+        console.error('Errore durante il recupero dei backup:', error);
+        res.status(500).json({ error: 'Errore durante il recupero dei backup' });
+    }
 });
 
 // Endpoint per ottenere gli utenti connessi

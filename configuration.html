@@ -71,11 +71,23 @@
             <section class="backup-history-section">
                 <h2>Backup History</h2>
                 <div class="backup-container">
-                    <div class="backup-actions">
-                        <div class="backup-control">
+                <div class="backup-actions">
+                    <div class="backup-control">
+                        <div class="button-group">
                             <button id="backupNowBtn" class="primary-btn">
                                 <i class="fas fa-database"></i> Backup Now
                             </button>
+                            <button id="pullOneDriveBtn" class="secondary-btn">
+                                <i class="fas fa-cloud-download-alt"></i> Pull OneDrive Backup
+                            </button>
+                        </div>
+                        <div class="backup-settings">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="enableBackupsToggle" checked>
+                                <span class="toggle-slider"></span>
+                                <span class="toggle-label">Abilita backup automatici</span>
+                            </label>
+                        </div>
                             <div id="backupProgress" class="backup-progress" style="display: none;">
                                 <div class="progress-bar">
                                     <div class="progress-fill"></div>
@@ -249,6 +261,37 @@
             font-size: 14px;
         }
         
+        .secondary-btn {
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background-color 0.3s;
+        }
+        
+        .secondary-btn:hover {
+            background-color: #5a6268;
+        }
+        
+        .secondary-btn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .secondary-btn i {
+            font-size: 14px;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+        
         .backup-container {
             background-color: #fff;
             border-radius: 5px;
@@ -378,6 +421,123 @@
             color: #666;
             margin-top: 5px;
         }
+        
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 0;
+            border: 1px solid #888;
+            width: 500px;
+            max-width: 90%;
+            border-radius: 5px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        .modal-header {
+            padding: 15px 20px;
+            background-color: #f8d7da;
+            color: #721c24;
+            border-bottom: 1px solid #f5c6cb;
+            border-top-left-radius: 5px;
+            border-top-right-radius: 5px;
+        }
+        
+        .modal-header h3 {
+            margin: 0;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .modal-header .fa-exclamation-triangle {
+            color: #dc3545;
+        }
+        
+        .modal-body {
+            padding: 20px;
+        }
+        
+        .modal-body p {
+            margin: 0;
+            line-height: 1.5;
+        }
+        
+        .modal-footer {
+            padding: 15px 20px;
+            background-color: #f8f9fa;
+            border-top: 1px solid #dee2e6;
+            text-align: right;
+            border-bottom-left-radius: 5px;
+            border-bottom-right-radius: 5px;
+        }
+        
+        /* Stile per il toggle switch */
+        .backup-settings {
+            margin-top: 15px;
+        }
+        
+        .toggle-switch {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            cursor: pointer;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .toggle-slider {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 20px;
+            background-color: #ccc;
+            border-radius: 20px;
+            transition: .4s;
+            margin-right: 10px;
+        }
+        
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            border-radius: 50%;
+            transition: .4s;
+        }
+        
+        input:checked + .toggle-slider {
+            background-color: #007bff;
+        }
+        
+        input:checked + .toggle-slider:before {
+            transform: translateX(20px);
+        }
+        
+        .toggle-label {
+            font-size: 14px;
+            color: #333;
+        }
     </style>
     <script src="version-log.js"></script>
     <script src="utils.js"></script>
@@ -395,14 +555,59 @@
             arrow.classList.toggle('expanded');
         }
 
+        // Mostra un messaggio di avviso con un pulsante OK
+        function showWarningModal(message) {
+            // Crea il modal se non esiste già
+            let modal = document.getElementById('warningModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'warningModal';
+                modal.className = 'modal';
+                modal.innerHTML = `
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3><i class="fas fa-exclamation-triangle"></i> Warning</h3>
+                        </div>
+                        <div class="modal-body">
+                            <p id="warningMessage"></p>
+                        </div>
+                        <div class="modal-footer">
+                            <button id="modalOkBtn" class="primary-btn">OK</button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+            }
+            
+            // Imposta il messaggio
+            document.getElementById('warningMessage').textContent = message;
+            
+            // Mostra il modal
+            modal.style.display = 'block';
+            
+            // Aggiungi l'event listener per il pulsante OK
+            document.getElementById('modalOkBtn').onclick = function() {
+                modal.style.display = 'none';
+            };
+            
+            // Chiudi il modal se l'utente clicca fuori da esso
+            window.onclick = function(event) {
+                if (event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            };
+        }
+
         // Gestisce il backup manuale
         function performManualBackup() {
             const button = document.getElementById('backupNowBtn');
+            const pullButton = document.getElementById('pullOneDriveBtn');
             const progressBar = document.getElementById('backupProgress');
             const progressFill = progressBar.querySelector('.progress-fill');
             const progressStatus = progressBar.querySelector('.progress-status');
             
             button.disabled = true;
+            pullButton.disabled = true;
             progressBar.style.display = 'block';
             progressFill.style.width = '0%';
             
@@ -416,12 +621,80 @@
                 progressStatus.textContent = data.status;
                 
                 if (data.progress === 100) {
+                    console.log('Received 100% progress data:', data); // Log dei dati ricevuti
                     eventSource.close();
                     button.disabled = false;
+                    pullButton.disabled = false;
+                    
+                    if (data.success) {
+                        // Controlla se ci sono avvisi
+                        if (data.warning && data.warningMessage) {
+                            console.log('Showing warning modal:', data.warningMessage); // Log del messaggio di avviso
+                            // Mostra il messaggio di avviso
+                            showWarningModal(data.warningMessage);
+                            // Nascondi la progress bar
+                            progressBar.style.display = 'none';
+                        } else {
+                            console.log('No warnings, hiding progress bar after 3 seconds');
+                            // Nascondi la progress bar dopo 3 secondi
+                            setTimeout(() => {
+                                progressBar.style.display = 'none';
+                            }, 3000);
+                        }
+                        
+                        // Aspetta 1 secondo per dare tempo al server di completare il processo
+                        setTimeout(() => {
+                            loadBackupHistory();
+                        }, 1000);
+                    } else {
+                        console.error('Errore durante il backup:', data.status);
+                        // Nascondi la progress bar dopo 3 secondi
+                        setTimeout(() => {
+                            progressBar.style.display = 'none';
+                        }, 3000);
+                    }
+                }
+            };
+            
+            eventSource.onerror = function() {
+                eventSource.close();
+                button.disabled = false;
+                pullButton.disabled = false;
+                progressBar.style.display = 'none';
+                console.error('Errore nella connessione SSE');
+            };
+        }
+        
+        // Gestisce il pull dei backup da OneDrive
+        function pullOneDriveBackup() {
+            const button = document.getElementById('backupNowBtn');
+            const pullButton = document.getElementById('pullOneDriveBtn');
+            const progressBar = document.getElementById('backupProgress');
+            const progressFill = progressBar.querySelector('.progress-fill');
+            const progressStatus = progressBar.querySelector('.progress-status');
+            
+            button.disabled = true;
+            pullButton.disabled = true;
+            progressBar.style.display = 'block';
+            progressFill.style.width = '0%';
+            
+            const eventSource = new EventSource('/backup/pull-onedrive');
+            
+            eventSource.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                
+                // Aggiorna la progress bar
+                progressFill.style.width = `${data.progress}%`;
+                progressStatus.textContent = data.status;
+                
+                if (data.progress === 100) {
+                    eventSource.close();
                     
                     // Nascondi la progress bar dopo 3 secondi
                     setTimeout(() => {
                         progressBar.style.display = 'none';
+                        button.disabled = false;
+                        pullButton.disabled = false;
                     }, 3000);
                     
                     if (data.success) {
@@ -430,7 +703,7 @@
                             loadBackupHistory();
                         }, 1000);
                     } else {
-                        console.error('Errore durante il backup:', data.status);
+                        console.error('Errore durante la sincronizzazione da OneDrive:', data.status);
                     }
                 }
             };
@@ -438,18 +711,78 @@
             eventSource.onerror = function() {
                 eventSource.close();
                 button.disabled = false;
+                pullButton.disabled = false;
                 progressBar.style.display = 'none';
+                progressFill.style.width = '100%';
+                progressStatus.textContent = 'Errore durante la sincronizzazione da OneDrive';
                 console.error('Errore nella connessione SSE');
             };
         }
 
+        // Gestisce il toggle per abilitare/disabilitare i backup automatici
+        function toggleBackupStatus(enabled) {
+            fetch('/api/backup/settings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ enabled: enabled })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Errore nella modifica delle impostazioni di backup');
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Impostazioni di backup aggiornate:', data);
+                // Mostra un messaggio di conferma
+                const message = enabled 
+                    ? 'Backup automatici abilitati con successo' 
+                    : 'Backup automatici disabilitati con successo';
+                showWarningModal(message);
+            })
+            .catch(error => {
+                console.error('Errore:', error);
+                // Ripristina lo stato precedente del toggle in caso di errore
+                document.getElementById('enableBackupsToggle').checked = !enabled;
+                showWarningModal('Errore durante l\'aggiornamento delle impostazioni di backup: ' + error.message);
+            });
+        }
+
+        // Carica le impostazioni di backup dal server
+        function loadBackupSettings() {
+            fetch('/api/backup/settings')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Errore nel recupero delle impostazioni di backup');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Impostazioni di backup caricate:', data);
+                    // Aggiorna lo stato del toggle in base alle impostazioni
+                    document.getElementById('enableBackupsToggle').checked = data.enabled;
+                })
+                .catch(error => {
+                    console.error('Errore nel caricamento delle impostazioni di backup:', error);
+                });
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             loadBackupHistory();
+            loadBackupSettings();
             displayLoggedInUser();
             initializeNotifications(); // Inizializza le notifiche
 
-            // Aggiungi l'event listener per il pulsante di backup
+            // Aggiungi gli event listener per i pulsanti
             document.getElementById('backupNowBtn').addEventListener('click', performManualBackup);
+            document.getElementById('pullOneDriveBtn').addEventListener('click', pullOneDriveBackup);
+            
+            // Aggiungi l'event listener per il toggle switch
+            document.getElementById('enableBackupsToggle').addEventListener('change', function(e) {
+                toggleBackupStatus(e.target.checked);
+            });
         });
     </script>
 </body>

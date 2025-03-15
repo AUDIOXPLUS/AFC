@@ -27,23 +27,23 @@ try {
     console.error('Errore nell\'inizializzazione del backup manager:', error);
 }
 
-// Schedula i backup automatici
-if (backupManager) {
-    cron.schedule(onedriveConfig.backupSchedule, async () => {
-        console.log('Avvio backup automatico...');
-        try {
-            const success = await backupManager.performBackup();
-            if (success) {
-                console.log('Backup completato con successo');
-            } else {
-                console.error('Backup fallito');
-            }
-        } catch (error) {
-            console.error('Errore durante il backup:', error);
+// Configura il cron job per i backup automatici
+const { exec } = require('child_process');
+const setupBackupCronPath = path.join(__dirname, 'database', 'setup-backup-cron.js');
+
+console.log('Configurazione del cron job per i backup automatici...');
+exec(`node ${setupBackupCronPath}`, (error, stdout, stderr) => {
+    if (error) {
+        console.error('Errore durante la configurazione del cron job:', error);
+    } else {
+        console.log('Output della configurazione del cron job:');
+        console.log(stdout);
+        if (stderr) {
+            console.error('Warning durante la configurazione:', stderr);
         }
-    });
-    console.log('Backup automatico schedulato:', onedriveConfig.backupSchedule);
-}
+        console.log('Cron job per i backup automatici configurato con successo');
+    }
+});
 
 // Usa il percorso assoluto per il database
 const dbPath = path.join(__dirname, 'database', 'AFC.db');

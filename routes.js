@@ -12,7 +12,8 @@ const productKindsRouter = require('./routes/api/product-kinds');
 const teamMembersRouter = require('./routes/api/team-members');
 const tasksRouter = require('./routes/api/tasks');
 const { router: filesRouter, upload } = require('./routes/api/files');
-const { backupDatabase } = require('./database/backup-database');
+const { backupDatabase, syncToOneDrive } = require('./database/backup-database');
+const backupCron = require('./database/setup-backup-cron');
 
 // Endpoint per avviare un backup manuale
 router.post('/backup/manual', checkAuthentication, async (req, res) => {
@@ -31,15 +32,31 @@ router.post('/backup/manual', checkAuthentication, async (req, res) => {
         
         // Sincronizzazione con OneDrive
         res.write(`data: ${JSON.stringify({ progress: 60, status: 'Syncing with OneDrive...' })}\n\n`);
-        await syncToOneDrive();
+        const syncResult = await syncToOneDrive();
+        
+        console.log('Sync result:', syncResult); // Log del risultato della sincronizzazione
 
-        // Backup completato
-        res.write(`data: ${JSON.stringify({ 
-            progress: 100, 
-            status: 'Backup completed successfully', 
-            success: true,
-            path: backupPath 
-        })}\n\n`);
+        if (syncResult.success) {
+            // Backup completato con successo
+            console.log('Sending success message to client');
+            res.write(`data: ${JSON.stringify({ 
+                progress: 100, 
+                status: 'Backup completed successfully', 
+                success: true,
+                path: backupPath 
+            })}\n\n`);
+        } else {
+            // Backup completato ma sincronizzazione fallita
+            console.log('Sending warning message to client:', syncResult.error);
+            res.write(`data: ${JSON.stringify({ 
+                progress: 100, 
+                status: 'Backup completed with warnings', 
+                success: true,
+                path: backupPath,
+                warning: true,
+                warningMessage: syncResult.error
+            })}\n\n`);
+        }
         
         res.end();
     } catch (error) {
@@ -191,6 +208,34 @@ router.get('/projects/:projectId/history/:historyId/files', checkAuthentication,
         }
         res.json(files);
     });
+});
+
+// Endpoint per ottenere lo stato attuale dei backup
+router.get('/backup/settings', checkAuthentication, (req, res) => {
+    try {
+        const backupStatus = backupCron.getBackupStatus();
+        res.json({ enabled: backupStatus });
+    } catch (error) {
+        console.error('Errore durante il recupero delle impostazioni di backup:', error);
+        res.status(500).json({ error: 'Errore durante il recupero delle impostazioni di backup' });
+    }
+});
+
+// Endpoint per aggiornare lo stato dei backup
+router.post('/backup/settings', checkAuthentication, (req, res) => {
+    try {
+        const { enabled } = req.body;
+        
+        if (typeof enabled !== 'boolean') {
+            return res.status(400).json({ error: 'Il parametro "enabled" deve essere un booleano' });
+        }
+        
+        const newStatus = backupCron.setBackupStatus(enabled);
+        res.json({ enabled: newStatus });
+    } catch (error) {
+        console.error('Errore durante l\'aggiornamento delle impostazioni di backup:', error);
+        res.status(500).json({ error: 'Errore durante l\'aggiornamento delle impostazioni di backup' });
+    }
 });
 
 module.exports = router;

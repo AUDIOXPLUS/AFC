@@ -17,6 +17,7 @@ services:
     volumes:
       - ./uploads:/var/www/onlyoffice/Data
       - ./database:/usr/src/app/database
+      - /home/axp/.config/rclone:/home/node/.config/rclone
     depends_on:
       - onlyoffice-document-server
     restart: unless-stopped

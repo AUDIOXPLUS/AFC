@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const checkAuthentication = require('../middleware/auth');
+const path = require('path');
+const fs = require('fs-extra');
 
 // Endpoint per ottenere i progetti in base ai permessi
 router.get('/', checkAuthentication, async (req, res) => {
@@ -291,8 +293,10 @@ router.get('/:id/history', checkAuthentication, (req, res) => {
     const userId = req.session.user.id;
     
     // Query modificata per mostrare tutti i record pubblici E i record privati visibili all'utente corrente
+    // Include anche il nome dell'utente che ha creato il record (created_by_name)
     const query = `
-        SELECT ph.*, u.id as user_id 
+        SELECT ph.*, u.id as user_id, 
+               CASE WHEN ph.created_by_name IS NULL THEN 'Unknown' ELSE ph.created_by_name END as created_by_name
         FROM project_history ph
         LEFT JOIN users u ON ph.assigned_to = u.name
         WHERE ph.project_id = ? 
@@ -330,13 +334,15 @@ router.get('/:id/history', checkAuthentication, (req, res) => {
 router.post('/:id/history', checkAuthentication, (req, res) => {
     const projectId = req.params.id;
     const { date, phase, description, assignedTo, status } = req.body;
+    const userId = req.session.user.id;
+    const userName = req.session.user.name;
 
     console.log('Dati ricevuti per la nuova voce di cronologia:', req.body);
 
-    const query = `INSERT INTO project_history (project_id, date, phase, description, assigned_to, status) 
-                   VALUES (?, ?, ?, ?, ?, ?)`;
+    const query = `INSERT INTO project_history (project_id, date, phase, description, assigned_to, status, created_by, created_by_name) 
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
     
-    req.db.run(query, [projectId, date, phase, description, assignedTo, status], function(err) {
+    req.db.run(query, [projectId, date, phase, description, assignedTo, status, userId, userName], function(err) {
         if (err) {
             console.error('Errore nell\'inserimento della voce di cronologia:', err);
             return res.status(500).send('Errore del server');

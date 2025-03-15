@@ -119,7 +119,12 @@ router.get('/:fileId/download', checkAuthentication, (req, res) => {
 
         // Forza il download del file invece di aprirlo nel browser
         res.setHeader('Content-Type', 'application/octet-stream');
-        res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
+        
+        // Gestione corretta dei caratteri non ASCII nel nome del file
+        // Utilizziamo la codifica RFC 5987 per supportare caratteri Unicode
+        const encodedFilename = encodeURIComponent(file.filename).replace(/['()]/g, escape);
+        res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedFilename}`);
+        
         res.sendFile(filePath);
     });
 });
