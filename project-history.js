@@ -185,8 +185,21 @@ window.fetchProjectHistory = async function(projectId) {
         const response = await fetch(`/api/projects/${projectId}/history?includeUserName=true`);
         const history = await window.handleResponse(response);
         // Ordina la cronologia per data in ordine decrescente
-        history.sort((a, b) => new Date(b.date) - new Date(a.date));
-        console.log('Cronologia del Progetto:', history);
+        // Se due entry hanno la stessa data, ordina per ID in ordine decrescente
+        // per mantenere l'ordine di inserimento (gli ID più alti sono i più recenti)
+        history.sort((a, b) => {
+            const dateA = new Date(a.date);
+            const dateB = new Date(b.date);
+            
+            // Se le date sono diverse, ordina per data
+            if (dateA.getTime() !== dateB.getTime()) {
+                return dateB - dateA; // Ordine decrescente per data
+            }
+            
+            // Se le date sono uguali, ordina per ID
+            return b.id - a.id; // Ordine decrescente per ID
+        });
+        console.log('Cronologia del Progetto (ordinata per data e ID):', history);
         
         // Evidenzia l'header della colonna Date che è ordinata di default
         const table = document.getElementById('history-table');
@@ -732,453 +745,479 @@ fileItem.appendChild(deleteBtn);
         }
 
         // Pulsante Reply
-        const setCompletedBtn = document.createElement('button');
-        setCompletedBtn.className = 'set-completed-btn';
-        setCompletedBtn.textContent = 'Reply';
-        setCompletedBtn.addEventListener('click', async () => {
-            // Mantiene l'ID della fase quando si imposta come completato
-            const updatedEntry = {
-                date: entry.date,
-                phase: entry.phase, // Mantiene l'ID della fase originale
-                description: entry.description,
-                assignedTo: entry.assigned_to,
-                status: 'Completed'
-            };
+        const replyBtn = document.createElement('button');
+        replyBtn.className = 'set-completed-btn';
+        replyBtn.textContent = 'Reply';
+        replyBtn.addEventListener('click', async () => {
+            // Resetta tutti i filtri prima di procedere
+            if (window.filteringApi && typeof window.filteringApi.resetFilters === 'function') {
+                window.filteringApi.resetFilters();
+            }
+            
+            // Ottieni il proprietario del record padre
+            const parentOwner = entry.created_by || window.currentUserId;
+            const parentId = entry.id; // Salva l'ID del record padre
+            
+            // Crea un nuovo record nella cronologia
+            const tableBody = document.getElementById('history-table').getElementsByTagName('tbody')[0];
+            const newRow = tableBody.insertRow(0);
 
-            try {
-                const response = await fetch(`/api/projects/${projectId}/history/${entry.id}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(updatedEntry),
-                });
-
-                if (response.ok) {
-                    // Aggiorna subito la cronologia
-                    await window.fetchProjectHistory(projectId);
-                    window.updatePhaseSummary();
+            const fields = ['date', 'phase', 'description', 'assigned_to', 'status'];
+            fields.forEach((field, index) => {
+                const cell = newRow.insertCell(index);
+                if (field === 'assigned_to') {
+                    const select = document.createElement('select');
+                    window.teamMembers.forEach(member => {
+                        const option = document.createElement('option');
+                        option.value = member.name;
+                        option.textContent = member.name;
+                        // Seleziona l'utente proprietario del record padre
+                        if (String(member.id) === String(parentOwner)) {
+                            option.selected = true;
+                        }
+                        select.appendChild(option);
+                    });
+                    cell.appendChild(select);
+                } else if (field === 'date') {
+                    const input = document.createElement('input');
+                    input.type = 'date';
+                    input.name = field;
+                    input.style.backgroundColor = '#ffff99';
+                    // Imposta automaticamente la data odierna
+                    const today = new Date();
+                    const year = today.getFullYear();
+                    const month = String(today.getMonth() + 1).padStart(2, '0');
+                    const day = String(today.getDate()).padStart(2, '0');
+                    input.value = `${year}-${month}-${day}`;
+                    cell.appendChild(input);
+                } else if (field === 'description') {
+                    const textarea = document.createElement('textarea');
+                    textarea.name = field;
+                    textarea.style.backgroundColor = '#ffff99';
+                    textarea.style.width = '100%';
+                    textarea.style.minHeight = '100px';
+                    textarea.style.resize = 'vertical';
                     
-                    // Dopo aver impostato il record come completato, crea un nuovo record
-                    // Ottieni il proprietario del record padre
-                    const parentOwner = entry.created_by || window.currentUserId;
+                    // Gestione del drag and drop dei file
+                    textarea.addEventListener('dragover', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.style.backgroundColor = '#e6ffe6'; // Feedback visivo
+                    });
                     
-                    // Crea un nuovo record nella cronologia
-                    const tableBody = document.getElementById('history-table').getElementsByTagName('tbody')[0];
-                    const newRow = tableBody.insertRow(0);
-
-                    const fields = ['date', 'phase', 'description', 'assigned_to', 'status'];
-                    fields.forEach((field, index) => {
-                        const cell = newRow.insertCell(index);
-                        if (field === 'assigned_to') {
-                            const select = document.createElement('select');
-                            window.teamMembers.forEach(member => {
-                                const option = document.createElement('option');
-                                option.value = member.name;
-                                option.textContent = member.name;
-                                // Seleziona l'utente proprietario del record padre
-                                if (String(member.id) === String(parentOwner)) {
-                                    option.selected = true;
+                    textarea.addEventListener('dragleave', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.style.backgroundColor = '#ffff99'; // Ripristina colore originale
+                    });
+                    
+                    textarea.addEventListener('drop', async function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.style.backgroundColor = '#ffff99'; // Ripristina colore originale
+                        
+                        const files = e.dataTransfer.files;
+                        if (files.length > 0) {
+                            const fileInput = newRow.cells[5].querySelector('input[type="file"]');
+                            if (fileInput && !fileInput.disabled) {
+                                // Crea un nuovo FileList con i file trascinati
+                                const dataTransfer = new DataTransfer();
+                                for (let i = 0; i < files.length; i++) {
+                                    dataTransfer.items.add(files[i]);
                                 }
-                                select.appendChild(option);
-                            });
-                            cell.appendChild(select);
-                        } else if (field === 'date') {
-                            const input = document.createElement('input');
-                            input.type = 'date';
-                            input.name = field;
-                            input.style.backgroundColor = '#ffff99';
-                            // Imposta automaticamente la data odierna
-                            const today = new Date();
-                            const year = today.getFullYear();
-                            const month = String(today.getMonth() + 1).padStart(2, '0');
-                            const day = String(today.getDate()).padStart(2, '0');
-                            input.value = `${year}-${month}-${day}`;
-                            cell.appendChild(input);
-                        } else if (field === 'description') {
-                            const textarea = document.createElement('textarea');
-                            textarea.name = field;
-                            textarea.style.backgroundColor = '#ffff99';
-                            textarea.style.width = '100%';
-                            textarea.style.minHeight = '100px';
-                            textarea.style.resize = 'vertical';
-                            
-                            // Gestione del drag and drop dei file
-                            textarea.addEventListener('dragover', function(e) {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                this.style.backgroundColor = '#e6ffe6'; // Feedback visivo
-                            });
-                            
-                            textarea.addEventListener('dragleave', function(e) {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                this.style.backgroundColor = '#ffff99'; // Ripristina colore originale
-                            });
-                            
-                            textarea.addEventListener('drop', async function(e) {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                this.style.backgroundColor = '#ffff99'; // Ripristina colore originale
+                                fileInput.files = dataTransfer.files;
                                 
-                                const files = e.dataTransfer.files;
-                                if (files.length > 0) {
-                                    const fileInput = newRow.cells[5].querySelector('input[type="file"]');
-                                    if (fileInput && !fileInput.disabled) {
-                                        // Crea un nuovo FileList con i file trascinati
-                                        const dataTransfer = new DataTransfer();
-                                        for (let i = 0; i < files.length; i++) {
-                                            dataTransfer.items.add(files[i]);
-                                        }
-                                        fileInput.files = dataTransfer.files;
-                                        
-                                        // Simula l'evento change per attivare l'upload
-                                        const event = new Event('change', { bubbles: true });
-                                        fileInput.dispatchEvent(event);
-                                    }
-                                }
-                            });
-                            
-                            // Attiva il campo description per l'input utente
-                            setTimeout(() => {
-                                textarea.focus();
-                            }, 100);
-                            
-                            cell.appendChild(textarea);
-                        } else if (field === 'phase') {
-                            const select = document.createElement('select');
-                            select.style.backgroundColor = '#ffff99';
-                            // Usa la stessa fase del record padre
-                            if (window.projectPhases) {
-                                window.projectPhases.forEach(phase => {
-                                    const option = document.createElement('option');
-                                    option.value = phase.id;
-                                    option.textContent = phase.name;
-                                    if (String(phase.id) === String(entry.phase)) {
-                                        option.selected = true;
-                                    }
-                                    select.appendChild(option);
-                                });
-                            } else {
-                                // Se le fasi non sono ancora state caricate, aggiungi un listener per l'evento phasesLoaded
-                                window.addEventListener('phasesLoaded', (event) => {
-                                    const phases = event.detail;
-                                    phases.forEach(phase => {
-                                        const option = document.createElement('option');
-                                        option.value = phase.id;
-                                        option.textContent = phase.name;
-                                        if (String(phase.id) === String(entry.phase)) {
-                                            option.selected = true;
-                                        }
-                                        select.appendChild(option);
-                                    });
-                                });
+                                // Simula l'evento change per attivare l'upload
+                                const event = new Event('change', { bubbles: true });
+                                fileInput.dispatchEvent(event);
                             }
-                            cell.appendChild(select);
-                        } else if (field === 'status') {
-                            const select = document.createElement('select');
-                            select.style.backgroundColor = '#ffff99';
-                            ['In Progress', 'Completed', 'On Hold', 'Archived'].forEach(status => {
-                                const option = document.createElement('option');
-                                option.value = status;
-                                option.textContent = status;
-                                // Imposta lo stato predefinito a "In Progress"
-                                if (status === 'In Progress') {
-                                    option.selected = true;
-                                }
-                                select.appendChild(option);
-                            });
-                            cell.appendChild(select);
-                        } else {
-                            const input = document.createElement('input');
-                            input.type = 'text';
-                            input.name = field;
-                            input.style.backgroundColor = '#ffff99';
-                            cell.appendChild(input);
                         }
                     });
-
-                    // Cella per i file
-                    const filesCell = newRow.insertCell(5);
-                    const uploadContainer = document.createElement('div');
-                    uploadContainer.className = 'file-upload-container';
                     
-                    const fileInput = document.createElement('input');
-                    fileInput.type = 'file';
-                    fileInput.name = 'files';
-                    fileInput.multiple = true;
-                    fileInput.disabled = true;
+                    // Attiva il campo description per l'input utente
+                    setTimeout(() => {
+                        textarea.focus();
+                    }, 100);
                     
-                    const uploadNote = document.createElement('span');
-                    uploadNote.className = 'upload-note';
-                    uploadNote.textContent = 'Save entry first to upload files';
-                    
-                    uploadContainer.appendChild(fileInput);
-                    uploadContainer.appendChild(uploadNote);
-                    filesCell.appendChild(uploadContainer);
-
-                    const actionsCell = newRow.insertCell(6);
-                    const privacyBtn = document.createElement('button');
-                    privacyBtn.className = 'privacy-btn text-dark';
-                    const privacyIcon = document.createElement('i');
-                    privacyIcon.className = 'fas fa-unlock';
-                    privacyBtn.appendChild(privacyIcon);
-                    privacyBtn.disabled = true; // Disabilitato finché non viene salvata la voce
-                    actionsCell.appendChild(privacyBtn);
-
-                    const saveBtn = document.createElement('button');
-                    saveBtn.textContent = 'Save';
-                    saveBtn.addEventListener('click', () => window.saveNewHistoryEntry(projectId, newRow));
-                    actionsCell.appendChild(saveBtn);
-                    
-                    // Gestisce la risposta in background
-                    window.handleResponse(response).catch(error => {
-                        console.error('Errore nel processare la risposta:', error);
+                    cell.appendChild(textarea);
+                } else if (field === 'phase') {
+                    const select = document.createElement('select');
+                    select.style.backgroundColor = '#ffff99';
+                    // Usa la stessa fase del record padre
+                    if (window.projectPhases) {
+                        window.projectPhases.forEach(phase => {
+                            const option = document.createElement('option');
+                            option.value = phase.id;
+                            option.textContent = phase.name;
+                            if (String(phase.id) === String(entry.phase)) {
+                                option.selected = true;
+                            }
+                            select.appendChild(option);
+                        });
+                    } else {
+                        // Se le fasi non sono ancora state caricate, aggiungi un listener per l'evento phasesLoaded
+                        window.addEventListener('phasesLoaded', (event) => {
+                            const phases = event.detail;
+                            phases.forEach(phase => {
+                                const option = document.createElement('option');
+                                option.value = phase.id;
+                                option.textContent = phase.name;
+                                if (String(phase.id) === String(entry.phase)) {
+                                    option.selected = true;
+                                }
+                                select.appendChild(option);
+                            });
+                        });
+                    }
+                    cell.appendChild(select);
+                } else if (field === 'status') {
+                    const select = document.createElement('select');
+                    select.style.backgroundColor = '#ffff99';
+                    ['In Progress', 'Completed', 'On Hold', 'Archived'].forEach(status => {
+                        const option = document.createElement('option');
+                        option.value = status;
+                        option.textContent = status;
+                        // Imposta lo stato predefinito a "In Progress"
+                        if (status === 'In Progress') {
+                            option.selected = true;
+                        }
+                        select.appendChild(option);
                     });
+                    cell.appendChild(select);
                 } else {
-                    console.error('Errore nell\'aggiornare la voce della cronologia');
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.name = field;
+                    input.style.backgroundColor = '#ffff99';
+                    cell.appendChild(input);
                 }
-            } catch (error) {
-                console.error('Errore durante l\'aggiornamento della voce della cronologia:', error);
-            }
+            });
+
+            // Cella per i file
+            const filesCell = newRow.insertCell(5);
+            const uploadContainer = document.createElement('div');
+            uploadContainer.className = 'file-upload-container';
+            
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.name = 'files';
+            fileInput.multiple = true;
+            fileInput.disabled = true;
+            
+            const uploadNote = document.createElement('span');
+            uploadNote.className = 'upload-note';
+            uploadNote.textContent = 'Save entry first to upload files';
+            
+            uploadContainer.appendChild(fileInput);
+            uploadContainer.appendChild(uploadNote);
+            filesCell.appendChild(uploadContainer);
+
+            const actionsCell = newRow.insertCell(6);
+            const privacyBtn = document.createElement('button');
+            privacyBtn.className = 'privacy-btn text-dark';
+            const privacyIcon = document.createElement('i');
+            privacyIcon.className = 'fas fa-unlock';
+            privacyBtn.appendChild(privacyIcon);
+            privacyBtn.disabled = true; // Disabilitato finché non viene salvata la voce
+            actionsCell.appendChild(privacyBtn);
+
+            const saveBtn = document.createElement('button');
+            saveBtn.textContent = 'Save';
+            saveBtn.addEventListener('click', async () => {
+                // Prima salva il nuovo record
+                await window.saveNewHistoryEntry(projectId, newRow);
+                
+                // Poi imposta il record padre come completato
+                const updatedEntry = {
+                    date: entry.date,
+                    phase: entry.phase, // Mantiene l'ID della fase originale
+                    description: entry.description,
+                    assignedTo: entry.assigned_to,
+                    status: 'Completed'
+                };
+                
+                try {
+                    const response = await fetch(`/api/projects/${projectId}/history/${parentId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(updatedEntry),
+                    });
+                    
+                    if (response.ok) {
+                        // Aggiorna la cronologia
+                        await window.fetchProjectHistory(projectId);
+                        window.updatePhaseSummary();
+                    } else {
+                        console.error('Errore nell\'aggiornare il record padre');
+                    }
+                } catch (error) {
+                    console.error('Errore durante l\'aggiornamento del record padre:', error);
+                }
+            });
+            actionsCell.appendChild(saveBtn);
+            
+            // Aggiungi il pulsante Cancel
+            const cancelBtn = document.createElement('button');
+            cancelBtn.textContent = 'Cancel';
+            cancelBtn.addEventListener('click', () => {
+                // Rimuovi la riga dalla tabella
+                newRow.remove();
+            });
+            actionsCell.appendChild(cancelBtn);
         });
-        actionsCell.appendChild(setCompletedBtn);
+        actionsCell.appendChild(replyBtn);
         
         // Pulsante Forward
         const forwardBtn = document.createElement('button');
         forwardBtn.className = 'set-completed-btn';
         forwardBtn.textContent = 'Forward';
         forwardBtn.addEventListener('click', async () => {
-            // Mantiene l'ID della fase quando si imposta come completato
-            const updatedEntry = {
-                date: entry.date,
-                phase: entry.phase, // Mantiene l'ID della fase originale
-                description: entry.description,
-                assignedTo: entry.assigned_to,
-                status: 'Completed'
-            };
+            // Resetta tutti i filtri prima di procedere
+            if (window.filteringApi && typeof window.filteringApi.resetFilters === 'function') {
+                window.filteringApi.resetFilters();
+            }
+            
+            // Salva l'ID del record padre
+            const parentId = entry.id;
+            
+            // Crea un nuovo record nella cronologia
+            const tableBody = document.getElementById('history-table').getElementsByTagName('tbody')[0];
+            const newRow = tableBody.insertRow(0);
 
-            try {
-                const response = await fetch(`/api/projects/${projectId}/history/${entry.id}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(updatedEntry),
-                });
-
-                if (response.ok) {
-                    // Aggiorna subito la cronologia
-                    await window.fetchProjectHistory(projectId);
-                    window.updatePhaseSummary();
+            const fields = ['date', 'phase', 'description', 'assigned_to', 'status'];
+            fields.forEach((field, index) => {
+                const cell = newRow.insertCell(index);
+                if (field === 'assigned_to') {
+                    const select = document.createElement('select');
+                    // Lascia il campo vuoto per permettere all'utente di selezionare a chi fare il forward
+                    select.style.backgroundColor = '#ffff99';
+                    select.style.border = '2px solid #ff9900'; // Evidenzia il campo per attirare l'attenzione
                     
-                    // Crea un nuovo record nella cronologia
-                    const tableBody = document.getElementById('history-table').getElementsByTagName('tbody')[0];
-                    const newRow = tableBody.insertRow(0);
-
-                    const fields = ['date', 'phase', 'description', 'assigned_to', 'status'];
-                    fields.forEach((field, index) => {
-                        const cell = newRow.insertCell(index);
-                        if (field === 'assigned_to') {
-                            const select = document.createElement('select');
-                            // Lascia il campo vuoto per permettere all'utente di selezionare a chi fare il forward
-                            select.style.backgroundColor = '#ffff99';
-                            select.style.border = '2px solid #ff9900'; // Evidenzia il campo per attirare l'attenzione
-                            
-                            // Aggiungi un'opzione vuota all'inizio
-                            const emptyOption = document.createElement('option');
-                            emptyOption.value = '';
-                            emptyOption.textContent = '-- Select User --';
-                            emptyOption.selected = true;
-                            select.appendChild(emptyOption);
-                            
-                            window.teamMembers.forEach(member => {
-                                const option = document.createElement('option');
-                                option.value = member.name;
-                                option.textContent = member.name;
-                                select.appendChild(option);
-                            });
-                            
-                            // Aggiungi un messaggio di aiuto
-                            const helpText = document.createElement('div');
-                            helpText.textContent = 'Please select a user';
-                            helpText.style.fontSize = '12px';
-                            helpText.style.color = '#ff9900';
-                            
-                            const container = document.createElement('div');
-                            container.appendChild(select);
-                            container.appendChild(helpText);
-                            cell.appendChild(container);
-                            
-                            // Focus sul campo dopo un breve ritardo
-                            setTimeout(() => {
-                                select.focus();
-                            }, 200);
-                        } else if (field === 'date') {
-                            const input = document.createElement('input');
-                            input.type = 'date';
-                            input.name = field;
-                            input.style.backgroundColor = '#ffff99';
-                            // Imposta automaticamente la data odierna
-                            const today = new Date();
-                            const year = today.getFullYear();
-                            const month = String(today.getMonth() + 1).padStart(2, '0');
-                            const day = String(today.getDate()).padStart(2, '0');
-                            input.value = `${year}-${month}-${day}`;
-                            cell.appendChild(input);
-                        } else if (field === 'description') {
-                            const textarea = document.createElement('textarea');
-                            textarea.name = field;
-                            textarea.style.backgroundColor = '#ffff99';
-                            textarea.style.width = '100%';
-                            textarea.style.minHeight = '100px';
-                            textarea.style.resize = 'vertical';
-                            
-                            // Copia la descrizione dall'entry originale
-                            textarea.value = entry.description;
-                            
-                            // Gestione del drag and drop dei file
-                            textarea.addEventListener('dragover', function(e) {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                this.style.backgroundColor = '#e6ffe6'; // Feedback visivo
-                            });
-                            
-                            textarea.addEventListener('dragleave', function(e) {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                this.style.backgroundColor = '#ffff99'; // Ripristina colore originale
-                            });
-                            
-                            textarea.addEventListener('drop', async function(e) {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                this.style.backgroundColor = '#ffff99'; // Ripristina colore originale
-                                
-                                const files = e.dataTransfer.files;
-                                if (files.length > 0) {
-                                    const fileInput = newRow.cells[5].querySelector('input[type="file"]');
-                                    if (fileInput && !fileInput.disabled) {
-                                        // Crea un nuovo FileList con i file trascinati
-                                        const dataTransfer = new DataTransfer();
-                                        for (let i = 0; i < files.length; i++) {
-                                            dataTransfer.items.add(files[i]);
-                                        }
-                                        fileInput.files = dataTransfer.files;
-                                        
-                                        // Simula l'evento change per attivare l'upload
-                                        const event = new Event('change', { bubbles: true });
-                                        fileInput.dispatchEvent(event);
-                                    }
+                    // Aggiungi un'opzione vuota all'inizio
+                    const emptyOption = document.createElement('option');
+                    emptyOption.value = '';
+                    emptyOption.textContent = '-- Select User --';
+                    emptyOption.selected = true;
+                    select.appendChild(emptyOption);
+                    
+                    window.teamMembers.forEach(member => {
+                        const option = document.createElement('option');
+                        option.value = member.name;
+                        option.textContent = member.name;
+                        select.appendChild(option);
+                    });
+                    
+                    // Aggiungi un messaggio di aiuto
+                    const helpText = document.createElement('div');
+                    helpText.textContent = 'Please select a user';
+                    helpText.style.fontSize = '12px';
+                    helpText.style.color = '#ff9900';
+                    
+                    const container = document.createElement('div');
+                    container.appendChild(select);
+                    container.appendChild(helpText);
+                    cell.appendChild(container);
+                    
+                    // Focus sul campo dopo un breve ritardo
+                    setTimeout(() => {
+                        select.focus();
+                    }, 200);
+                } else if (field === 'date') {
+                    const input = document.createElement('input');
+                    input.type = 'date';
+                    input.name = field;
+                    input.style.backgroundColor = '#ffff99';
+                    // Imposta automaticamente la data odierna
+                    const today = new Date();
+                    const year = today.getFullYear();
+                    const month = String(today.getMonth() + 1).padStart(2, '0');
+                    const day = String(today.getDate()).padStart(2, '0');
+                    input.value = `${year}-${month}-${day}`;
+                    cell.appendChild(input);
+                } else if (field === 'description') {
+                    const textarea = document.createElement('textarea');
+                    textarea.name = field;
+                    textarea.style.backgroundColor = '#ffff99';
+                    textarea.style.width = '100%';
+                    textarea.style.minHeight = '100px';
+                    textarea.style.resize = 'vertical';
+                    
+                    // Copia la descrizione dall'entry originale
+                    textarea.value = entry.description;
+                    
+                    // Gestione del drag and drop dei file
+                    textarea.addEventListener('dragover', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.style.backgroundColor = '#e6ffe6'; // Feedback visivo
+                    });
+                    
+                    textarea.addEventListener('dragleave', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.style.backgroundColor = '#ffff99'; // Ripristina colore originale
+                    });
+                    
+                    textarea.addEventListener('drop', async function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.style.backgroundColor = '#ffff99'; // Ripristina colore originale
+                        
+                        const files = e.dataTransfer.files;
+                        if (files.length > 0) {
+                            const fileInput = newRow.cells[5].querySelector('input[type="file"]');
+                            if (fileInput && !fileInput.disabled) {
+                                // Crea un nuovo FileList con i file trascinati
+                                const dataTransfer = new DataTransfer();
+                                for (let i = 0; i < files.length; i++) {
+                                    dataTransfer.items.add(files[i]);
                                 }
-                            });
-                            
-                            cell.appendChild(textarea);
-                        } else if (field === 'phase') {
-                            const select = document.createElement('select');
-                            select.style.backgroundColor = '#ffff99';
-                            // Usa la stessa fase del record padre
-                            if (window.projectPhases) {
-                                window.projectPhases.forEach(phase => {
-                                    const option = document.createElement('option');
-                                    option.value = phase.id;
-                                    option.textContent = phase.name;
-                                    if (String(phase.id) === String(entry.phase)) {
-                                        option.selected = true;
-                                    }
-                                    select.appendChild(option);
-                                });
-                            } else {
-                                // Se le fasi non sono ancora state caricate, aggiungi un listener per l'evento phasesLoaded
-                                window.addEventListener('phasesLoaded', (event) => {
-                                    const phases = event.detail;
-                                    phases.forEach(phase => {
-                                        const option = document.createElement('option');
-                                        option.value = phase.id;
-                                        option.textContent = phase.name;
-                                        if (String(phase.id) === String(entry.phase)) {
-                                            option.selected = true;
-                                        }
-                                        select.appendChild(option);
-                                    });
-                                });
+                                fileInput.files = dataTransfer.files;
+                                
+                                // Simula l'evento change per attivare l'upload
+                                const event = new Event('change', { bubbles: true });
+                                fileInput.dispatchEvent(event);
                             }
-                            cell.appendChild(select);
-                        } else if (field === 'status') {
-                            const select = document.createElement('select');
-                            select.style.backgroundColor = '#ffff99';
-                            ['In Progress', 'Completed', 'On Hold', 'Archived'].forEach(status => {
+                        }
+                    });
+                    
+                    cell.appendChild(textarea);
+                } else if (field === 'phase') {
+                    const select = document.createElement('select');
+                    select.style.backgroundColor = '#ffff99';
+                    // Usa la stessa fase del record padre
+                    if (window.projectPhases) {
+                        window.projectPhases.forEach(phase => {
+                            const option = document.createElement('option');
+                            option.value = phase.id;
+                            option.textContent = phase.name;
+                            if (String(phase.id) === String(entry.phase)) {
+                                option.selected = true;
+                            }
+                            select.appendChild(option);
+                        });
+                    } else {
+                        // Se le fasi non sono ancora state caricate, aggiungi un listener per l'evento phasesLoaded
+                        window.addEventListener('phasesLoaded', (event) => {
+                            const phases = event.detail;
+                            phases.forEach(phase => {
                                 const option = document.createElement('option');
-                                option.value = status;
-                                option.textContent = status;
-                                // Imposta lo stato predefinito a "In Progress"
-                                if (status === 'In Progress') {
+                                option.value = phase.id;
+                                option.textContent = phase.name;
+                                if (String(phase.id) === String(entry.phase)) {
                                     option.selected = true;
                                 }
                                 select.appendChild(option);
                             });
-                            cell.appendChild(select);
-                        } else {
-                            const input = document.createElement('input');
-                            input.type = 'text';
-                            input.name = field;
-                            input.style.backgroundColor = '#ffff99';
-                            cell.appendChild(input);
+                        });
+                    }
+                    cell.appendChild(select);
+                } else if (field === 'status') {
+                    const select = document.createElement('select');
+                    select.style.backgroundColor = '#ffff99';
+                    ['In Progress', 'Completed', 'On Hold', 'Archived'].forEach(status => {
+                        const option = document.createElement('option');
+                        option.value = status;
+                        option.textContent = status;
+                        // Imposta lo stato predefinito a "In Progress"
+                        if (status === 'In Progress') {
+                            option.selected = true;
                         }
+                        select.appendChild(option);
                     });
-
-                    // Cella per i file
-                    const filesCell = newRow.insertCell(5);
-                    const uploadContainer = document.createElement('div');
-                    uploadContainer.className = 'file-upload-container';
-                    
-                    const fileInput = document.createElement('input');
-                    fileInput.type = 'file';
-                    fileInput.name = 'files';
-                    fileInput.multiple = true;
-                    fileInput.disabled = true;
-                    
-                    const uploadNote = document.createElement('span');
-                    uploadNote.className = 'upload-note';
-                    uploadNote.textContent = 'Save entry first to upload files';
-                    
-                    uploadContainer.appendChild(fileInput);
-                    uploadContainer.appendChild(uploadNote);
-                    filesCell.appendChild(uploadContainer);
-
-                    const actionsCell = newRow.insertCell(6);
-                    const privacyBtn = document.createElement('button');
-                    privacyBtn.className = 'privacy-btn text-dark';
-                    const privacyIcon = document.createElement('i');
-                    privacyIcon.className = 'fas fa-unlock';
-                    privacyBtn.appendChild(privacyIcon);
-                    privacyBtn.disabled = true; // Disabilitato finché non viene salvata la voce
-                    actionsCell.appendChild(privacyBtn);
-
-                    const saveBtn = document.createElement('button');
-                    saveBtn.textContent = 'Save';
-                    saveBtn.addEventListener('click', () => {
-                        // Verifica che sia stato selezionato un utente
-                        const assignedToSelect = newRow.cells[3].querySelector('select');
-                        if (assignedToSelect && assignedToSelect.value === '') {
-                            alert('Please select a user to forward to');
-                            assignedToSelect.focus();
-                            return;
-                        }
-                        window.saveNewHistoryEntry(projectId, newRow);
-                    });
-                    actionsCell.appendChild(saveBtn);
-                    
-                    // Gestisce la risposta in background
-                    window.handleResponse(response).catch(error => {
-                        console.error('Errore nel processare la risposta:', error);
-                    });
+                    cell.appendChild(select);
                 } else {
-                    console.error('Errore nell\'aggiornare la voce della cronologia');
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.name = field;
+                    input.style.backgroundColor = '#ffff99';
+                    cell.appendChild(input);
                 }
-            } catch (error) {
-                console.error('Errore durante l\'aggiornamento della voce della cronologia:', error);
-            }
+            });
+
+            // Cella per i file
+            const filesCell = newRow.insertCell(5);
+            const uploadContainer = document.createElement('div');
+            uploadContainer.className = 'file-upload-container';
+            
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.name = 'files';
+            fileInput.multiple = true;
+            fileInput.disabled = true;
+            
+            const uploadNote = document.createElement('span');
+            uploadNote.className = 'upload-note';
+            uploadNote.textContent = 'Save entry first to upload files';
+            
+            uploadContainer.appendChild(fileInput);
+            uploadContainer.appendChild(uploadNote);
+            filesCell.appendChild(uploadContainer);
+
+            const actionsCell = newRow.insertCell(6);
+            const privacyBtn = document.createElement('button');
+            privacyBtn.className = 'privacy-btn text-dark';
+            const privacyIcon = document.createElement('i');
+            privacyIcon.className = 'fas fa-unlock';
+            privacyBtn.appendChild(privacyIcon);
+            privacyBtn.disabled = true; // Disabilitato finché non viene salvata la voce
+            actionsCell.appendChild(privacyBtn);
+
+            const saveBtn = document.createElement('button');
+            saveBtn.textContent = 'Save';
+            saveBtn.addEventListener('click', async () => {
+                // Verifica che sia stato selezionato un utente
+                const assignedToSelect = newRow.cells[3].querySelector('select');
+                if (assignedToSelect && assignedToSelect.value === '') {
+                    alert('Please select a user to forward to');
+                    assignedToSelect.focus();
+                    return;
+                }
+                
+                // Prima salva il nuovo record
+                await window.saveNewHistoryEntry(projectId, newRow);
+                
+                // Poi imposta il record padre come completato
+                const updatedEntry = {
+                    date: entry.date,
+                    phase: entry.phase, // Mantiene l'ID della fase originale
+                    description: entry.description,
+                    assignedTo: entry.assigned_to,
+                    status: 'Completed'
+                };
+                
+                try {
+                    const response = await fetch(`/api/projects/${projectId}/history/${parentId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(updatedEntry),
+                    });
+                    
+                    if (response.ok) {
+                        // Aggiorna la cronologia
+                        await window.fetchProjectHistory(projectId);
+                        window.updatePhaseSummary();
+                    } else {
+                        console.error('Errore nell\'aggiornare il record padre');
+                    }
+                } catch (error) {
+                    console.error('Errore durante l\'aggiornamento del record padre:', error);
+                }
+            });
+            actionsCell.appendChild(saveBtn);
+            
+            // Aggiungi il pulsante Cancel
+            const cancelBtn = document.createElement('button');
+            cancelBtn.textContent = 'Cancel';
+            cancelBtn.addEventListener('click', () => {
+                // Rimuovi la riga dalla tabella
+                newRow.remove();
+            });
+            actionsCell.appendChild(cancelBtn);
         });
         actionsCell.appendChild(forwardBtn);
 
@@ -1776,6 +1815,15 @@ window.addHistoryEntry = function(projectId) {
     saveBtn.textContent = 'Save';
     saveBtn.addEventListener('click', () => window.saveNewHistoryEntry(projectId, newRow));
     actionsCell.appendChild(saveBtn);
+    
+    // Aggiungi il pulsante Cancel
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', () => {
+        // Rimuovi la riga dalla tabella
+        newRow.remove();
+    });
+    actionsCell.appendChild(cancelBtn);
 };
 
 /**
@@ -1950,6 +1998,16 @@ window.editHistoryEntry = function(entryId) {
 
         const actionsCell = cells[6];
         actionsCell.innerHTML = '';
+        
+        // Salva i dati originali per poterli ripristinare in caso di annullamento
+        const originalData = {
+            date: historyData.date,
+            phase: historyData.phase,
+            description: historyData.description,
+            assigned_to: historyData.assigned_to,
+            status: historyData.status
+        };
+        
         const saveBtn = document.createElement('button');
         saveBtn.textContent = 'Save';
         saveBtn.addEventListener('click', async function() {
@@ -1985,7 +2043,22 @@ window.editHistoryEntry = function(entryId) {
                 console.error('Errore durante l\'aggiornamento della voce della cronologia:', error);
             }
         });
+        
+        // Aggiungi il pulsante Cancel
+        const cancelBtn = document.createElement('button');
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.addEventListener('click', function() {
+            // Resetta tutti i filtri prima di procedere
+            if (window.filteringApi && typeof window.filteringApi.resetFilters === 'function') {
+                window.filteringApi.resetFilters();
+            }
+            
+            // Aggiorna la cronologia per ripristinare lo stato originale
+            window.fetchProjectHistory(projectId);
+        });
+        
         actionsCell.appendChild(saveBtn);
+        actionsCell.appendChild(cancelBtn);
     } else {
         console.error('Row non trovata per entryId:', entryId);
     }

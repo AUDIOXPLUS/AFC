@@ -314,6 +314,145 @@ nav ul li a:hover, nav ul li a.active {
     z-index: 1;
 }
 
+/* Stile per i conteggi nel riquadro dei filtri */
+#groupings {
+    display: flex;
+    margin-left: auto;
+    margin-bottom: 5px;
+    padding: 5px 8px;
+    background-color: #f5f5f5;
+    border-radius: 3px;
+    border: 1px solid #ddd;
+}
+
+.priority-toggle {
+    display: flex;
+    align-items: center;
+    font-size: 12px;
+    color: #333;
+    cursor: pointer;
+    margin-right: 15px;
+    padding-right: 15px;
+    border-right: 1px solid #ddd;
+}
+
+.priority-toggle input[type="checkbox"] {
+    margin-right: 5px;
+    cursor: pointer;
+    accent-color: #3498db;
+}
+
+.toggle-label {
+    font-weight: 500;
+}
+
+#groupings .group-container {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+#groupings span {
+    font-size: 12px;
+    color: #333;
+    font-weight: 500;
+}
+
+#groupings .group-label {
+    cursor: pointer;
+    padding: 3px 6px;
+    border-radius: 3px;
+    transition: background-color 0.2s;
+}
+
+#groupings .group-label:hover {
+    background-color: #e0e0e0;
+}
+
+#groupings .group-label.selected {
+    background-color: #3498db;
+    color: white;
+}
+
+#groupings .group-label.selected span {
+    color: white;
+}
+
+/* Stili per la tendina dei dettagli del gruppo */
+.group-details-dropdown {
+    background-color: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    padding: 10px;
+    width: auto;
+    z-index: 1000;
+    white-space: nowrap;
+}
+
+.group-details-title {
+    font-weight: bold;
+    color: #2c3e50;
+    font-size: 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #eee;
+    margin-bottom: 8px;
+}
+
+.group-members-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.group-members-list li {
+    padding: 5px 0;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+}
+
+.group-members-list li:not(:last-child) {
+    border-bottom: 1px solid #f5f5f5;
+}
+
+.member-name {
+    font-weight: 500;
+    color: #333;
+}
+
+.clickable-member {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.clickable-member:hover {
+    background-color: #f0f8ff;
+}
+
+.task-count {
+    font-weight: bold;
+    color: #3498db;
+    margin-left: 5px;
+}
+
+#groupings span span {
+    font-weight: bold;
+    color: #3498db;
+}
+
+/* Stile per il gruppo con il maggior numero di task (collo di bottiglia) */
+#groupings .group-label.bottleneck {
+    animation: bottleneck-pulse 2s infinite;
+}
+
+@keyframes bottleneck-pulse {
+    0% { background-color: transparent; }
+    50% { background-color: rgba(231, 76, 60, 0.3); }
+    100% { background-color: transparent; }
+}
+
 /* Animazione pulsante per nuovi task */
 @keyframes highlight-pulse {
     0% { background-color: transparent; }
@@ -1019,4 +1158,20 @@ table select:hover {
     padding: 5px 15px 15px 15px; /* Ridotto ulteriormente il padding superiore da 8px a 5px */
     border-radius: 5px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.history-header {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start; /* Align heading and button to the left */
+    flex-wrap: nowrap;
+    gap: 10px; /* Space between heading and button */
+}
+.history-header h1 {
+    margin: 0;
+    white-space: nowrap;
+    font-size: 20px;
+    color: #2c3e50;
+    display: inline-block;
+    vertical-align: middle;
 }

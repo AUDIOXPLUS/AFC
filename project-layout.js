@@ -157,8 +157,30 @@ window.enableColumnSorting = function() {
             rows.sort((a, b) => {
                 const aText = a.cells[columnIndex].textContent.trim();
                 const bText = b.cells[columnIndex].textContent.trim();
+                
+                // Per la colonna Date (index 0), utilizziamo un ordinamento speciale
+                if (columnIndex === 0) {
+                    // Prima confronta le date
+                    const dateA = new Date(aText);
+                    const dateB = new Date(bText);
+                    
+                    // Se le date sono diverse, ordina per data
+                    if (dateA.getTime() !== dateB.getTime()) {
+                        return isAscending ? dateA - dateB : dateB - dateA;
+                    }
+                    
+                    // Se le date sono uguali, ordina per ID (mantenendo l'ordine originale)
+                    const idA = parseInt(a.getAttribute('data-entry-id'));
+                    const idB = parseInt(b.getAttribute('data-entry-id'));
+                    
+                    // Ordine decrescente per ID (i più recenti prima) se le date sono uguali
+                    return isAscending ? idA - idB : idB - idA;
+                }
+                
+                // Per le altre colonne, utilizziamo il confronto lessicografico standard
                 return isAscending ? aText.localeCompare(bText) : bText.localeCompare(aText);
             });
+            
             sortDirection[columnIndex] = !isAscending;
             rows.forEach(row => table.getElementsByTagName('tbody')[0].appendChild(row));
         });

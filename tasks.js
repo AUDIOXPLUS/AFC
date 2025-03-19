@@ -13,6 +13,9 @@ function handleNetworkError(error) {
 // Variabile globale per mantenere il riferimento alle funzioni di filtering
 let filteringApi = null;
 
+// Variabile globale per il toggle "Priority Only"
+let priorityOnlyEnabled = false;
+
 document.addEventListener('DOMContentLoaded', async function() {
     try {
         // Verifica lo stato della connessione
@@ -48,9 +51,16 @@ document.addEventListener('DOMContentLoaded', async function() {
         // Inizializza la gestione delle notifiche
         initializeNotifications();
 
+        // Inizializza il toggle "Priority Only"
+        initializePriorityToggle();
+
         // Carica i dati
         await fetchTeamMembers();
         await fetchTasks();
+        await calculateGroupings();
+
+        // Inizializza i click sui gruppi
+        initializeGroupClicks();
 
         // Enable column sorting dopo che i dati sono stati caricati
         enableColumnSorting();
@@ -619,5 +629,269 @@ function enableColumnSorting() {
                 direction: newDirection
             }));
         });
+    }
+}
+
+// Funzione per inizializzare i click sui gruppi
+function initializeGroupClicks() {
+    const groupLabels = document.querySelectorAll('#groupings .group-label');
+    
+    groupLabels.forEach(label => {
+        label.addEventListener('click', function() {
+            const role = this.getAttribute('data-role');
+            console.log(`Cliccato sul gruppo: ${role}`);
+            
+            // Filtra i task per mostrare solo quelli del ruolo selezionato
+            filterTasksByRole(role);
+            
+            // Aggiorna l'aspetto visivo per indicare quale gruppo è selezionato
+            groupLabels.forEach(l => l.classList.remove('selected'));
+            this.classList.add('selected');
+        });
+    });
+}
+
+// Funzione per mostrare i dettagli del gruppo in una tendina
+function filterTasksByRole(role) {
+    // Rimuovi eventuali tendine esistenti
+    const existingDropdown = document.querySelector('.group-details-dropdown');
+    if (existingDropdown) {
+        existingDropdown.remove();
+    }
+    
+    // Ottieni tutti i membri del team con il ruolo specificato
+    // Gestisci il caso speciale di "Factories" che corrisponde a "Factory" nel database
+    const roleToFilter = role === 'Factories' ? 'Factory' : role;
+    const membersWithRole = teamMembers.filter(member => member.role === roleToFilter);
+    
+    // Se non ci sono membri con questo ruolo, non fare nulla
+    if (membersWithRole.length === 0) {
+        console.log(`Nessun membro trovato con ruolo ${role}`);
+        return;
+    }
+    
+    console.log(`Membri con ruolo ${role}:`, membersWithRole);
+    
+    // Calcola il numero di task per ciascun membro
+    const memberTaskCounts = {};
+    
+    // Inizializza i conteggi a 0
+    membersWithRole.forEach(member => {
+        memberTaskCounts[member.name] = 0;
+    });
+    
+    // Conta solo i task "In Progress" per ciascun membro (come fa calculateGroupings)
+    const tableRows = document.getElementById('task-table').getElementsByTagName('tbody')[0].rows;
+    Array.from(tableRows).forEach(row => {
+        const assignedTo = row.cells[4].textContent.trim(); // Indice della colonna "Assigned To"
+        const status = row.cells[5].textContent.trim(); // Indice della colonna "Status"
+        const priority = row.cells[6].textContent.trim(); // Indice della colonna "Priority"
+        
+        // Verifica se il task soddisfa i criteri
+        const hasPriority = priority && priority !== '-';
+        const isPriorityMatch = !priorityOnlyEnabled || hasPriority;
+        
+        if (memberTaskCounts.hasOwnProperty(assignedTo) && status === 'In Progress' && isPriorityMatch) {
+            memberTaskCounts[assignedTo]++;
+        }
+    });
+    
+    // Crea la tendina
+    const dropdown = document.createElement('div');
+    dropdown.className = 'group-details-dropdown';
+    
+    // Aggiungi il titolo
+    const title = document.createElement('div');
+    title.className = 'group-details-title';
+    title.textContent = `Gruppo: ${role}`;
+    dropdown.appendChild(title);
+    
+    // Aggiungi i dettagli di ciascun membro
+    const membersList = document.createElement('ul');
+    membersList.className = 'group-members-list';
+    
+    membersWithRole.forEach(member => {
+        const memberItem = document.createElement('li');
+        memberItem.innerHTML = `<span class="member-name">${member.name}</span> : <span class="task-count">${memberTaskCounts[member.name]}</span>`;
+        memberItem.classList.add('clickable-member');
+        memberItem.setAttribute('data-member-name', member.name);
+        membersList.appendChild(memberItem);
+    });
+    
+    dropdown.appendChild(membersList);
+    
+    // Posiziona la tendina sotto l'etichetta del gruppo cliccata
+    const clickedLabel = document.querySelector(`#groupings .group-label[data-role="${role}"]`);
+    const labelRect = clickedLabel.getBoundingClientRect();
+    
+    dropdown.style.position = 'absolute';
+    dropdown.style.top = `${labelRect.bottom + window.scrollY}px`;
+    dropdown.style.left = `${labelRect.left + window.scrollX}px`;
+    
+    // Aggiungi la tendina al documento
+    document.body.appendChild(dropdown);
+    
+    // Aggiungi event listener per il clic sugli elementi della lista
+    const memberItems = dropdown.querySelectorAll('.clickable-member');
+    memberItems.forEach(item => {
+        item.addEventListener('click', function() {
+            const memberName = this.getAttribute('data-member-name');
+            console.log(`Cliccato sull'utente: ${memberName}`);
+            
+            // Imposta il valore del campo di filtro "User" al nome dell'utente selezionato
+            const userFilter = document.getElementById('filter-input');
+            userFilter.value = memberName;
+            
+            // Applica i filtri per mostrare solo i task di quell'utente
+            if (filteringApi && typeof filteringApi.applyFilters === 'function') {
+                filteringApi.applyFilters();
+            }
+            
+            // Chiudi la tendina e rimuovi la selezione dal gruppo
+            dropdown.remove();
+            
+            // Rimuovi la classe selected da tutte le etichette dei gruppi
+            document.querySelectorAll('#groupings .group-label').forEach(label => {
+                label.classList.remove('selected');
+            });
+        });
+    });
+    
+    // Aggiungi un event listener per chiudere la tendina quando si clicca altrove
+    document.addEventListener('click', function closeDropdown(event) {
+        if (!dropdown.contains(event.target) && !clickedLabel.contains(event.target)) {
+            dropdown.remove();
+            document.removeEventListener('click', closeDropdown);
+            
+            // Rimuovi la classe selected da tutte le etichette dei gruppi
+            document.querySelectorAll('#groupings .group-label').forEach(label => {
+                label.classList.remove('selected');
+            });
+        }
+    });
+}
+
+// Funzione per inizializzare il toggle "Priority Only"
+function initializePriorityToggle() {
+    const priorityToggle = document.getElementById('priority-only-toggle');
+    
+    // Carica lo stato salvato del toggle
+    const savedState = localStorage.getItem('priorityOnlyEnabled');
+    if (savedState !== null) {
+        priorityOnlyEnabled = savedState === 'true';
+        priorityToggle.checked = priorityOnlyEnabled;
+    }
+    
+    // Aggiungi event listener per il cambio di stato del toggle
+    priorityToggle.addEventListener('change', function() {
+        priorityOnlyEnabled = this.checked;
+        
+        // Salva lo stato nel localStorage
+        localStorage.setItem('priorityOnlyEnabled', priorityOnlyEnabled);
+        
+        // Ricalcola i gruppi con il nuovo filtro
+        calculateGroupings();
+    });
+}
+
+async function calculateGroupings() {
+    try {
+        const tasksResponse = await fetch('/api/tasks');
+        const tasks = await handleResponse(tasksResponse);
+
+        const teamMembersResponse = await fetch('/api/team-members');
+        const teamMembers = await handleResponse(teamMembersResponse);
+
+        console.log('Team members:', teamMembers);
+        
+        // Log dei ruoli disponibili
+        const roles = [...new Set(teamMembers.map(member => member.role))];
+        console.log('Ruoli disponibili:', roles);
+
+        const groupings = {
+            'R&D China': 0,
+            'Client': 0,
+            'Factories': 0,
+            'Factory': 0  // Aggiungiamo anche la versione singolare
+        };
+
+        // Filtra i task "In Progress"
+        let inProgressTasks = tasks.filter(task => task.status === 'In Progress');
+        
+        // Se il toggle "Priority Only" è attivo, filtra ulteriormente per mostrare solo i task con priorità
+        if (priorityOnlyEnabled) {
+            inProgressTasks = inProgressTasks.filter(task => task.priority && task.priority !== '-');
+            console.log('Task in progress con priorità:', inProgressTasks);
+        } else {
+            console.log('Task in progress (tutti):', inProgressTasks);
+        }
+
+        inProgressTasks.forEach(task => {
+            console.log(`Elaborazione task: ${task.id}, assignedTo: ${task.assignedTo}, priority: ${task.priority || 'nessuna'}`);
+            
+            // Prova prima con name
+            let user = teamMembers.find(member => member.name === task.assignedTo);
+            if (!user) {
+                // Se non trova con name, prova con username
+                user = teamMembers.find(member => member.username === task.assignedTo);
+            }
+            
+            if (user) {
+                console.log(`Utente trovato: ${user.name}, ruolo: ${user.role}`);
+                
+                switch (user.role) {
+                    case 'R&D China':
+                        groupings['R&D China']++;
+                        break;
+                    case 'Client':
+                        groupings['Client']++;
+                        break;
+                    case 'Factories':
+                        groupings['Factories']++;
+                        break;
+                    case 'Factory':
+                        groupings['Factory']++;
+                        break;
+                    default:
+                        console.log(`Ruolo non riconosciuto: ${user.role}`);
+                }
+            } else {
+                console.log(`Nessun utente trovato per task.assignedTo: ${task.assignedTo}`);
+            }
+        });
+        
+        console.log('Conteggi finali:', groupings);
+
+        // Se il conteggio di "Factory" è maggiore di zero, usalo per "Factories"
+        if (groupings['Factory'] > 0) {
+            groupings['Factories'] = groupings['Factory'];
+        }
+
+        // Aggiorna i conteggi
+        document.getElementById('grouping-rd-china').textContent = groupings['R&D China'];
+        document.getElementById('grouping-client').textContent = groupings['Client'];
+        document.getElementById('grouping-factories').textContent = groupings['Factories'];
+        
+        // Trova il gruppo con il maggior numero di task (collo di bottiglia)
+        let maxCount = Math.max(groupings['R&D China'], groupings['Client'], groupings['Factories']);
+        
+        // Rimuovi prima tutte le classi bottleneck
+        document.querySelectorAll('#groupings span').forEach(span => {
+            span.classList.remove('bottleneck');
+        });
+        
+        // Applica la classe bottleneck solo ai gruppi con il conteggio massimo
+        if (groupings['Client'] === maxCount && maxCount > 0) {
+            document.querySelector('.group-label[data-role="Client"]').classList.add('bottleneck');
+        }
+        if (groupings['R&D China'] === maxCount && maxCount > 0) {
+            document.querySelector('.group-label[data-role="R&D China"]').classList.add('bottleneck');
+        }
+        if (groupings['Factories'] === maxCount && maxCount > 0) {
+            document.querySelector('.group-label[data-role="Factories"]').classList.add('bottleneck');
+        }
+
+    } catch (error) {
+        console.error('Errore nel calcolo dei raggruppamenti:', error);
     }
 }
