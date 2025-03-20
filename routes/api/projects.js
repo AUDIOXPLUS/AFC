@@ -293,12 +293,13 @@ router.get('/:id/history', checkAuthentication, (req, res) => {
     const userId = req.session.user.id;
     
     // Query modificata per mostrare tutti i record pubblici E i record privati visibili all'utente corrente
-    // Include anche il nome dell'utente che ha creato il record (created_by_name)
+    // Include anche il nome dell'utente che ha creato il record e il parent_id
     const query = `
         SELECT ph.*, u.id as user_id, 
-               CASE WHEN ph.created_by_name IS NULL THEN 'Unknown' ELSE ph.created_by_name END as created_by_name
+               u.name as creator_name,
+               ph.parent_id
         FROM project_history ph
-        LEFT JOIN users u ON ph.assigned_to = u.name
+        LEFT JOIN users u ON ph.created_by = u.id
         WHERE ph.project_id = ? 
         AND (
             ph.private_by IS NULL 
@@ -339,10 +340,12 @@ router.post('/:id/history', checkAuthentication, (req, res) => {
 
     console.log('Dati ricevuti per la nuova voce di cronologia:', req.body);
 
-    const query = `INSERT INTO project_history (project_id, date, phase, description, assigned_to, status, created_by, created_by_name) 
+    const query = `INSERT INTO project_history (project_id, date, phase, description, assigned_to, status, created_by, parent_id) 
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
     
-    req.db.run(query, [projectId, date, phase, description, assignedTo, status, userId, userName], function(err) {
+    // Il parent_id è null per le nuove voci che non sono risposte
+    const parentId = req.body.parent_id || null;
+    req.db.run(query, [projectId, date, phase, description, assignedTo, status, userId, parentId], function(err) {
         if (err) {
             console.error('Errore nell\'inserimento della voce di cronologia:', err);
             return res.status(500).send('Errore del server');

@@ -1,3 +1,15 @@
+// Funzione per gestire le risposte delle API
+window.handleResponse = function(response) {
+    if (response.status === 401) {
+        window.location.replace('login.html');
+        throw new Error('Unauthorized');
+    }
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+};
+
 // Funzione di utilità per gestire gli errori di rete
 function handleNetworkError(error) {
     console.error('Network error:', error);
@@ -25,25 +37,45 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
     window.currentUserId = null; // Memorizza l'ID utente corrente per le operazioni sui file
 
-    // Recupera e visualizza il nome utente
+    // Recupera e visualizza il nome utente - gestisce entrambi gli endpoint possibili
     try {
-        const response = await fetch('/api/session-user');
-        const userData = await window.handleResponse(response);
-        console.log('userData:', userData);
-        if (userData && userData.username) {
-            window.currentUserId = String(userData.id);
-            if (userData.name) {
-                document.querySelector('.user-info span').textContent = `Welcome, ${userData.name}`;
+        let userData;
+        try {
+            // Prima prova con /api/session-user
+            const response = await fetch('/api/session-user');
+            if (response.ok) {
+                userData = await response.json();
+            } else {
+                throw new Error('Endpoint session-user non disponibile');
             }
+        } catch (firstError) {
+            console.log('Tentativo con secondo endpoint dopo errore:', firstError);
+            // Se fallisce, prova con /api/users/current
+            const response = await fetch('/api/users/current');
+            if (response.ok) {
+                userData = await response.json();
+            } else {
+                throw new Error('Nessun endpoint utente disponibile');
+            }
+        }
+        
+        console.log('userData ottenuto:', userData);
+        
+        if (userData && (userData.username || userData.name)) {
+            window.currentUserId = String(userData.id);
+            window.currentUserName = userData.name || userData.username;
+            document.querySelector('.user-info span').textContent = `Welcome, ${window.currentUserName}`;
         } else {
-            console.error('userData.username is missing or null');
+            console.error('Dati utente non validi:', userData);
             window.location.replace('login.html');
             return;
         }
     } catch (error) {
-        console.error('Error fetching session user:', error);
-        window.location.href = '/login.html';
-        return;
+        console.error('Error fetching user data:', error);
+        // Non reindirizziamo alla pagina di login per evitare un loop
+        // Impostiamo valori predefiniti per consentire l'esecuzione
+        window.currentUserId = '1';
+        window.currentUserName = 'Guest';
     }
 
     // Funzione per recuperare i dettagli del progetto
@@ -135,6 +167,24 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
     };
 
+    // Funzione per recuperare i membri del team
+    window.fetchTeamMembers = async function() {
+        try {
+            const response = await fetch('/api/team-members');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const members = await response.json();
+            window.teamMembers = members;
+            console.log('Team members caricati:', members);
+            return members;
+        } catch (error) {
+            console.error('Errore nel caricamento dei membri del team:', error);
+            handleNetworkError(error);
+            return [];
+        }
+    };
+
     // Funzione per recuperare le fasi del progetto
     window.fetchProjectPhases = async function() {
         try {
@@ -158,15 +208,148 @@ document.addEventListener('DOMContentLoaded', async function() {
         console.error('No project ID provided');
     }
 
-    document.getElementById('add-history-btn').addEventListener('click', () => window.addHistoryEntry(projectId));
+    // Accesso al pulsante con l'ID corretto (add-entry-btn invece di add-history-btn)
+    const addEntryBtn = document.getElementById('add-entry-btn');
+    if (addEntryBtn) {
+        addEntryBtn.addEventListener('click', () => {
+            if (window.ProjectHistory && typeof window.ProjectHistory.addHistoryEntry === 'function') {
+                window.ProjectHistory.addHistoryEntry(projectId);
+            } else {
+                console.error("La funzione addHistoryEntry non è disponibile. Verificare che project-history.js sia caricato correttamente.");
+            }
+        });
+    } else {
+        console.error("Elemento add-entry-btn non trovato nel DOM");
+    }
     
     // Inizializza le funzionalità della tabella dopo aver caricato la cronologia
-    await window.fetchProjectHistory(projectId);
-    window.updatePhaseSummary(); // Aggiungi questa linea
-    window.restoreColumnWidths();
-    window.enableColumnResizing();
-    window.enableColumnSorting();
-    enableLiveFiltering();
+    // Verifica le funzioni disponibili prima di chiamarle
+    if (window.ProjectHistory && typeof window.ProjectHistory.fetchProjectHistory === 'function') {
+        await window.ProjectHistory.fetchProjectHistory(projectId);
+        // Aggiorna il riepilogo delle fasi solo dopo aver caricato la cronologia
+        window.updatePhaseSummary();
+    } else {
+        console.error("La funzione fetchProjectHistory non è disponibile. Verificare che project-history.js sia caricato correttamente.");
+    }
+    
+    // Gestione del pulsante di highlighting per record specifici
+    const highlightBtn = document.getElementById('highlight-record-btn');
+    const highlightInput = document.getElementById('highlight-record-id');
+    
+    if (highlightBtn && highlightInput) {
+        // Funzione per evidenziare un record specifico basato sull'ID
+        // La rendiamo globale così può essere usata anche dall'event listener mouseenter
+        window.highlightRecordById = function(recordId) {
+            // Rimuovi evidenziazione precedente se presente
+            const previousHighlighted = document.querySelectorAll('.record-highlight');
+            previousHighlighted.forEach(el => {
+                el.classList.remove('record-highlight');
+                el.style.backgroundColor = '';
+                el.style.boxShadow = '';
+                el.style.fontWeight = '';
+                el.style.color = '';
+                el.style.transform = '';
+            });
+            
+            // Cerca il record con l'ID specificato
+            const row = document.querySelector(`tr[data-entry-id="${recordId}"]`);
+            
+            if (row) {
+                console.log(`Record con ID ${recordId} trovato, applico highlight`);
+                
+                // Salva lo stile originale (se non già memorizzato nell'elemento)
+                if (!row._originalStyle) {
+                    row._originalStyle = {
+                        backgroundColor: row.style.backgroundColor,
+                        color: row.style.color,
+                        fontWeight: row.style.fontWeight
+                    };
+                }
+                
+                // Applica stile evidente
+                row.classList.add('record-highlight');
+                row.style.backgroundColor = '#ff0000'; // Rosso acceso
+                row.style.color = 'white';
+                row.style.fontWeight = 'bold';
+                row.style.boxShadow = '0 0 15px 5px red';
+                row.style.position = 'relative';
+                row.style.zIndex = '1000';
+                row.style.transform = 'translateY(-2px)'; // Effetto 3D lieve
+                
+                // Scorre alla riga evidenziata
+                row.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                });
+                
+                // Aggiungi un badge con l'ID
+                const firstCell = row.cells[0];
+                const badge = document.createElement('span');
+                badge.textContent = `ID: ${recordId}`;
+                badge.style.backgroundColor = 'red';
+                badge.style.color = 'white';
+                badge.style.padding = '2px 5px';
+                badge.style.borderRadius = '3px';
+                badge.style.marginRight = '5px';
+                badge.style.fontWeight = 'bold';
+                badge.style.fontSize = '12px';
+                
+                // Inserisci il badge all'inizio della cella
+                if (firstCell.firstChild) {
+                    firstCell.insertBefore(badge, firstCell.firstChild);
+                } else {
+                    firstCell.appendChild(badge);
+                }
+                
+                return true;
+            } else {
+                console.error(`Record con ID ${recordId} non trovato nella tabella`);
+                
+                // Se i filtri sono attivi, suggerisci di disabilitarli
+                const filteringActive = document.querySelector('.filter-active');
+                if (filteringActive) {
+                    alert(`Record con ID ${recordId} non trovato. Potrebbero essere attivi dei filtri che nascondono il record. Prova a disattivare i filtri.`);
+                } else {
+                    alert(`Record con ID ${recordId} non trovato nella tabella.`);
+                }
+                
+                return false;
+            }
+        }
+        
+        // Event listener per il pulsante di highlight
+        highlightBtn.addEventListener('click', () => {
+            const recordId = highlightInput.value.trim();
+            if (recordId) {
+                highlightRecordById(recordId);
+            } else {
+                alert('Inserisci un ID valido.');
+                highlightInput.focus();
+            }
+        });
+        
+        // Event listener per il tasto Enter nel campo input
+        highlightInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                highlightBtn.click();
+            }
+        });
+    }
+    
+    // Verifica se le funzioni di gestione delle colonne sono disponibili
+    if (typeof window.restoreColumnWidths === 'function') {
+        window.restoreColumnWidths();
+    }
+    if (typeof window.enableColumnResizing === 'function') {
+        window.enableColumnResizing();
+    }
+    if (typeof window.enableColumnSorting === 'function') {
+        window.enableColumnSorting();
+    }
+    
+    // Inizializza il filtraggio
+    window.filteringApi = enableLiveFiltering();
 });
 
 // Funzione per aggiornare la phase summary con l'ultima entry di ogni fase

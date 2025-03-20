@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Relazioni Padre-Figlio</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f5f5f5; }
+        .highlight { background-color: #ffd700; }
+        .parent { background-color: #ff6347; color: white; }
+        .child { background-color: #4682b4; color: white; }
+        button { margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Debug Relazioni Padre-Figlio</h1>
+    <button id="load-data">Carica Dati Cronologia</button>
+    <div id="summary"></div>
+    <table id="relationships">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Data</th>
+                <th>Descrizione</th>
+                <th>Parent ID</th>
+                <th>Tipo</th>
+                <th>Stato</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <script>
+        document.getElementById('load-data').addEventListener('click', async function() {
+            // Ottieni l'ID del progetto dalla pagina corrente
+            const projectId = getProjectIdFromURL();
+            
+            if (!projectId) {
+                alert('Impossibile determinare l\'ID del progetto. Aprire questa pagina dalla pagina dei dettagli del progetto.');
+                return;
+            }
+
+            // Recupera i dati della cronologia
+            try {
+                const history = await fetchProjectHistory(projectId);
+                displayRelationships(history);
+            } catch (error) {
+                console.error('Errore nel recupero della cronologia:', error);
+                alert('Errore nel recupero dei dati della cronologia.');
+            }
+        });
+
+        function getProjectIdFromURL() {
+            // Tenta di estrarre l'ID progetto dall'URL corrente
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('projectId');
+        }
+
+        async function fetchProjectHistory(projectId) {
+            const timestamp = new Date().getTime();
+            const response = await fetch(`/api/projects/${projectId}/history?includeUserName=true&_=${timestamp}`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            return await response.json();
+        }
+
+        function displayRelationships(history) {
+            const tableBody = document.querySelector('#relationships tbody');
+            tableBody.innerHTML = '';
+            
+            // Contatori per il riepilogo
+            let totalEntries = history.length;
+            let entriesWithParent = 0;
+            let orphanedEntries = 0; // Entries che hanno parent_id ma il parent non esiste
+            
+            // Set di tutti gli ID per verificare gli orfani
+            const allIds = new Set(history.map(entry => entry.id));
+            
+            // Elabora ogni entry
+            history.forEach(entry => {
+                const row = tableBody.insertRow();
+                
+                // Imposta la classe di evidenziazione se l'entry ha un parent_id
+                if (entry.parent_id) {
+                    row.classList.add('child');
+                    entriesWithParent++;
+                    
+                    // Verifica se il parent esiste
+                    if (!allIds.has(parseInt(entry.parent_id))) {
+                        orphanedEntries++;
+                        row.style.backgroundColor = 'purple'; // Evidenzia entry orfane
+                    }
+                }
+                
+                // ID
+                const cellId = row.insertCell();
+                cellId.textContent = entry.id;
+                
+                // Data
+                const cellDate = row.insertCell();
+                cellDate.textContent = entry.date;
+                
+                // Descrizione (troncata)
+                const cellDesc = row.insertCell();
+                cellDesc.textContent = entry.description ? 
+                    (entry.description.length > 50 ? entry.description.substring(0, 50) + '...' : entry.description) : 
+                    '';
+                cellDesc.title = entry.description;
+                
+                // Parent ID
+                const cellParentId = row.insertCell();
+                cellParentId.textContent = entry.parent_id || '-';
+                
+                // Tipo (Reply/Forward)
+                const cellType = row.insertCell();
+                let type = 'Standard';
+                
+                if (entry.is_reply) type = 'Reply';
+                else if (entry.is_forward) type = 'Forward';
+                else if (entry.parent_id) {
+                    if (entry.description && entry.description.toLowerCase().includes('forward-')) {
+                        type = 'Forward (inferred)';
+                    } else if (entry.description && entry.description.toLowerCase().includes('reply-')) {
+                        type = 'Reply (inferred)';
+                    } else {
+                        type = 'Child (unknown type)';
+                    }
+                }
+                
+                cellType.textContent = type;
+                
+                // Stato
+                const cellStatus = row.insertCell();
+                cellStatus.textContent = entry.status || '-';
+                
+                // Aggiunge listener per l'evidenziazione
+                row.addEventListener('click', function() {
+                    // Rimuovi l'evidenziazione da tutte le righe
+                    document.querySelectorAll('#relationships tbody tr').forEach(r => {
+                        r.classList.remove('highlight');
+                    });
+                    
+                    // Evidenzia questa riga
+                    row.classList.add('highlight');
+                    
+                    // Se questa entry ha un parent_id, evidenzia anche il parent
+                    if (entry.parent_id) {
+                        const parentRow = document.querySelector(`#relationships tbody tr td:first-child:contains('${entry.parent_id}')`).parentNode;
+                        if (parentRow) {
+                            parentRow.classList.add('parent');
+                            // Scorri alla riga parent
+                            parentRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                    }
+                });
+            });
+            
+            // Aggiorna il riepilogo
+            const summaryDiv = document.getElementById('summary');
+            summaryDiv.innerHTML = `
+                <p><strong>Riepilogo:</strong></p>
+                <ul>
+                    <li>Totale entries: ${totalEntries}</li>
+                    <li>Entries con parent_id: ${entriesWithParent}</li>
+                    <li>Entries orfane (parent_id non trovato): ${orphanedEntries}</li>
+                </ul>
+            `;
+            
+            // Estendi la funzionalità di :contains per jQuery-like selector
+            // Fonte: https://stackoverflow.com/questions/8714090/queryselector-wildcard-element-match
+            document.querySelectorAll = function(selector) {
+                if (selector.includes(':contains(')) {
+                    const matches = selector.match(/:contains\('([^']+)'\)/);
+                    if (matches) {
+                        const text = matches[1];
+                        const newSelector = selector.replace(/:contains\('([^']+)'\)/, '');
+                        const elements = Array.from(document.querySelectorAll(newSelector));
+                        return elements.filter(element => element.textContent.includes(text));
+                    }
+                }
+                return document.querySelectorAll(selector);
+            };
+        }
+    </script>
+</body>
+</html>

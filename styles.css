@@ -1175,3 +1175,114 @@ table select:hover {
     display: inline-block;
     vertical-align: middle;
 }
+
+/* Stile per la freccia che punta al record padre */
+.parent-pointer {
+    position: fixed;
+    z-index: 9999;
+    pointer-events: none; /* Permette i click attraverso la freccia */
+    opacity: 0.8;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: #e74c3c;
+    box-shadow: 0 0 10px rgba(231, 76, 60, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    animation: pulse 1s infinite alternate;
+}
+
+/* Modifica: Separazione del punto e della linea della freccia */
+.parent-pointer::before {
+    content: "";
+    position: absolute;
+    width: var(--line-length, 150px); /* Usa la variabile CSS o default a 150px */
+    height: 3px;
+    background-color: #e74c3c;
+    left: 50%; /* Posiziona al centro dell'elemento */
+    top: 50%; /* Posiziona al centro dell'elemento */
+    transform-origin: left center;
+    /* La rotazione viene applicata solo quando serve */
+    transform: translateY(-50%); /* Centra verticalmente */
+}
+
+/* La linea vera e propria che viene rotata */
+.parent-pointer::after {
+    content: "";
+    position: absolute;
+    width: var(--line-length, 150px); /* Usa la variabile CSS o default a 150px */
+    height: 3px;
+    background-color: #e74c3c;
+    left: 20px; /* Inizia dalla fine del cerchio */
+    transform-origin: left center;
+    transform: var(--connector-transform, rotate(0deg)); /* Applica rotazione dalla variabile JS */
+}
+
+.parent-pointer-text {
+    position: fixed;
+    z-index: 9999;
+    pointer-events: none;
+    background-color: #34495e;
+    color: white;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    max-width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+}
+
+/* Animazione per la freccia */
+@keyframes pulse {
+    0% { transform: scale(1); }
+    100% { transform: scale(1.2); }
+}
+
+/* Animazione per l'evidenziazione della riga padre */
+@keyframes highlight-parent-pulse {
+    0% { background-color: #ffcccc; }
+    50% { background-color: #ffaaaa; }
+    100% { background-color: #ffcccc; }
+}
+
+/* Effetto flash molto evidente per la riga padre */
+.highlight-parent-row {
+    animation: parent-row-flash 0.5s infinite;
+    font-weight: bold !important;
+    color: #ff0000 !important;
+}
+
+@keyframes parent-row-flash {
+    0%, 100% { box-shadow: inset 0 0 20px rgba(255, 0, 0, 0.8); }
+    50% { box-shadow: inset 0 0 10px rgba(255, 0, 0, 0.3); }
+}
+
+/* Stili per l'evidenziazione dei record tramite ID */
+.record-highlight {
+    position: relative;
+    z-index: 100;
+    animation: record-highlight-pulse 2s infinite;
+    transition: all 0.3s ease;
+}
+
+@keyframes record-highlight-pulse {
+    0%, 100% { box-shadow: 0 0 15px 5px rgba(255, 0, 0, 0.8); }
+    50% { box-shadow: 0 0 20px 10px rgba(255, 0, 0, 0.6); }
+}
+
+/* Stile per il badge che indica l'ID del record */
+.record-id-badge {
+    background-color: #ff0000;
+    color: white;
+    padding: 2px 5px;
+    border-radius: 3px;
+    margin-right: 5px;
+    font-weight: bold;
+    font-size: 12px;
+    display: inline-block;
+}

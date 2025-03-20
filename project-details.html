@@ -43,7 +43,7 @@
         <div class="project-history">
             <div class="history-header">
                 <h1>Project History</h1>
-                <button id="add-history-btn" class="add-btn">Add History Entry</button>
+                <button id="add-entry-btn" class="add-btn">Add History Entry</button>
             </div>
             <div class="filters">
                 <input type="text" id="phase-filter" placeholder="Phase">
@@ -57,6 +57,7 @@
                         <label><input type="checkbox" value="Archived" data-abbr="AR"> Archived</label>
                     </div>
                 </div>
+                
             </div>
             <table id="history-table">
                 <thead>
@@ -81,7 +82,7 @@
     <script src="users.js"></script>
     <script src="project-details.js"></script>
     <script src="project-layout.js"></script>
-    <script src="project-history.js"></script>
+    <script type="module" src="project-history.js"></script>
     <script src="mobile-menu.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', async function() {
