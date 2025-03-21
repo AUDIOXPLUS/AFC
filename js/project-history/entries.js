@@ -128,8 +128,14 @@ export function displayProjectHistory(history, projectId) {
         // Verifiche in ordine di priorità
         
         // 1. Verifica flag espliciti (massima priorità)
-        if (entry.is_reply === true) isReply = true;
-        if (entry.is_forward === true) isForward = true;
+        // Prima verifichiamo is_forward, poi is_reply per dare priorità a forward
+        if (entry.is_forward === true) {
+            isForward = true;
+            isReply = false; // Un record non può essere sia forward che reply
+        } else if (entry.is_reply === true) {
+            isReply = true;
+            isForward = false;
+        }
         
         // 2. Verifica parent_id (alta priorità)
         // Se ha un parent_id, è sicuramente una risposta/inoltro
@@ -889,8 +895,8 @@ export function displayProjectHistory(history, projectId) {
                     textarea.style.minHeight = '100px';
                     textarea.style.resize = 'vertical';
                     
-                    // Copia la descrizione dall'entry originale
-                    textarea.value = entry.description;
+                    // Copia la descrizione dall'entry originale, ma aggiunge un prefisso per i forward
+                    textarea.value = `forward-${entry.description}`;
                     
                     // Gestione del drag and drop dei file
                     textarea.addEventListener('dragover', function(e) {
@@ -1305,10 +1311,17 @@ export async function saveNewHistoryEntry(projectId, row) {
         newEntry.parentId = parentIdValue;
         
         // Flag per il tipo di relazione
-        newEntry.is_reply = true;
-        newEntry.isReply = true;
-        newEntry.is_forward = isForward;
-        newEntry.isForward = isForward;
+        if (isForward) {
+            newEntry.is_reply = false;
+            newEntry.isReply = false;
+            newEntry.is_forward = true;
+            newEntry.isForward = true;
+        } else {
+            newEntry.is_reply = true;
+            newEntry.isReply = true;
+            newEntry.is_forward = false;
+            newEntry.isForward = false;
+        }
         
         // 3. METODI ALTERNATIVI: Metodi alternativi per il tracking della relazione
         
@@ -1383,10 +1396,11 @@ export async function saveNewHistoryEntry(projectId, row) {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-Is-Reply': isReply ? 'true' : 'false',
+                'X-Is-Reply': isReply && !isForward ? 'true' : 'false',
                 'X-Is-Forward': isForward ? 'true' : 'false',
-                'X-Parent-Id': isReply ? row.getAttribute('data-reply-to') : '',
-                'X-Reply-Chain': isReply ? newEntry.created_by_name : ''
+                'X-Parent-Id': (isReply || isForward) ? row.getAttribute('data-reply-to') : '',
+                'X-Reply-Chain': isReply && !isForward ? newEntry.created_by_name : '',
+                'X-Forward-Chain': isForward ? newEntry.created_by_name : ''
             },
             body: JSON.stringify(newEntry),
         });

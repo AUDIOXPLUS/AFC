@@ -1,5 +1,6 @@
 // Dati del version log
 const versionLogData = [
+    { date: '21/03/25', description: 'Implemented reply and forward for project history records. Added global statistics for tasks' },
     { date: '27/02/25', description: 'Implemented private record sharing with other users' },
     { date: '27/02/25', description: 'Fixed icon display bugs in project history' },
     { date: '27/02/25', description: 'Improved mobile device display' },
@@ -55,7 +56,7 @@ function initializeVersionLog() {
     const versionText = document.createElement('div');
     versionText.id = 'version-text';
     versionText.className = 'version-text';
-    versionText.textContent = 'V3.4';
+    versionText.textContent = 'V3.5';
     
     // Inserisci il testo della versione dopo il logo
     const logo = nav.querySelector('.logo');
