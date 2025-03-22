@@ -1286,3 +1286,53 @@ table select:hover {
     font-size: 12px;
     display: inline-block;
 }
+
+/* Stili per il drag and drop dei file */
+.file-upload-container i {
+    transition: color 0.3s ease;
+}
+
+.file-upload-container i:hover {
+    color: #007bff;
+}
+
+.buttons-container {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 10px;
+    align-items: center;
+}
+
+.file-list {
+    margin-top: 8px;
+}
+
+.file-item {
+    display: flex;
+    align-items: center;
+    padding: 3px 0;
+    font-size: 11px;
+}
+
+.file-item span {
+    margin-right: 5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+}
+
+.upload-status {
+    margin-left: 5px;
+    font-size: 11px;
+    color: #333;
+    background-color: #f8f9fa;
+    padding: 2px 5px;
+    border-radius: 3px;
+    animation: status-pulse 2s infinite;
+}
+
+@keyframes status-pulse {
+    0%, 100% { opacity: 0.8; }
+    50% { opacity: 1; }
+}

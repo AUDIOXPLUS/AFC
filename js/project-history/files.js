@@ -77,6 +77,123 @@ export async function deleteFile(fileId, projectId, updateCallback) {
 }
 
 /**
+ * Funzione per gestire il caricamento dei file
+ * @param {FileList|File[]} files - Lista di file da caricare
+ * @param {HTMLElement} uploadContainer - Container dell'upload
+ * @param {HTMLElement} filesCell - Cella della tabella contenente i file
+ * @param {number} entryId - ID dell'entry
+ * @param {number} projectId - ID del progetto
+ */
+async function handleFileUpload(files, uploadContainer, filesCell, entryId, projectId) {
+    if (files.length === 0) return;
+    
+    // Disabilita l'input durante l'upload
+    const fileInput = uploadContainer.querySelector('input[type="file"]');
+    if (fileInput) fileInput.disabled = true;
+    
+    // Crea un elemento di stato per l'upload
+    let statusDiv = uploadContainer.querySelector('.upload-status');
+    if (!statusDiv) {
+        statusDiv = document.createElement('div');
+        statusDiv.className = 'upload-status';
+        uploadContainer.appendChild(statusDiv);
+    }
+    statusDiv.textContent = `Caricamento ${files.length} file in corso...`;
+    statusDiv.style.color = 'initial';
+
+    const formData = new FormData();
+    
+    // Aggiungiamo ogni file selezionato al FormData
+    for (let i = 0; i < files.length; i++) {
+        formData.append('files', files[i]);
+    }
+    formData.append('historyId', entryId);
+
+    try {
+        const response = await fetch(`/api/projects/${projectId}/files`, {
+            method: 'POST',
+            body: formData
+        });
+        const result = await handleResponse(response);
+        console.log('Upload completato:', result);
+        
+        // Aggiorna solo la lista dei file
+        const files = await fetchEntryFiles(entryId, projectId);
+        
+        // Aggiorna i pulsanti "Download All" e "Preview All"
+        const buttonsContainer = filesCell.querySelector('.buttons-container');
+        if (buttonsContainer) {
+            // Rimuovi i vecchi pulsanti
+            while (buttonsContainer.firstChild) {
+                if (!buttonsContainer.firstChild.classList.contains('file-upload-container') && 
+                    !buttonsContainer.firstChild.classList.contains('drop-zone')) {
+                    buttonsContainer.removeChild(buttonsContainer.firstChild);
+                } else {
+                    break;
+                }
+            }
+            
+            // Aggiungi i nuovi pulsanti se ci sono file
+            if (files.length > 0) {
+                const downloadAllBtn = document.createElement('button');
+                downloadAllBtn.className = 'download-all-btn';
+                downloadAllBtn.innerHTML = '<i class="fas fa-download" style="color:#000;"></i>';
+                downloadAllBtn.title = 'Download All';
+                downloadAllBtn.style.alignSelf = 'center';
+                downloadAllBtn.style.height = fileInput ? fileInput.offsetHeight + 'px' : 'auto';
+                downloadAllBtn.style.padding = '0 5px';
+                downloadAllBtn.addEventListener('click', async () => {
+                    await downloadAllFiles(files);
+                });
+                
+                const previewAllBtn = document.createElement('button');
+                previewAllBtn.className = 'preview-all-btn';
+                previewAllBtn.innerHTML = '<i class="fas fa-eye" style="color: black;"></i>';
+                previewAllBtn.title = 'Preview All';
+                previewAllBtn.style.alignSelf = 'center';
+                previewAllBtn.style.height = fileInput ? fileInput.offsetHeight + 'px' : 'auto';
+                previewAllBtn.style.padding = '0 5px';
+                previewAllBtn.addEventListener('click', async () => {
+                    previewAllFiles(files);
+                });
+                
+                // Inserisci prima della zona di drop
+                const dropZone = buttonsContainer.querySelector('.drop-zone');
+                if (dropZone) {
+                    buttonsContainer.insertBefore(downloadAllBtn, dropZone);
+                    buttonsContainer.insertBefore(previewAllBtn, dropZone);
+                } else {
+                    buttonsContainer.insertBefore(downloadAllBtn, uploadContainer);
+                    buttonsContainer.insertBefore(previewAllBtn, uploadContainer);
+                }
+            }
+        }
+        
+        // Aggiorna la lista dei file
+        const fileList = filesCell.querySelector('.file-list');
+        if (fileList) {
+            fileList.innerHTML = '';
+            files.forEach(file => {
+                const fileItem = createFileItem(file, projectId, entryId);
+                fileList.appendChild(fileItem);
+            });
+        }
+        
+        // Rimuovi il messaggio di stato
+        statusDiv.remove();
+        
+        // Riabilita l'input
+        if (fileInput) fileInput.disabled = false;
+    } catch (error) {
+        console.error('Errore nel caricare i files:', error);
+        statusDiv.textContent = 'Errore durante il caricamento dei file';
+        statusDiv.style.color = 'red';
+        // Riabilita l'input in caso di errore
+        if (fileInput) fileInput.disabled = false;
+    }
+}
+
+/**
  * Aggiorna la cella dei file nella riga della cronologia dopo un'operazione.
  * @param {number} entryId - L'ID della voce della cronologia.
  * @param {number} projectId - L'ID del progetto.
@@ -91,11 +208,12 @@ export async function updateFilesCell(entryId, projectId) {
 
     // Crea il container principale con display flex
     const buttonsContainer = document.createElement('div');
+    buttonsContainer.className = 'buttons-container';
     buttonsContainer.style.display = 'flex';
     buttonsContainer.style.gap = '5px';
     buttonsContainer.style.marginBottom = '10px';
 
-    // Crea il container per l'upload
+    // Crea il container per l'upload con supporto per drag & drop
     const uploadContainer = document.createElement('div');
     uploadContainer.className = 'file-upload-container';
     
@@ -112,107 +230,61 @@ export async function updateFilesCell(entryId, projectId) {
     browseIcon.style.color = 'black';
     browseIcon.style.cursor = 'pointer';
     browseIcon.style.fontSize = '12px';
-    browseIcon.setAttribute('title', 'Upload File');
+    browseIcon.setAttribute('title', 'Click to browse or drag & drop files here');
     browseIcon.addEventListener('click', function() {
         fileInput.click();
     });
     uploadContainer.appendChild(fileInput);
     uploadContainer.appendChild(browseIcon);
 
-    fileInput.addEventListener('change', async function(e) {
+    // Aggiungi eventi per il drag and drop - rendi l'intera cella compatibile con il drop
+    const setupDropEvents = (element) => {
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            element.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            }, false);
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            element.addEventListener(eventName, () => {
+                browseIcon.style.color = '#007bff';
+                filesCell.style.backgroundColor = '#f0f7ff';
+                filesCell.style.boxShadow = '0 0 0 2px #007bff inset';
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            element.addEventListener(eventName, () => {
+                browseIcon.style.color = 'black';
+                filesCell.style.backgroundColor = '';
+                filesCell.style.boxShadow = '';
+            }, false);
+        });
+    };
+
+    // Configura eventi di drag and drop sia sull'icona che sull'intera cella
+    setupDropEvents(uploadContainer);
+    setupDropEvents(filesCell);
+
+    // Gestione del drop dei file (sia dall'icona che dalla cella)
+    [uploadContainer, filesCell].forEach(element => {
+        element.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            
+            if (files.length > 0) {
+                handleFileUpload(files, uploadContainer, filesCell, entryId, projectId);
+            }
+        }, false);
+    });
+
+    fileInput.addEventListener('change', function(e) {
         if (this.files.length > 0) {
-            // Disabilita l'input durante l'upload
-            this.disabled = true;
-            
-            // Crea un elemento di stato per l'upload
-            const statusDiv = document.createElement('div');
-            statusDiv.className = 'upload-status';
-            statusDiv.textContent = `Caricamento ${this.files.length} file in corso...`;
-            uploadContainer.appendChild(statusDiv);
-
-            const formData = new FormData();
-            
-            // Aggiungiamo ogni file selezionato al FormData
-            for (let i = 0; i < this.files.length; i++) {
-                formData.append('files', this.files[i]);
-            }
-            formData.append('historyId', entryId);
-
-            try {
-                const response = await fetch(`/api/projects/${projectId}/files`, {
-                    method: 'POST',
-                    body: formData
-                });
-                const result = await handleResponse(response);
-                console.log('Upload completato:', result);
-                
-                // Aggiorna solo la lista dei file
-                const files = await fetchEntryFiles(entryId, projectId);
-                
-                // Aggiorna i pulsanti "Download All" e "Preview All"
-                const buttonsContainer = filesCell.querySelector('div');
-                if (buttonsContainer) {
-                    // Rimuovi i vecchi pulsanti
-                    while (buttonsContainer.firstChild) {
-                        if (!buttonsContainer.firstChild.classList.contains('file-upload-container')) {
-                            buttonsContainer.removeChild(buttonsContainer.firstChild);
-                        } else {
-                            break;
-                        }
-                    }
-                    
-                    // Aggiungi i nuovi pulsanti se ci sono file
-                    if (files.length > 0) {
-                        const downloadAllBtn = document.createElement('button');
-                        downloadAllBtn.className = 'download-all-btn';
-                        downloadAllBtn.innerHTML = '<i class="fas fa-download" style="color:#000;"></i>';
-                        downloadAllBtn.title = 'Download All';
-                        downloadAllBtn.style.alignSelf = 'center';
-                        downloadAllBtn.style.height = fileInput.offsetHeight + 'px';
-                        downloadAllBtn.style.padding = '0 5px';
-                        downloadAllBtn.addEventListener('click', async () => {
-                            await downloadAllFiles(files);
-                        });
-                        buttonsContainer.insertBefore(downloadAllBtn, uploadContainer);
-                        
-                        const previewAllBtn = document.createElement('button');
-                        previewAllBtn.className = 'preview-all-btn';
-                        previewAllBtn.innerHTML = '<i class="fas fa-eye" style="color: black;"></i>';
-                        previewAllBtn.title = 'Preview All';
-                        previewAllBtn.style.alignSelf = 'center';
-                        previewAllBtn.style.height = fileInput.offsetHeight + 'px';
-                        previewAllBtn.style.padding = '0 5px';
-                        previewAllBtn.addEventListener('click', async () => {
-                            previewAllFiles(files);
-                        });
-                        buttonsContainer.insertBefore(previewAllBtn, uploadContainer);
-                    }
-                }
-                
-                // Aggiorna la lista dei file
-                const fileList = filesCell.querySelector('.file-list');
-                if (fileList) {
-                    fileList.innerHTML = '';
-                    files.forEach(file => {
-                        const fileItem = createFileItem(file, projectId, entryId);
-                        fileList.appendChild(fileItem);
-                    });
-                }
-                
-                // Rimuovi il messaggio di stato
-                statusDiv.remove();
-                
-                // Riabilita l'input
-                this.disabled = false;
-            } catch (error) {
-                console.error('Errore nel caricare i files:', error);
-                statusDiv.textContent = 'Errore durante il caricamento dei file';
-                statusDiv.style.color = 'red';
-                // Riabilita l'input in caso di errore
-                this.disabled = false;
-            }
+            handleFileUpload(this.files, uploadContainer, filesCell, entryId, projectId);
         }
     });
+    
     buttonsContainer.appendChild(uploadContainer);
 
     // Aggiungi i pulsanti "Preview All" e "Download All" solo se ci sono file
@@ -245,6 +317,7 @@ export async function updateFilesCell(entryId, projectId) {
             downloadAllFiles(files);
         });
     }
+
 
     filesCell.appendChild(buttonsContainer);
 
