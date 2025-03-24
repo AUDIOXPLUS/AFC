@@ -421,31 +421,50 @@ async function displayProjects(projects) {
 
 // Function to handle adding a new project
 function addProject() {
-    const tableBody = document.getElementById('projects-table').getElementsByTagName('tbody')[0];
+    // Rendi visibili temporaneamente tutte le colonne nascoste
+    const table = document.getElementById('projects-table');
+    const savedVisibility = JSON.parse(localStorage.getItem('columnVisibility')) || {};
+    const hiddenColumns = [];
+    
+    // Salva quali colonne erano nascoste
+    Object.keys(savedVisibility).forEach(columnIndex => {
+        if (savedVisibility[columnIndex] === false) {
+            hiddenColumns.push(parseInt(columnIndex));
+            showColumn(table, parseInt(columnIndex));
+        }
+    });
+    
+    const tableBody = table.getElementsByTagName('tbody')[0];
     const newRow = tableBody.insertRow(0); // Insert at the beginning
     newRow.classList.add('new-entry-row'); // Aggiungi una classe per lo styling
 
     // Definisci i campi con le loro proprietà
     const fields = [
-        { name: 'client', type: 'text', editable: true },
-        { name: 'productKind', type: 'text', editable: true },
-        { name: 'factory', type: 'text', editable: true },
-        { name: 'brand', type: 'text', editable: true },
-        { name: 'range', type: 'text', editable: true },
-        { name: 'line', type: 'text', editable: true },
-        { name: 'modelNumber', type: 'text', editable: true },
-        { name: 'factoryModelNumber', type: 'text', editable: true },
-        { name: 'startDate', type: 'date', editable: true },
-        { name: 'endDate', type: 'date', editable: true },
-        { name: 'status', type: 'text', editable: false, defaultValue: '-' },
-        { name: 'assignedTo', type: 'text', editable: false, defaultValue: '-' },
-        { name: 'priority', type: 'text', editable: true }
+        { name: 'client', type: 'text', editable: true, columnIndex: 0 },
+        { name: 'productKind', type: 'text', editable: true, columnIndex: 1 },
+        { name: 'factory', type: 'text', editable: true, columnIndex: 2 },
+        { name: 'brand', type: 'text', editable: true, columnIndex: 3 },
+        { name: 'range', type: 'text', editable: true, columnIndex: 4 },
+        { name: 'line', type: 'text', editable: true, columnIndex: 5 },
+        { name: 'modelNumber', type: 'text', editable: true, columnIndex: 6 },
+        { name: 'factoryModelNumber', type: 'text', editable: true, columnIndex: 7 },
+        { name: 'startDate', type: 'date', editable: true, columnIndex: 8 },
+        { name: 'endDate', type: 'date', editable: true, columnIndex: 9 },
+        { name: 'status', type: 'text', editable: false, defaultValue: '-', columnIndex: 10 },
+        { name: 'assignedTo', type: 'text', editable: false, defaultValue: '-', columnIndex: 11 },
+        { name: 'priority', type: 'text', editable: true, columnIndex: 12 }
     ];
 
+    // Non usiamo le preferenze di visibilità per il nuovo progetto
+    // Tutte le colonne devono essere visibili durante l'inserimento
+
     // Crea le celle con gli input
-    fields.forEach((field, index) => {
-        const cell = newRow.insertCell(index);
+    fields.forEach((field) => {
+        const cell = newRow.insertCell(field.columnIndex);
         cell.classList.add('input-cell'); // Aggiungi una classe per lo styling
+        
+        // In fase di inserimento, tutte le colonne sono visibili 
+        // indipendentemente dalle impostazioni di visibilità
 
         if (!field.editable) {
             cell.textContent = field.defaultValue;
@@ -505,25 +524,26 @@ function addProject() {
         }
     });
 
-    const actionsCell = newRow.insertCell(fields.length);
+    // Aggiungi anche una cella per le azioni alla fine (rispettando l'indice corretto)
+    const actionsCell = newRow.insertCell(13);
     actionsCell.classList.add('actions-cell');
     const saveBtn = document.createElement('button');
     saveBtn.textContent = 'Save';
     saveBtn.classList.add('save-btn');
     saveBtn.addEventListener('click', async function() {
-        const newProject = {
-            client: newRow.cells[0].firstChild.value,
-            productKind: newRow.cells[1].querySelector('input').value,
-            factory: newRow.cells[2].firstChild.value,
-            brand: newRow.cells[3].firstChild.value,
-            range: newRow.cells[4].firstChild.value,
-            line: newRow.cells[5].firstChild.value,
-            modelNumber: newRow.cells[6].firstChild.value,
-            factoryModelNumber: newRow.cells[7].firstChild.value,
-            startDate: newRow.cells[8].firstChild.value,
-            endDate: newRow.cells[9].firstChild.value,
-            priority: newRow.cells[12].firstChild.value
-        };
+        // Costruisci l'oggetto progetto estraendo i valori dalle celle
+        const newProject = {};
+        
+        fields.forEach(field => {
+            if (field.editable) {
+                const cell = newRow.cells[field.columnIndex];
+                if (field.name === 'productKind') {
+                    newProject[field.name] = cell.querySelector('input').value;
+                } else if (cell.firstChild) {
+                    newProject[field.name] = cell.firstChild.value;
+                }
+            }
+        });
 
         try {
             const response = await fetch('/api/projects', {
@@ -538,6 +558,12 @@ function addProject() {
                 console.log('Project added successfully');
                 const savedWidths = localStorage.getItem('projectsColumnWidths');
                 await fetchProjects(); // Refresh the project list and apply sorting
+                
+                // Riapplica le impostazioni di visibilità originali dopo il salvataggio
+                hiddenColumns.forEach(columnIndex => {
+                    hideColumn(table, columnIndex);
+                });
+                
                 if (savedWidths) {
                     restoreColumnWidths(); // Ripristina le larghezze dopo l'aggiunta
                 }
