@@ -225,6 +225,10 @@ async function displayTasks(tasks) {
 
         const row = tableBody.insertRow();
         row.setAttribute('data-task-id', task.id);
+        // Aggiungi createdBy come attributo per identificare i task auto-assegnati
+        if (task.createdBy) {
+            row.setAttribute('data-created-by', task.createdBy);
+        }
         row.insertCell(0).textContent = task.factory;
         row.insertCell(1).innerHTML = `<a href="project-details.html?id=${task.projectId}">${task.modelNumber}</a>`;
         row.insertCell(2).textContent = task.date;
@@ -240,10 +244,10 @@ async function displayTasks(tasks) {
             row.style.color = assignedMember.fontColor || '#000000';
         }
 
-        // Evidenzia i nuovi task assegnati all'utente corrente
+        // Evidenzia i nuovi task assegnati all'utente corrente 
+        // Estensione: evidenzia l'intera riga invece che solo la cella "assigned to"
         if (task.is_new && task.assignedTo === currentUser.name) {
-            const assignedToCell = row.cells[4]; // Indice della colonna "Assigned To"
-            assignedToCell.classList.add('new-task-cell');
+            row.classList.add('new-task-cell');
         }
     }));
 
@@ -674,11 +678,17 @@ function filterTasksByRole(role) {
     
     // Calcola il numero di task per ciascun membro
     const memberTaskCounts = {};
+    // Aggiungi contatori per i task auto-assegnati
+    const selfAssignedMemberCounts = {};
     
     // Inizializza i conteggi a 0
     membersWithRole.forEach(member => {
         memberTaskCounts[member.name] = 0;
+        selfAssignedMemberCounts[member.name] = 0;
     });
+    
+    // Verifica se currentUser è disponibile
+    const currentUserName = currentUser ? currentUser.name : null;
     
     // Conta solo i task "In Progress" per ciascun membro (come fa calculateGroupings)
     const tableRows = document.getElementById('task-table').getElementsByTagName('tbody')[0].rows;
@@ -693,6 +703,15 @@ function filterTasksByRole(role) {
         
         if (memberTaskCounts.hasOwnProperty(assignedTo) && status === 'In Progress' && isPriorityMatch) {
             memberTaskCounts[assignedTo]++;
+            
+            // Controlla se questo task è auto-assegnato dall'utente corrente
+            // Un task è auto-assegnato quando è stato creato e assegnato dalla stessa persona
+            if (currentUserName && 
+                assignedTo === currentUserName && 
+                row.hasAttribute('data-created-by') && 
+                row.getAttribute('data-created-by').toString() === currentUser.id.toString()) {
+                selfAssignedMemberCounts[assignedTo]++;
+            }
         }
     });
     
@@ -712,7 +731,14 @@ function filterTasksByRole(role) {
     
     membersWithRole.forEach(member => {
         const memberItem = document.createElement('li');
-        memberItem.innerHTML = `<span class="member-name">${member.name}</span> : <span class="task-count">${memberTaskCounts[member.name]}</span>`;
+        let countText = `${memberTaskCounts[member.name]}`;
+        
+        // Aggiungi il conteggio dei task auto-assegnati tra parentesi
+        if (selfAssignedMemberCounts[member.name] > 0) {
+            countText += ` (${selfAssignedMemberCounts[member.name]})`;
+        }
+        
+        memberItem.innerHTML = `<span class="member-name">${member.name}</span> : <span class="task-count">${countText}</span>`;
         memberItem.classList.add('clickable-member');
         memberItem.setAttribute('data-member-name', member.name);
         membersList.appendChild(memberItem);
@@ -814,6 +840,23 @@ async function calculateGroupings() {
             'Factories': 0,
             'Factory': 0  // Aggiungiamo anche la versione singolare
         };
+        // Aggiungi contatori per i task auto-assegnati
+        const selfAssignedGroupings = {
+            'R&D China': 0,
+            'Client': 0,
+            'Factories': 0,
+            'Factory': 0
+        };
+        console.log('Gruppi inizializzati:', groupings);
+        console.log('Gruppi auto-assegnati inizializzati:', selfAssignedGroupings);
+
+        // Verifica se currentUser è disponibile prima di procedere
+        if (!currentUser || !currentUser.name) {
+            console.error('Utente corrente non disponibile per il calcolo dei task auto-assegnati.');
+            return; // Esci se l'utente non è definito
+        }
+        const currentUserName = currentUser.name;
+        console.log(`Calcolo raggruppamenti per utente: ${currentUserName}`);
 
         // Filtra i task "In Progress"
         let inProgressTasks = tasks.filter(task => task.status === 'In Progress');
@@ -842,15 +885,37 @@ async function calculateGroupings() {
                 switch (user.role) {
                     case 'R&D China':
                         groupings['R&D China']++;
+                        // Controlla se è auto-assegnato (creato e assegnato dalla stessa persona)
+                        if (task.assignedTo === currentUserName && 
+                            task.createdBy && 
+                            task.createdBy.toString() === currentUser.id.toString()) {
+                            selfAssignedGroupings['R&D China']++;
+                        }
                         break;
-                    case 'Client':
+                    case 'Client': // Il DB è stato uniformato, ma gestiamo entrambi per sicurezza
+                    case 'client':
                         groupings['Client']++;
+                        if (task.assignedTo === currentUserName && 
+                            task.createdBy && 
+                            task.createdBy.toString() === currentUser.id.toString()) {
+                            selfAssignedGroupings['Client']++;
+                        }
                         break;
                     case 'Factories':
                         groupings['Factories']++;
+                        if (task.assignedTo === currentUserName && 
+                            task.createdBy && 
+                            task.createdBy.toString() === currentUser.id.toString()) {
+                            selfAssignedGroupings['Factories']++;
+                        }
                         break;
                     case 'Factory':
                         groupings['Factory']++;
+                        if (task.assignedTo === currentUserName && 
+                            task.createdBy && 
+                            task.createdBy.toString() === currentUser.id.toString()) {
+                            selfAssignedGroupings['Factory']++;
+                        }
                         break;
                     default:
                         console.log(`Ruolo non riconosciuto: ${user.role}`);
@@ -860,17 +925,40 @@ async function calculateGroupings() {
             }
         });
         
-        console.log('Conteggi finali:', groupings);
+        console.log('Conteggi totali (prima della combinazione):', groupings);
+        console.log('Conteggi auto-assegnati (prima della combinazione):', selfAssignedGroupings);
 
-        // Se il conteggio di "Factory" è maggiore di zero, usalo per "Factories"
-        if (groupings['Factory'] > 0) {
-            groupings['Factories'] = groupings['Factory'];
+        // Combina i conteggi di Factory e Factories per totali e auto-assegnati
+        if (groupings['Factory'] > 0 || selfAssignedGroupings['Factory'] > 0) {
+            groupings['Factories'] += groupings['Factory'];
+            selfAssignedGroupings['Factories'] += selfAssignedGroupings['Factory'];
+        }
+        // Rimuovi i conteggi singolari non più necessari
+        delete groupings['Factory'];
+        delete selfAssignedGroupings['Factory'];
+
+        console.log('Conteggi totali finali (combinati):', groupings);
+        console.log('Conteggi auto-assegnati finali (combinati):', selfAssignedGroupings);
+
+        // Aggiorna i conteggi nell'UI, aggiungendo i task auto-assegnati tra parentesi
+        const rdChinaElement = document.getElementById('grouping-rd-china');
+        const clientElement = document.getElementById('grouping-client');
+        const factoriesElement = document.getElementById('grouping-factories');
+
+        rdChinaElement.textContent = groupings['R&D China'];
+        if (selfAssignedGroupings['R&D China'] > 0) {
+            rdChinaElement.textContent += ` (${selfAssignedGroupings['R&D China']})`;
         }
 
-        // Aggiorna i conteggi
-        document.getElementById('grouping-rd-china').textContent = groupings['R&D China'];
-        document.getElementById('grouping-client').textContent = groupings['Client'];
-        document.getElementById('grouping-factories').textContent = groupings['Factories'];
+        clientElement.textContent = groupings['Client'];
+        if (selfAssignedGroupings['Client'] > 0) {
+            clientElement.textContent += ` (${selfAssignedGroupings['Client']})`;
+        }
+
+        factoriesElement.textContent = groupings['Factories'];
+        if (selfAssignedGroupings['Factories'] > 0) {
+            factoriesElement.textContent += ` (${selfAssignedGroupings['Factories']})`;
+        }
         
         // Trova il gruppo con il maggior numero di task (collo di bottiglia)
         let maxCount = Math.max(groupings['R&D China'], groupings['Client'], groupings['Factories']);

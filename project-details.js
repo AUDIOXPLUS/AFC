@@ -222,6 +222,46 @@ document.addEventListener('DOMContentLoaded', async function() {
         console.error("Elemento add-entry-btn non trovato nel DOM");
     }
     
+    // Gestione del pulsante urge tasks
+    const urgeTasksBtn = document.getElementById('urge-tasks-btn');
+    if (urgeTasksBtn) {
+        urgeTasksBtn.addEventListener('click', async () => {
+            try {
+                // Disabilita il pulsante durante l'operazione
+                urgeTasksBtn.disabled = true;
+                urgeTasksBtn.textContent = "Processing...";
+                
+                // Chiamata API per aggiornare i task
+                const response = await fetch(`/api/tasks/urge-project-tasks/${projectId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Errore nella chiamata API: ${response.status} ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                
+                // Mostra messaggio di conferma in inglese
+                alert(`Operation completed successfully! ${result.rowsAffected} tasks have been urged.`);
+                
+                console.log('Risultato urge tasks:', result);
+            } catch (error) {
+                console.error('Errore durante l\'aggiornamento dei task:', error);
+                alert(`An error occurred: ${error.message}`);
+            } finally {
+                // Ripristina il pulsante
+                urgeTasksBtn.disabled = false;
+                urgeTasksBtn.textContent = "Urge Tasks";
+            }
+        });
+    } else {
+        console.error("Elemento urge-tasks-btn non trovato nel DOM");
+    }
+    
     // Inizializza le funzionalità della tabella dopo aver caricato la cronologia
     // Verifica le funzioni disponibili prima di chiamarle
     if (window.ProjectHistory && typeof window.ProjectHistory.fetchProjectHistory === 'function') {

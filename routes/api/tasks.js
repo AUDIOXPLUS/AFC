@@ -37,7 +37,8 @@ router.get('/', checkAuthentication, async (req, res) => {
                 ph.assigned_to AS assignedTo, 
                 ph.status,
                 ph.is_new,
-                p.priority
+                p.priority,
+                ph.created_by AS createdBy
             FROM 
                 project_history ph
             JOIN 
@@ -187,6 +188,39 @@ router.get('/new-count', checkAuthentication, async (req, res) => {
                 return res.status(500).json({ error: 'Errore del server' });
             }
             res.json({ count: row.count });
+        });
+    } catch (error) {
+        console.error('Errore:', error);
+        res.status(500).json({ error: 'Errore del server' });
+    }
+});
+
+// Endpoint per aggiornare il campo is_new dei project history con status "In Progress"
+router.post('/urge-project-tasks/:projectId', checkAuthentication, async (req, res) => {
+    try {
+        const { projectId } = req.params;
+        
+        // Aggiorna tutti i project history con status "In Progress" per questo progetto
+        // impostando il campo is_new a 1
+        const query = `
+            UPDATE project_history
+            SET is_new = 1
+            WHERE project_id = ? 
+            AND status = 'In Progress'
+        `;
+        
+        req.db.run(query, [projectId], function(err) {
+            if (err) {
+                console.error('Errore nell\'aggiornamento dei task urgenti:', err);
+                return res.status(500).json({ error: 'Errore del server' });
+            }
+            
+            // Restituisci il numero di righe aggiornate
+            res.json({ 
+                success: true, 
+                message: 'Tasks aggiornati correttamente', 
+                rowsAffected: this.changes 
+            });
         });
     } catch (error) {
         console.error('Errore:', error);
