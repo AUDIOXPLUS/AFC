@@ -554,6 +554,30 @@ main > .table-actions, main > .add-btn {
     background-color: #fff; /* Imposta lo sfondo bianco come gli altri input */
 }
 
+/* Stile per i toggle filter sotto la riga dei filtri */
+.toggle-filters {
+    display: flex;
+    width: 100%;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #e0e0e0;
+}
+
+.toggle-filters label {
+    display: flex;
+    align-items: center;
+    margin-right: 20px;
+    font-size: 12px;
+    color: #555;
+    cursor: pointer;
+}
+
+.toggle-filters input[type="checkbox"] {
+    margin-right: 5px;
+    cursor: pointer;
+    accent-color: #3498db;
+}
+
 .column-visibility {
     position: relative;
     display: inline-flex;

@@ -173,7 +173,8 @@ async function fetchProjects() {
     console.log('Fetching projects...');
     try {
         const showArchived = document.getElementById('show-archived').checked;
-        const response = await fetch(`/api/projects?showArchived=${showArchived}`);
+        const showOnHold = document.getElementById('show-on-hold').checked;
+        const response = await fetch(`/api/projects?showArchived=${showArchived}&showOnHold=${showOnHold}`);
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -403,6 +404,8 @@ async function displayProjects(projects) {
             });
             actionsCell.appendChild(archiveBtn);
         }
+        
+        // Non è necessario evidenziare visivamente i progetti "On Hold" - il filtro viene gestito lato backend
 
         actionsCell.appendChild(editBtn);
         actionsCell.appendChild(deleteBtn);
@@ -914,9 +917,15 @@ function enableLiveFiltering() {
     // Oggetto per esporre funzioni pubbliche
     const publicApi = {};
 
-    // Gestione checkbox progetti archiviati
+    // Gestione checkbox progetti archiviati e on hold
     const showArchivedCheckbox = document.getElementById('show-archived');
     showArchivedCheckbox.addEventListener('change', () => {
+        fetchProjects();
+    });
+    
+    // Gestione checkbox progetti on hold
+    const showOnHoldCheckbox = document.getElementById('show-on-hold');
+    showOnHoldCheckbox.addEventListener('change', () => {
         fetchProjects();
     });
 

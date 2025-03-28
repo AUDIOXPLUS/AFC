@@ -8,6 +8,7 @@ const fs = require('fs-extra');
 router.get('/', checkAuthentication, async (req, res) => {
     try {
         const showArchived = req.query.showArchived === 'true';
+        const showOnHold = req.query.showOnHold === 'true';
         // Ottieni i permessi CRUD dell'utente per la pagina projects
         const permissionsQuery = `
             SELECT c.properties, uc.properties as user_properties
@@ -29,8 +30,52 @@ router.get('/', checkAuthentication, async (req, res) => {
         }
 
         const queryParams = [];
-        let query = 'SELECT * FROM projects WHERE 1=1 AND (archived = ? OR archived IS NULL)';
-        queryParams.push(showArchived ? 1 : 0);
+        
+        // Costruisci la query in base allo stato dei toggle
+        let query = 'SELECT * FROM projects WHERE 1=1';
+        
+        // Gestisci i casi possibili per i toggle showArchived e showOnHold
+        if (showArchived && !showOnHold) {
+            // CASO 1: Mostra SOLO progetti archiviati
+            query += ' AND archived = 1';
+        } else if (!showArchived && showOnHold) {
+            // CASO 2: Mostra SOLO progetti on hold
+            query += ' AND archived = 0 AND EXISTS (';
+            query += `   SELECT 1 FROM project_history ph 
+                         WHERE ph.project_id = projects.id 
+                         AND ph.status = 'On Hold'
+                         AND NOT EXISTS (
+                             SELECT 1 FROM project_history ph2
+                             WHERE ph2.project_id = projects.id
+                             AND ph2.date > ph.date
+                         )
+                    )`;
+        } else if (showArchived && showOnHold) {
+            // CASO 3: Mostra sia progetti archiviati che on hold
+            query += ` AND (archived = 1 OR EXISTS (
+                         SELECT 1 FROM project_history ph 
+                         WHERE ph.project_id = projects.id 
+                         AND ph.status = 'On Hold'
+                         AND NOT EXISTS (
+                             SELECT 1 FROM project_history ph2
+                             WHERE ph2.project_id = projects.id
+                             AND ph2.date > ph.date
+                         )
+                      ))`;
+        } else {
+            // CASO 4: Mostra solo progetti normali (non archiviati e non on hold)
+            query += ' AND archived = 0';
+            query += ` AND NOT EXISTS (
+                         SELECT 1 FROM project_history ph 
+                         WHERE ph.project_id = projects.id 
+                         AND ph.status = 'On Hold'
+                         AND NOT EXISTS (
+                             SELECT 1 FROM project_history ph2
+                             WHERE ph2.project_id = projects.id
+                             AND ph2.date > ph.date
+                         )
+                      )`;
+        }
 
         if (!user.user_properties) {
             return res.status(403).json({ error: 'Permesso di lettura negato' });
