@@ -1,6 +1,30 @@
 document.addEventListener('DOMContentLoaded', function() {
     initializePasswordChange();
+    showWelcomeMessage();
 });
+
+// Funzione per mostrare il messaggio di benvenuto
+async function showWelcomeMessage() {
+    try {
+        // Recupera i dati utente dalla sessione
+        const response = await fetch('/api/session-user', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (response.ok) {
+            const userData = await response.json();
+            const welcomeMessage = document.getElementById('welcome-message');
+            if (welcomeMessage && userData.name) {
+                welcomeMessage.textContent = `Welcome ${userData.name}`;
+            }
+        }
+    } catch (error) {
+        console.error('Error fetching user data:', error);
+    }
+}
 
 function initializePasswordChange() {
     const form = document.getElementById('change-password-form');
