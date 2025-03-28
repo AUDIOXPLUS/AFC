@@ -120,9 +120,17 @@ const checkAuthentication = require('./routes/middleware/auth');
 // Aggiunge le rotte con prefisso
 app.use('/api', routes);
 
-// Serve il file di login senza autenticazione
+// Serve il file di login e cambio password senza autenticazione
 app.get('/login.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'login.html'));
+});
+
+app.get('/change-password.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'change-password.html'));
+});
+
+app.get('/change-password.js', (req, res) => {
+    res.sendFile(path.join(__dirname, 'change-password.js'));
 });
 
 // Proteggi tutti gli altri file statici con l'autenticazione

@@ -16,11 +16,74 @@
             <label for="password">Password:</label>
             <input type="password" id="password" name="password" required>
             <button type="submit">Login</button>
+            <button type="button" id="changePasswordBtn" class="secondary-button">Change Password</button>
             <p id="message"></p>
         </form>
     </div>
 
+    <style>
+        .secondary-button {
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 10px;
+            width: 100%;
+            margin-top: 10px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        
+        .secondary-button:hover {
+            background-color: #5a6268;
+        }
+    </style>
+
     <script>
+        document.getElementById('changePasswordBtn').addEventListener('click', function() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            if (!username || !password) {
+                document.getElementById('message').textContent = 'Please enter username and password first.';
+                document.getElementById('message').style.color = 'red';
+                return;
+            }
+            
+            // Verifica credenziali prima di consentire il cambio password
+            fetch('/api/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username, password })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Server response error: ' + response.status);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    // Memorizza i dati utente e reindirizza alla pagina di cambio password
+                    localStorage.setItem('user', JSON.stringify({
+                        id: data.id,
+                        name: data.name,
+                        username: username
+                    }));
+                    window.location.href = 'change-password.html';
+                } else {
+                    document.getElementById('message').textContent = 'Invalid credentials. Please enter correct username and password.'; 
+                    document.getElementById('message').style.color = 'red';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('message').textContent = 'Server connection error.';
+                document.getElementById('message').style.color = 'red';
+            });
+        });
         document.getElementById('loginForm').addEventListener('submit', function(event) {
             event.preventDefault();
             
