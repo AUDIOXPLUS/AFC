@@ -80,6 +80,9 @@
                             <button id="pullOneDriveBtn" class="secondary-btn">
                                 <i class="fas fa-cloud-download-alt"></i> Pull OneDrive Backup
                             </button>
+                            <button id="pullServerBtn" class="secondary-btn">
+                                <i class="fas fa-server"></i> Pull Server Backup
+                            </button>
                         </div>
                         <div class="backup-settings">
                             <label class="toggle-switch">
@@ -602,12 +605,14 @@
         function performManualBackup() {
             const button = document.getElementById('backupNowBtn');
             const pullButton = document.getElementById('pullOneDriveBtn');
+            const serverButton = document.getElementById('pullServerBtn');
             const progressBar = document.getElementById('backupProgress');
             const progressFill = progressBar.querySelector('.progress-fill');
             const progressStatus = progressBar.querySelector('.progress-status');
             
             button.disabled = true;
             pullButton.disabled = true;
+            serverButton.disabled = true;
             progressBar.style.display = 'block';
             progressFill.style.width = '0%';
             
@@ -669,6 +674,7 @@
         function pullOneDriveBackup() {
             const button = document.getElementById('backupNowBtn');
             const pullButton = document.getElementById('pullOneDriveBtn');
+            const serverButton = document.getElementById('pullServerBtn');
             const progressBar = document.getElementById('backupProgress');
             const progressFill = progressBar.querySelector('.progress-fill');
             const progressStatus = progressBar.querySelector('.progress-status');
@@ -712,9 +718,70 @@
                 eventSource.close();
                 button.disabled = false;
                 pullButton.disabled = false;
+                serverButton.disabled = false;
                 progressBar.style.display = 'none';
                 progressFill.style.width = '100%';
                 progressStatus.textContent = 'Errore durante la sincronizzazione da OneDrive';
+                console.error('Errore nella connessione SSE');
+            };
+        }
+        
+        // Gestisce il pull dei backup dal server remoto
+        function pullServerBackup() {
+            const button = document.getElementById('backupNowBtn');
+            const pullButton = document.getElementById('pullOneDriveBtn');
+            const serverButton = document.getElementById('pullServerBtn');
+            const progressBar = document.getElementById('backupProgress');
+            const progressFill = progressBar.querySelector('.progress-fill');
+            const progressStatus = progressBar.querySelector('.progress-status');
+            
+            button.disabled = true;
+            pullButton.disabled = true;
+            serverButton.disabled = true;
+            progressBar.style.display = 'block';
+            progressFill.style.width = '0%';
+            progressStatus.textContent = 'Connessione al server remoto...';
+            
+            // Esegue il comando rsync tramite API
+            const eventSource = new EventSource('/backup/pull-server');
+            
+            eventSource.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                
+                // Aggiorna la progress bar
+                progressFill.style.width = `${data.progress}%`;
+                progressStatus.textContent = data.status;
+                
+                if (data.progress === 100) {
+                    eventSource.close();
+                    
+                    // Nascondi la progress bar dopo 3 secondi
+                    setTimeout(() => {
+                        progressBar.style.display = 'none';
+                        button.disabled = false;
+                        pullButton.disabled = false;
+                        serverButton.disabled = false;
+                    }, 3000);
+                    
+                    if (data.success) {
+                        // Aspetta 1 secondo per dare tempo al server di completare il processo
+                        setTimeout(() => {
+                            loadBackupHistory();
+                        }, 1000);
+                    } else {
+                        console.error('Errore durante la sincronizzazione dal server remoto:', data.status);
+                    }
+                }
+            };
+            
+            eventSource.onerror = function() {
+                eventSource.close();
+                button.disabled = false;
+                pullButton.disabled = false;
+                serverButton.disabled = false;
+                progressBar.style.display = 'none';
+                progressFill.style.width = '100%';
+                progressStatus.textContent = 'Errore durante la sincronizzazione dal server remoto';
                 console.error('Errore nella connessione SSE');
             };
         }
@@ -778,6 +845,7 @@
             // Aggiungi gli event listener per i pulsanti
             document.getElementById('backupNowBtn').addEventListener('click', performManualBackup);
             document.getElementById('pullOneDriveBtn').addEventListener('click', pullOneDriveBackup);
+            document.getElementById('pullServerBtn').addEventListener('click', pullServerBackup);
             
             // Aggiungi l'event listener per il toggle switch
             document.getElementById('enableBackupsToggle').addEventListener('change', function(e) {

@@ -304,7 +304,7 @@ async function displayProjects(projects) {
     tableBody.innerHTML = ''; // Clear existing rows
 
     // Funzione per creare una riga della tabella
-    const createTableRow = async (project) => {
+    const createTableRow = (project) => {
         const row = tableBody.insertRow();
         row.style.height = 'auto'; // Ensure consistent row height
         
@@ -362,15 +362,35 @@ async function displayProjects(projects) {
         endDateCell.textContent = getValueOrDash(project.endDate);
         endDateCell.title = endDateCell.textContent;
 
-        // Recupera e imposta lo status del progetto e l'utente assegnato
-        const projectStatus = await getProjectStatus(project.id);
+        // Determina lo status del progetto dalle informazioni incluse nella risposta API
+        let statusText = 'No History';
+        let assignedToText = 'Not Assigned';
+        
+        if (project.latest_status) {
+            // Se tutte le entry pubbliche sono completate, mostra "Completed"
+            if (project.latest_status === 'Completed') {
+                statusText = 'Completed';
+            } else if (project.latest_status === 'On Hold') {
+                statusText = 'On Hold';
+            } else if (project.latest_description) {
+                statusText = `${project.latest_description} (${project.latest_status})`;
+            } else {
+                statusText = project.latest_status;
+            }
+            
+            // Aggiorna l'utente assegnato
+            assignedToText = project.latest_assigned_to || 'Not Assigned';
+        }
+        
+        // Status
         const statusCell = row.insertCell(10);
-        statusCell.textContent = projectStatus.status;
-        statusCell.title = projectStatus.status; // Aggiunge il tooltip
+        statusCell.textContent = statusText;
+        statusCell.title = statusText;
+        
         // Assigned to
         const assignedToCell = row.insertCell(11);
-        assignedToCell.textContent = projectStatus.assignedTo;
-        assignedToCell.title = assignedToCell.textContent;
+        assignedToCell.textContent = assignedToText;
+        assignedToCell.title = assignedToText;
 
         // Priority
         const priorityCell = row.insertCell(12);
@@ -392,7 +412,7 @@ async function displayProjects(projects) {
         deleteBtn.addEventListener('click', () => confirmDelete(project.id));
         
         // Archive/Unarchive button
-        if (project.archived || projectStatus.status === 'Completed') {
+        if (project.archived || project.latest_status === 'Completed') {
             const archiveBtn = document.createElement('button');
             archiveBtn.className = project.archived ? 'unarchive-btn' : 'archive-btn';
             archiveBtn.textContent = project.archived ? 'Unarchive' : 'Archive';
@@ -411,8 +431,8 @@ async function displayProjects(projects) {
         actionsCell.appendChild(deleteBtn);
     };
 
-    // Crea tutte le righe in modo asincrono
-    await Promise.all(projects.map(project => createTableRow(project)));
+    // Crea tutte le righe (non più in modo asincrono)
+    projects.forEach(project => createTableRow(project));
     console.log('Projects displayed successfully');
     // Memorizza gli ID dei progetti autorizzati per il controllo in project-details.html
     const allowedIds = projects.map(project => String(project.id));

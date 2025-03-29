@@ -31,8 +31,22 @@ router.get('/', checkAuthentication, async (req, res) => {
 
         const queryParams = [];
         
-        // Costruisci la query in base allo stato dei toggle
-        let query = 'SELECT * FROM projects WHERE 1=1';
+        // Costruisci la query in base allo stato dei toggle, includendo informazioni sullo status più recente
+        let query = `
+            SELECT p.*, 
+                   latest_history.status as latest_status, 
+                   latest_history.description as latest_description, 
+                   latest_history.assigned_to as latest_assigned_to,
+                   latest_history.private_by as latest_private_by
+            FROM projects p
+            LEFT JOIN (
+                SELECT ph1.*
+                FROM project_history ph1
+                LEFT JOIN project_history ph2 ON ph1.project_id = ph2.project_id AND 
+                                               (ph1.date < ph2.date OR (ph1.date = ph2.date AND ph1.id < ph2.id))
+                WHERE ph2.id IS NULL
+            ) latest_history ON p.id = latest_history.project_id
+            WHERE 1=1`;
         
         // Gestisci i casi possibili per i toggle showArchived e showOnHold
         if (showArchived && !showOnHold) {
@@ -42,11 +56,11 @@ router.get('/', checkAuthentication, async (req, res) => {
             // CASO 2: Mostra SOLO progetti on hold
             query += ' AND archived = 0 AND EXISTS (';
             query += `   SELECT 1 FROM project_history ph 
-                         WHERE ph.project_id = projects.id 
+                         WHERE ph.project_id = p.id 
                          AND ph.status = 'On Hold'
                          AND NOT EXISTS (
                              SELECT 1 FROM project_history ph2
-                             WHERE ph2.project_id = projects.id
+                             WHERE ph2.project_id = p.id
                              AND ph2.date > ph.date
                          )
                     )`;
@@ -54,11 +68,11 @@ router.get('/', checkAuthentication, async (req, res) => {
             // CASO 3: Mostra sia progetti archiviati che on hold
             query += ` AND (archived = 1 OR EXISTS (
                          SELECT 1 FROM project_history ph 
-                         WHERE ph.project_id = projects.id 
+                         WHERE ph.project_id = p.id 
                          AND ph.status = 'On Hold'
                          AND NOT EXISTS (
                              SELECT 1 FROM project_history ph2
-                             WHERE ph2.project_id = projects.id
+                             WHERE ph2.project_id = p.id
                              AND ph2.date > ph.date
                          )
                       ))`;
@@ -67,11 +81,11 @@ router.get('/', checkAuthentication, async (req, res) => {
             query += ' AND archived = 0';
             query += ` AND NOT EXISTS (
                          SELECT 1 FROM project_history ph 
-                         WHERE ph.project_id = projects.id 
+                         WHERE ph.project_id = p.id 
                          AND ph.status = 'On Hold'
                          AND NOT EXISTS (
                              SELECT 1 FROM project_history ph2
-                             WHERE ph2.project_id = projects.id
+                             WHERE ph2.project_id = p.id
                              AND ph2.date > ph.date
                          )
                       )`;
@@ -104,7 +118,7 @@ router.get('/', checkAuthentication, async (req, res) => {
                 // Progetti assegnati all'utente corrente
                 query += ` AND EXISTS (
                     SELECT 1 FROM project_history ph
-                    WHERE ph.project_id = projects.id
+                    WHERE ph.project_id = p.id
                     AND ph.assigned_to = ?
                 )`;
                 queryParams.push(req.session.user.name);
@@ -161,7 +175,7 @@ router.get('/', checkAuthentication, async (req, res) => {
                             query += ` AND EXISTS (
                                 SELECT 1 FROM project_history ph
                                 JOIN users u ON ph.assigned_to = u.name
-                                WHERE ph.project_id = projects.id
+                                WHERE ph.project_id = p.id
                                 AND u.id IN (${userProps.userIds.map(() => '?').join(',')})
                             )`;
                             queryParams.push(...userProps.userIds);
