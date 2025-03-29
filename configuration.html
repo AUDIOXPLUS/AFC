@@ -80,8 +80,8 @@
                             <button id="pullOneDriveBtn" class="secondary-btn">
                                 <i class="fas fa-cloud-download-alt"></i> Pull OneDrive Backup
                             </button>
-                            <button id="pullServerBtn" class="secondary-btn">
-                                <i class="fas fa-server"></i> Pull Server Backup
+                            <button id="pullServerBtn" class="secondary-btn" title="Synchronizes database and uploads directories from the remote server to this client. Only database and uploads folders will be copied.">
+                                <i class="fas fa-server"></i> Scarica db e files nel client
                             </button>
                         </div>
                         <div class="backup-settings">
@@ -726,64 +726,166 @@
             };
         }
         
-        // Gestisce il pull dei backup dal server remoto
-        function pullServerBackup() {
-            const button = document.getElementById('backupNowBtn');
-            const pullButton = document.getElementById('pullOneDriveBtn');
-            const serverButton = document.getElementById('pullServerBtn');
-            const progressBar = document.getElementById('backupProgress');
-            const progressFill = progressBar.querySelector('.progress-fill');
-            const progressStatus = progressBar.querySelector('.progress-status');
-            
-            button.disabled = true;
-            pullButton.disabled = true;
-            serverButton.disabled = true;
-            progressBar.style.display = 'block';
-            progressFill.style.width = '0%';
-            progressStatus.textContent = 'Connessione al server remoto...';
-            
-            // Esegue il comando rsync tramite API
-            const eventSource = new EventSource('/backup/pull-server');
-            
-            eventSource.onmessage = function(event) {
-                const data = JSON.parse(event.data);
-                
-                // Aggiorna la progress bar
-                progressFill.style.width = `${data.progress}%`;
-                progressStatus.textContent = data.status;
-                
-                if (data.progress === 100) {
-                    eventSource.close();
+        // Mostra un messaggio informativo e di conferma con dettagli sulla sincronizzazione
+        function showSyncConfirmDialog(callback) {
+            // Ottieni l'IP del client tramite una WebAPI
+            fetch('https://api.ipify.org?format=json')
+                .then(response => response.json())
+                .then(data => {
+                    const clientIP = data.ip || 'Unknown';
                     
-                    // Nascondi la progress bar dopo 3 secondi
-                    setTimeout(() => {
-                        progressBar.style.display = 'none';
-                        button.disabled = false;
-                        pullButton.disabled = false;
-                        serverButton.disabled = false;
-                    }, 3000);
-                    
-                    if (data.success) {
-                        // Aspetta 1 secondo per dare tempo al server di completare il processo
-                        setTimeout(() => {
-                            loadBackupHistory();
-                        }, 1000);
-                    } else {
-                        console.error('Errore durante la sincronizzazione dal server remoto:', data.status);
+                    // Crea il modal se non esiste già
+                    let modal = document.getElementById('syncConfirmModal');
+                    if (!modal) {
+                        modal = document.createElement('div');
+                        modal.id = 'syncConfirmModal';
+                        modal.className = 'modal';
+                        modal.innerHTML = `
+                            <div class="modal-content" style="width: 600px; max-width: 95%;">
+                                <div class="modal-header">
+                                    <h3><i class="fas fa-info-circle"></i> Synchronization Information</h3>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="sync-info" style="margin-bottom: 20px;">
+                                        <p><strong>This operation will copy files from the remote server to this client.</strong></p>
+                                        <div style="margin: 15px 0; padding: 10px; background-color: #f8f9fa; border-radius: 5px; border-left: 4px solid #007bff;">
+                                            <p><strong>Direction:</strong> Remote Server → This Client</p>
+                                            <p><strong>Remote Server IP:</strong> 185.250.144.219</p>
+                                            <p><strong>Client IP:</strong> ${clientIP}</p>
+                                            <p><strong>Directories to be copied:</strong></p>
+                                            <ul style="margin-top: 5px; margin-bottom: 5px;">
+                                                <li>database/ (Database and backups)</li>
+                                                <li>uploads/ (Uploaded files)</li>
+                                            </ul>
+                                            <p><strong>All other directories will be left untouched.</strong></p>
+                                        </div>
+                                        <div style="background-color: #dc3545; color: white; padding: 10px; border-radius: 5px; margin: 15px 0;">
+                                            <p style="font-weight: bold; font-size: 16px; margin-bottom: 10px;">⚠️ CRITICAL WARNING ⚠️</p>
+                                            <p style="margin-bottom: 10px;">This operation <strong>MUST ONLY</strong> be performed on <strong>CLIENT MACHINES</strong>.</p>
+                                            <p style="margin-bottom: 10px;">Executing this on the main server (185.250.144.219) will cause <strong>DATA LOSS</strong> and possibly <strong>CORRUPT YOUR DATABASE</strong>!</p>
+                                            <p>If you are not 100% certain this is a client machine, <strong>CANCEL NOW</strong>.</p>
+                                        </div>
+                                        <p style="font-weight: bold;">Are you absolutely sure you want to continue?</p>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button id="modalCancelBtn" class="secondary-btn">Cancel</button>
+                                    <button id="modalConfirmBtn" class="primary-btn">Continue Synchronization</button>
+                                </div>
+                            </div>
+                        `;
+                        document.body.appendChild(modal);
                     }
-                }
-            };
-            
-            eventSource.onerror = function() {
-                eventSource.close();
-                button.disabled = false;
-                pullButton.disabled = false;
-                serverButton.disabled = false;
-                progressBar.style.display = 'none';
-                progressFill.style.width = '100%';
-                progressStatus.textContent = 'Errore durante la sincronizzazione dal server remoto';
-                console.error('Errore nella connessione SSE');
-            };
+                    
+                    // Mostra il modal
+                    modal.style.display = 'block';
+                    
+                    // Aggiungi l'event listener per i pulsanti
+                    document.getElementById('modalCancelBtn').onclick = function() {
+                        modal.style.display = 'none';
+                    };
+                    
+                    document.getElementById('modalConfirmBtn').onclick = function() {
+                        modal.style.display = 'none';
+                        callback(); // Esegui la funzione di callback (avvio della sincronizzazione)
+                    };
+                    
+                    // Chiudi il modal se l'utente clicca fuori da esso
+                    window.onclick = function(event) {
+                        if (event.target === modal) {
+                            modal.style.display = 'none';
+                        }
+                    };
+                })
+                .catch(error => {
+                    console.error('Error fetching IP address:', error);
+                    // Fallback con IP locale se non riesce a recuperare l'IP
+                    const clientIP = "Client IP not available";
+                    
+                    // Crea il modal con l'IP di fallback
+                    let modal = document.getElementById('syncConfirmModal');
+                    if (!modal) {
+                        modal = document.createElement('div');
+                        modal.id = 'syncConfirmModal';
+                        modal.className = 'modal';
+                        modal.innerHTML = `
+                            <div class="modal-content" style="width: 600px; max-width: 95%;">
+                                <div class="modal-header">
+                                    <h3><i class="fas fa-info-circle"></i> Synchronization Information</h3>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="sync-info" style="margin-bottom: 20px;">
+                                        <p><strong>This operation will copy files from the remote server to this client.</strong></p>
+                                        <div style="margin: 15px 0; padding: 10px; background-color: #f8f9fa; border-radius: 5px; border-left: 4px solid #007bff;">
+                                            <p><strong>Direction:</strong> Remote Server → This Client</p>
+                                            <p><strong>Remote Server IP:</strong> 185.250.144.219</p>
+                                            <p><strong>Client IP:</strong> ${clientIP}</p>
+                                            <p><strong>Directories to be copied:</strong></p>
+                                            <ul style="margin-top: 5px; margin-bottom: 5px;">
+                                                <li>database/ (Database and backups)</li>
+                                                <li>uploads/ (Uploaded files)</li>
+                                            </ul>
+                                            <p><strong>All other directories will be left untouched.</strong></p>
+                                        </div>
+                                        <div style="background-color: #dc3545; color: white; padding: 10px; border-radius: 5px; margin: 15px 0;">
+                                            <p style="font-weight: bold; font-size: 16px; margin-bottom: 10px;">⚠️ CRITICAL WARNING ⚠️</p>
+                                            <p style="margin-bottom: 10px;">This operation <strong>MUST ONLY</strong> be performed on <strong>CLIENT MACHINES</strong>.</p>
+                                            <p style="margin-bottom: 10px;">Executing this on the main server (185.250.144.219) will cause <strong>DATA LOSS</strong> and possibly <strong>CORRUPT YOUR DATABASE</strong>!</p>
+                                            <p>If you are not 100% certain this is a client machine, <strong>CANCEL NOW</strong>.</p>
+                                        </div>
+                                        <p style="font-weight: bold;">Are you absolutely sure you want to continue?</p>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button id="modalCancelBtn" class="secondary-btn">Cancel</button>
+                                    <button id="modalConfirmBtn" class="primary-btn">Continue Synchronization</button>
+                                </div>
+                            </div>
+                        `;
+                        document.body.appendChild(modal);
+                    }
+                    
+                    // Mostra il modal
+                    modal.style.display = 'block';
+                    
+                    // Aggiungi l'event listener per i pulsanti
+                    document.getElementById('modalCancelBtn').onclick = function() {
+                        modal.style.display = 'none';
+                    };
+                    
+                    document.getElementById('modalConfirmBtn').onclick = function() {
+                        modal.style.display = 'none';
+                        callback(); // Esegui la funzione di callback (avvio della sincronizzazione)
+                    };
+                    
+                    // Chiudi il modal se l'utente clicca fuori da esso
+                    window.onclick = function(event) {
+                        if (event.target === modal) {
+                            modal.style.display = 'none';
+                        }
+                    };
+                });
+        }
+        
+        // Gestisce il pull dei backup dal server remoto copiando il comando negli appunti
+        function pullServerBackup() {
+            // Mostra il dialogo di conferma con informazioni sulla sincronizzazione
+            showSyncConfirmDialog(() => {
+                // Questa funzione viene eseguita solo se l'utente conferma
+                
+                // Comando rsync da copiare (fornito dall'utente)
+                const rsyncCommand = `rsync -avzP --delete --stats --include="database/***" --include="uploads/***" --exclude="*" -e "ssh -p 22222 -i ~/.ssh/id_rsa_server_remoto" axp@185.250.144.219:/opt/afc-v3/ /opt/afc-v3/`;
+
+                // Copia il comando negli appunti
+                navigator.clipboard.writeText(rsyncCommand).then(() => {
+                    // Mostra messaggio di successo/istruzione
+                    showWarningModal("rsync command copied to clipboard!\n\nPaste and run this command in your local terminal (in the project's root directory) to start the synchronization.");
+                }).catch(err => {
+                    console.error('Failed to copy rsync command: ', err);
+                    // Mostra messaggio di errore se la copia fallisce
+                    showWarningModal("Failed to copy rsync command to clipboard. Please copy it manually:\n\n" + rsyncCommand);
+                });
+            });
         }
 
         // Gestisce il toggle per abilitare/disabilitare i backup automatici

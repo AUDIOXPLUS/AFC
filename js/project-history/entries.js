@@ -1078,10 +1078,11 @@ export function displayProjectHistory(history, projectId) {
         if (entry.status === 'Completed') {
             row.classList.add('completed');
         } else {
-            const assignedMember = window.teamMembers.find(member => member.name === entry.assigned_to);
-            if (assignedMember) {
-                row.style.backgroundColor = assignedMember.color;
-                row.style.color = assignedMember.fontColor || '#000000';
+            const assignedToName = entry.assigned_to;
+            // Usa la mappa per accesso diretto invece di .find()
+            if (assignedToName && window.teamMembersMap && window.teamMembersMap[assignedToName]) {
+                // Applica la classe CSS invece di manipolare direttamente lo stile
+                row.classList.add('team-member-' + window.teamMembersMap[assignedToName].id);
             }
         }
 

@@ -128,7 +128,16 @@ export function initialize(projectId) {
         window.teamMembers = teamMembers;
         window.currentUserId = currentUser.id;
         window.currentUserName = currentUser.name; // Salva il nome dell'utente corrente
-
+        
+        // Crea una mappa dei membri del team per accesso veloce
+        window.teamMembersMap = {};
+        teamMembers.forEach(member => {
+            window.teamMembersMap[member.name] = member;
+        });
+        
+        // Genera classi CSS dinamiche per i membri del team
+        generateTeamMemberStyles(teamMembers);
+        
         // Inizializza il filtraggio
         Filters.enableFiltering();
 
@@ -139,4 +148,40 @@ export function initialize(projectId) {
 }
 
 // Esponi la funzione di inizializzazione
+// Funzione per generare classi CSS dinamiche per i membri del team
+function generateTeamMemberStyles(teamMembers) {
+    console.log('Generazione stili dinamici per i membri del team');
+    
+    // Crea un elemento style
+    const styleElement = document.createElement('style');
+    styleElement.type = 'text/css';
+    styleElement.id = 'team-member-styles';
+    
+    // Rimuovi eventuali stili precedenti
+    const existingStyle = document.getElementById('team-member-styles');
+    if (existingStyle) {
+        existingStyle.remove();
+    }
+    
+    // Genera le regole CSS per ogni membro del team
+    let styleRules = '';
+    teamMembers.forEach(member => {
+        if (member.id && member.color) {
+            styleRules += `
+                .team-member-${member.id} {
+                    background-color: ${member.color};
+                    color: ${member.fontColor || '#000000'};
+                }
+            `;
+        }
+    });
+    
+    // Aggiungi le regole all'elemento style
+    styleElement.textContent = styleRules;
+    
+    // Aggiungi l'elemento style alla pagina
+    document.head.appendChild(styleElement);
+    console.log('Stili CSS generati e applicati con successo');
+}
+
 export default initialize;
