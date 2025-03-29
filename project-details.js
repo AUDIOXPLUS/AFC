@@ -58,9 +58,9 @@ document.addEventListener('DOMContentLoaded', async function() {
                 throw new Error('Nessun endpoint utente disponibile');
             }
         }
-        
+
         console.log('userData ottenuto:', userData);
-        
+
         if (userData && (userData.username || userData.name)) {
             window.currentUserId = String(userData.id);
             window.currentUserName = userData.name || userData.username;
@@ -99,23 +99,23 @@ document.addEventListener('DOMContentLoaded', async function() {
             } catch (error) {
                 console.error('Error resetting new status:', error);
             }
-            
+
             // Aggiorna il titolo del progetto
             document.getElementById('project-model-number').textContent = project.modelNumber;
             document.title = `Project Details: ${project.modelNumber}`;
-            
+
             // Recupera lo status dalla cronologia filtrata
             const historyResponse = await fetch(`/api/projects/${projectId}/history`);
             const history = await window.handleResponse(historyResponse);
-            
+
             // Determina lo status da mostrare
             let statusToShow = '-';
             let statusVisible = true;
-            
+
             if (history.length > 0) {
                 // La cronologia è già filtrata per mostrare solo entry pubbliche o dell'utente corrente
                 const activeEntry = history.find(entry => entry.status !== 'Completed');
-                
+
                 if (!activeEntry) {
                     statusToShow = 'Completed';
                 } else if (activeEntry.status === 'On Hold') {
@@ -123,13 +123,13 @@ document.addEventListener('DOMContentLoaded', async function() {
                 } else {
                     statusToShow = activeEntry.status;
                 }
-                
+
                 // Verifica se lo status deve essere visibile in base al campo private_by
                 if (activeEntry && activeEntry.private_by !== null) {
                     // Se private_by è valorizzato, verifica se l'utente corrente è nella lista
                     const privateBy = String(activeEntry.private_by);
                     const currentUserId = String(window.currentUserId);
-                    
+
                     if (privateBy === currentUserId) {
                         // L'utente corrente è il proprietario, lo status è visibile
                         statusVisible = true;
@@ -143,7 +143,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                     }
                 }
             }
-            
+
             // Aggiorna il riepilogo del progetto
             const detailsDiv = document.getElementById('project-details');
             let htmlContent = `
@@ -155,12 +155,12 @@ document.addEventListener('DOMContentLoaded', async function() {
                 <p><strong>Start Date:</strong> ${project.startDate || '-'}</p>
                 <p><strong>End Date:</strong> ${project.endDate || '-'}</p>
             `;
-            
+
             // Aggiungi lo status solo se è visibile
             if (statusVisible) {
                 htmlContent += `<p><strong>Status:</strong> ${statusToShow}</p>`;
             }
-            
+
             detailsDiv.innerHTML = htmlContent;
         } catch (error) {
             handleNetworkError(error);
@@ -221,7 +221,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     } else {
         console.error("Elemento add-entry-btn non trovato nel DOM");
     }
-    
+
     // Gestione del pulsante urge tasks
     const urgeTasksBtn = document.getElementById('urge-tasks-btn');
     if (urgeTasksBtn) {
@@ -230,7 +230,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 // Disabilita il pulsante durante l'operazione
                 urgeTasksBtn.disabled = true;
                 urgeTasksBtn.textContent = "Processing...";
-                
+
                 // Chiamata API per aggiornare i task
                 const response = await fetch(`/api/tasks/urge-project-tasks/${projectId}`, {
                     method: 'POST',
@@ -238,16 +238,16 @@ document.addEventListener('DOMContentLoaded', async function() {
                         'Content-Type': 'application/json'
                     }
                 });
-                
+
                 if (!response.ok) {
                     throw new Error(`Errore nella chiamata API: ${response.status} ${response.statusText}`);
                 }
-                
+
                 const result = await response.json();
-                
+
                 // Mostra messaggio di conferma in inglese
                 alert(`Operation completed successfully! ${result.rowsAffected} tasks have been urged.`);
-                
+
                 console.log('Risultato urge tasks:', result);
             } catch (error) {
                 console.error('Errore durante l\'aggiornamento dei task:', error);
@@ -261,21 +261,28 @@ document.addEventListener('DOMContentLoaded', async function() {
     } else {
         console.error("Elemento urge-tasks-btn non trovato nel DOM");
     }
-    
+
     // Inizializza le funzionalità della tabella dopo aver caricato la cronologia
     // Verifica le funzioni disponibili prima di chiamarle
     if (window.ProjectHistory && typeof window.ProjectHistory.fetchProjectHistory === 'function') {
-        await window.ProjectHistory.fetchProjectHistory(projectId);
-        // Aggiorna il riepilogo delle fasi solo dopo aver caricato la cronologia
-        window.updatePhaseSummary();
+        // fetchProjectHistory ora restituisce un oggetto { history, latestEntries }
+        const historyData = await window.ProjectHistory.fetchProjectHistory(projectId);
+        if (historyData && historyData.latestEntries) {
+            // Passa latestEntries direttamente a updatePhaseSummary
+            window.updatePhaseSummary(historyData.latestEntries);
+        } else {
+             console.warn("latestEntries non restituito da fetchProjectHistory. Il riepilogo fasi potrebbe non essere aggiornato.");
+             // Prova ad aggiornare in modo legacy se possibile, ma logga un warning
+             window.updatePhaseSummary(); // Chiamata legacy con warning interno
+        }
     } else {
         console.error("La funzione fetchProjectHistory non è disponibile. Verificare che project-history.js sia caricato correttamente.");
     }
-    
+
     // Gestione del pulsante di highlighting per record specifici
     const highlightBtn = document.getElementById('highlight-record-btn');
     const highlightInput = document.getElementById('highlight-record-id');
-    
+
     if (highlightBtn && highlightInput) {
         // Funzione per evidenziare un record specifico basato sull'ID
         // La rendiamo globale così può essere usata anche dall'event listener mouseenter
@@ -290,13 +297,13 @@ document.addEventListener('DOMContentLoaded', async function() {
                 el.style.color = '';
                 el.style.transform = '';
             });
-            
+
             // Cerca il record con l'ID specificato
             const row = document.querySelector(`tr[data-entry-id="${recordId}"]`);
-            
+
             if (row) {
                 console.log(`Record con ID ${recordId} trovato, applico highlight`);
-                
+
                 // Salva lo stile originale (se non già memorizzato nell'elemento)
                 if (!row._originalStyle) {
                     row._originalStyle = {
@@ -305,7 +312,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                         fontWeight: row.style.fontWeight
                     };
                 }
-                
+
                 // Applica stile evidente
                 row.classList.add('record-highlight');
                 row.style.backgroundColor = '#ff0000'; // Rosso acceso
@@ -315,13 +322,13 @@ document.addEventListener('DOMContentLoaded', async function() {
                 row.style.position = 'relative';
                 row.style.zIndex = '1000';
                 row.style.transform = 'translateY(-2px)'; // Effetto 3D lieve
-                
+
                 // Scorre alla riga evidenziata
                 row.scrollIntoView({
                     behavior: 'smooth',
                     block: 'center'
                 });
-                
+
                 // Aggiungi un badge con l'ID
                 const firstCell = row.cells[0];
                 const badge = document.createElement('span');
@@ -333,18 +340,18 @@ document.addEventListener('DOMContentLoaded', async function() {
                 badge.style.marginRight = '5px';
                 badge.style.fontWeight = 'bold';
                 badge.style.fontSize = '12px';
-                
+
                 // Inserisci il badge all'inizio della cella
                 if (firstCell.firstChild) {
                     firstCell.insertBefore(badge, firstCell.firstChild);
                 } else {
                     firstCell.appendChild(badge);
                 }
-                
+
                 return true;
             } else {
                 console.error(`Record con ID ${recordId} non trovato nella tabella`);
-                
+
                 // Se i filtri sono attivi, suggerisci di disabilitarli
                 const filteringActive = document.querySelector('.filter-active');
                 if (filteringActive) {
@@ -352,11 +359,11 @@ document.addEventListener('DOMContentLoaded', async function() {
                 } else {
                     alert(`Record con ID ${recordId} non trovato nella tabella.`);
                 }
-                
+
                 return false;
             }
         }
-        
+
         // Event listener per il pulsante di highlight
         highlightBtn.addEventListener('click', () => {
             const recordId = highlightInput.value.trim();
@@ -367,7 +374,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 highlightInput.focus();
             }
         });
-        
+
         // Event listener per il tasto Enter nel campo input
         highlightInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
@@ -376,7 +383,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
         });
     }
-    
+
     // Verifica se le funzioni di gestione delle colonne sono disponibili
     if (typeof window.restoreColumnWidths === 'function') {
         window.restoreColumnWidths();
@@ -387,84 +394,97 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (typeof window.enableColumnSorting === 'function') {
         window.enableColumnSorting();
     }
-    
+
     // Inizializza il filtraggio
     window.filteringApi = enableLiveFiltering();
 });
 
-// Funzione per aggiornare la phase summary con l'ultima entry di ogni fase
-window.updatePhaseSummary = function() {
-    const historyTable = document.getElementById('history-table');
-    if (!historyTable) return;
-
-    const rows = historyTable.getElementsByTagName('tbody')[0].rows;
-    if (rows.length === 0) return;
-
-    // Oggetto per memorizzare l'ultima entry di ogni fase
-    const latestEntries = {};
-
-    // Itera su tutte le righe della tabella
-    for (let i = 0; i < rows.length; i++) {
-        // Considera solo le righe visibili (non filtrate e non private)
-        if (rows[i].style.display !== 'none') {
-            const date = new Date(rows[i].cells[0].textContent.trim());
-            const phase = rows[i].cells[1].textContent.trim();
-            const description = rows[i].cells[2].textContent.trim();
-
-            // Se la fase non esiste o se questa entry è più recente
-            if (!latestEntries[phase] || date > latestEntries[phase].date) {
-                latestEntries[phase] = {
-                    date: date,
-                    description: description
-                };
+// Funzione per aggiornare la phase summary usando i dati precalcolati
+window.updatePhaseSummary = function(latestEntries) {
+    // Se latestEntries non viene passato, prova a calcolarlo in modo legacy (con warning)
+    if (!latestEntries) {
+        console.warn("updatePhaseSummary chiamata senza latestEntries. Tentativo di calcolo legacy dal DOM (inefficiente).");
+        const historyTable = document.getElementById('history-table');
+        if (!historyTable) return;
+        const rows = historyTable.getElementsByTagName('tbody')[0].rows;
+        if (rows.length === 0) return;
+        latestEntries = {};
+        for (let i = 0; i < rows.length; i++) {
+            if (rows[i].style.display !== 'none') {
+                const date = new Date(rows[i].cells[0].textContent.trim());
+                const phase = rows[i].cells[1].textContent.trim();
+                const description = rows[i].cells[2].textContent.trim();
+                if (!latestEntries[phase] || date > latestEntries[phase].date) {
+                    latestEntries[phase] = { date: date, description: description };
+                }
             }
         }
     }
 
-    // Crea il contenuto HTML per tutte le fasi
+    // Crea il contenuto HTML per tutte le fasi usando DocumentFragment per efficienza
     const phaseSummaryDiv = document.getElementById('phase-summary');
     if (phaseSummaryDiv) {
-        let htmlContent = '';
-        for (const [phase, entry] of Object.entries(latestEntries)) {
-            htmlContent += `
-                <div class="phase-entry">
-                    <div><strong>${phase}</strong></div>
-                    <div>${entry.description}</div>
-                </div>
-                <hr>
-            `;
-        }
-        
-        // Rimuovi l'ultimo <hr>
-        htmlContent = htmlContent.replace(/<hr>[^<]*$/, '');
-        
-        phaseSummaryDiv.innerHTML = htmlContent;
+        const fragment = document.createDocumentFragment();
+        const phases = Object.keys(latestEntries); // Ottieni le chiavi (nomi delle fasi)
+
+        phases.forEach((phase, index) => {
+            const entry = latestEntries[phase];
+            const phaseEntryDiv = document.createElement('div');
+            phaseEntryDiv.className = 'phase-entry';
+
+            const phaseTitleDiv = document.createElement('div');
+            const strong = document.createElement('strong');
+            strong.textContent = phase;
+            phaseTitleDiv.appendChild(strong);
+
+            const descriptionDiv = document.createElement('div');
+            // Pulisci la descrizione come viene fatto nella tabella principale
+            let cleanDescription = entry.description;
+            cleanDescription = cleanDescription.replace(/(forward-|reply-)/gi, '');
+            cleanDescription = cleanDescription.replace(/\s*\[Parent:\s*\d+\]/g, '');
+            descriptionDiv.textContent = cleanDescription;
+            descriptionDiv.title = entry.description; // Tooltip con descrizione completa
+
+            phaseEntryDiv.appendChild(phaseTitleDiv);
+            phaseEntryDiv.appendChild(descriptionDiv);
+            fragment.appendChild(phaseEntryDiv);
+
+            // Aggiungi <hr> tranne che dopo l'ultimo elemento
+            if (index < phases.length - 1) {
+                const hr = document.createElement('hr');
+                fragment.appendChild(hr);
+            }
+        });
+
+        // Sostituisci il contenuto del div in una sola operazione DOM
+        phaseSummaryDiv.innerHTML = ''; // Pulisci il contenuto precedente
+        phaseSummaryDiv.appendChild(fragment); // Aggiungi il nuovo contenuto
     }
 };
 
 // Function to enable live filtering
 function enableLiveFiltering() {
     console.log('Initializing live filtering...');
-    
+
     // Oggetto per esporre funzioni pubbliche
     const publicApi = {};
-    
+
     // Gestione dropdown status
     const statusDropdownBtn = document.getElementById('status-dropdown-btn');
     const statusDropdown = document.getElementById('status-filter');
-    
+
     if (!statusDropdownBtn || !statusDropdown) {
         console.error('Dropdown elements not found in DOM');
         return;
     }
-    
-    console.log('Dropdown elements found:', { 
-        statusDropdownBtn: statusDropdownBtn, 
-        statusDropdown: statusDropdown 
+
+    console.log('Dropdown elements found:', {
+        statusDropdownBtn: statusDropdownBtn,
+        statusDropdown: statusDropdown
     });
-    
+
     const statusCheckboxes = statusDropdown.querySelectorAll('input[type="checkbox"]');
-    
+
     // Gestione apertura/chiusura dropdown con miglior controllo degli eventi
     statusDropdownBtn.addEventListener('click', function(event) {
         event.stopPropagation();
@@ -500,7 +520,7 @@ function enableLiveFiltering() {
     // Funzione per aggiornare il display degli stati selezionati
     function updateStatusDisplay() {
         const selectedCheckboxes = Array.from(statusCheckboxes).filter(cb => cb.checked);
-        
+
         if (selectedCheckboxes.length === 0) {
             statusDropdownBtn.textContent = 'Status';
             statusDropdownBtn.classList.remove('filter-active');
@@ -536,7 +556,7 @@ function enableLiveFiltering() {
 
         // Salva i filtri nel localStorage
         saveFilters(textFilterValues, selectedStatuses);
-        
+
         updateStatusDisplay();
 
         Array.from(tableRows).forEach(row => {
@@ -575,17 +595,17 @@ function enableLiveFiltering() {
         const savedFilters = localStorage.getItem('historyFilters');
         if (savedFilters) {
             const filters = JSON.parse(savedFilters);
-            
+
             // Applica i filtri di testo
             textFilterInputs.forEach((input, index) => {
                 input.value = filters.text[index] || '';
             });
-            
+
             // Applica i filtri di stato
             statusCheckboxes.forEach(checkbox => {
                 checkbox.checked = filters.status.includes(checkbox.value);
             });
-            
+
             // Applica i filtri
             applyFilters();
         }
@@ -606,9 +626,9 @@ function enableLiveFiltering() {
 
     // Espone le funzioni necessarie
     publicApi.applyFilters = applyFilters;
-    
+
     // Salva il riferimento globale
     filteringApi = publicApi;
-    
+
     return publicApi;
 }
