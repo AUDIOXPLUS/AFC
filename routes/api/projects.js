@@ -352,24 +352,29 @@ router.get('/:id/history', checkAuthentication, (req, res) => {
     const userId = req.session.user.id;
     
     // Query modificata per mostrare tutti i record pubblici E i record privati visibili all'utente corrente
-    // Include anche il nome dell'utente che ha creato il record e il parent_id
+    // Include anche il nome dell'utente che ha creato il record, il parent_id e i dati aggregati dei file
     const query = `
-        SELECT ph.*, u.id as user_id, 
-               u.name as creator_name,
-               ph.parent_id
+        SELECT
+            ph.*,
+            u.id as user_id,
+            u.name as creator_name,
+            ph.parent_id,
+            GROUP_CONCAT(CASE WHEN pf.id IS NOT NULL THEN pf.id || '|' || pf.filename || '|' || pf.filepath ELSE NULL END, '||') as files_data
         FROM project_history ph
         LEFT JOIN users u ON ph.created_by = u.id
-        WHERE ph.project_id = ? 
+        LEFT JOIN project_files pf ON ph.id = pf.history_id AND ph.project_id = pf.project_id -- Join con i file
+        WHERE ph.project_id = ?
         AND (
-            ph.private_by IS NULL 
+            ph.private_by IS NULL
             OR ph.private_by = ? 
             OR ph.private_by LIKE ? 
             OR ph.private_by LIKE ? 
             OR ph.private_by LIKE ?
         )
-        ORDER BY ph.date DESC
+        GROUP BY ph.id -- Raggruppa per voce di cronologia
+        ORDER BY ph.date DESC, ph.id DESC
     `;
-    
+
     // Prepara i parametri per la ricerca con separatore virgola
     const userIdStr = String(userId);
     const patterns = [

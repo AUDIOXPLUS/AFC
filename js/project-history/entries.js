@@ -43,34 +43,10 @@ export async function fetchProjectHistory(projectId) {
             history = [];
         }
 
-        // Ordina la cronologia per data in ordine decrescente
-        // Se due entry hanno la stessa data, ordina per ID in ordine decrescente
-        history.sort((a, b) => {
-            try {
-                const dateA = new Date(a.date);
-                const dateB = new Date(b.date);
+        // L'ordinamento ora viene gestito dal server
+        console.log('Cronologia del Progetto (dal server):', history);
 
-                // Verifica se le date sono valide
-                if (isNaN(dateA.getTime()) || isNaN(dateB.getTime())) {
-                    return 0;
-                }
-
-                // Se le date sono diverse, ordina per data
-                if (dateA.getTime() !== dateB.getTime()) {
-                    return dateB - dateA; // Ordine decrescente per data
-                }
-
-                // Se le date sono uguali, ordina per ID
-                return b.id - a.id; // Ordine decrescente per ID
-            } catch (sortError) {
-                console.error('Errore durante l\'ordinamento:', sortError, a, b);
-                return 0;
-            }
-        });
-
-        console.log('Cronologia del Progetto (ordinata):', history);
-
-        // Evidenzia l'header della colonna Date che è ordinata di default
+        // Evidenzia l'header della colonna Date che è ordinata di default (presumendo che il server ordini per data)
         const table = document.getElementById('history-table');
         if (table) {
             const headers = table.getElementsByTagName('th');
@@ -267,12 +243,23 @@ export function displayProjectHistory(history, projectId) {
 
         // --- Cella File ---
         const filesCell = row.insertCell(5);
-        // Chiama updateFilesCell DOPO che la riga è nel DOM (o passa la cella)
-        // Deferring this call slightly or passing the cell might be needed
-        // For now, keep the original logic but be aware it might need adjustment
-        fetchEntryFiles(entry.id, projectId).then(files => {
-             updateFilesCell(entry.id, projectId, filesCell); // Passa la cella per aggiornamento diretto
-        });
+        // Parsa i dati dei file dalla stringa aggregata (formato: id|filename|filepath||id|filename|filepath)
+        const files = [];
+        if (entry.files_data) {
+            const fileStrings = entry.files_data.split('||');
+            fileStrings.forEach(fileString => {
+                const parts = fileString.split('|');
+                if (parts.length === 3) {
+                    files.push({
+                        id: parts[0],
+                        filename: parts[1],
+                        filepath: parts[2]
+                    });
+                }
+            });
+        }
+        // Chiama updateFilesCell passando i file precaricati e la cella
+        updateFilesCell(entry.id, projectId, filesCell, files);
 
 
         // --- Cella Azioni ---
