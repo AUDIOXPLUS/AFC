@@ -243,23 +243,12 @@ export function displayProjectHistory(history, projectId) {
 
         // --- Cella File ---
         const filesCell = row.insertCell(5);
-        // Parsa i dati dei file dalla stringa aggregata (formato: id|filename|filepath||id|filename|filepath)
-        const files = [];
-        if (entry.files_data) {
-            const fileStrings = entry.files_data.split('||');
-            fileStrings.forEach(fileString => {
-                const parts = fileString.split('|');
-                if (parts.length === 3) {
-                    files.push({
-                        id: parts[0],
-                        filename: parts[1],
-                        filepath: parts[2]
-                    });
-                }
-            });
-        }
-        // Chiama updateFilesCell passando i file precaricati e la cella
-        updateFilesCell(entry.id, projectId, filesCell, files);
+        // Chiama updateFilesCell DOPO che la riga è nel DOM (o passa la cella)
+        // Deferring this call slightly or passing the cell might be needed
+        // For now, keep the original logic but be aware it might need adjustment
+        fetchEntryFiles(entry.id, projectId).then(files => {
+             updateFilesCell(entry.id, projectId, filesCell); // Passa la cella per aggiornamento diretto
+        });
 
 
         // --- Cella Azioni ---
