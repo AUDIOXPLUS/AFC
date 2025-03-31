@@ -98,6 +98,9 @@ function calculateLatestEntries(history) {
         }
         return map;
     }, {});
+    
+    // Salva la mappa delle fasi globalmente per riutilizzarla
+    window.projectPhasesMap = phaseMap;
 
     history.forEach(entry => {
         // Considera solo le entry pubbliche o accessibili all'utente
@@ -508,8 +511,9 @@ function createInputRow(parentEntry, projectId, isForwardAction) {
         }
         // Salva la nuova entry
         const saved = await saveNewHistoryEntry(projectId, newRow); // saveNewHistoryEntry dovrebbe restituire l'ID o null/undefined
-        if (saved && !isForwardAction) { // Se è una reply salvata con successo
+        if (saved) { // Se è stata salvata con successo (sia reply che forward)
              // Imposta il record padre come completato
+             console.log(`Entry salvata con successo, imposto stato "Completed" per il record padre ${parentEntry.id}`);
              await markParentEntryComplete(parentEntry.id, projectId);
         }
     });
@@ -527,37 +531,97 @@ function createInputRow(parentEntry, projectId, isForwardAction) {
 
 // Funzione per marcare il padre come completato
 async function markParentEntryComplete(parentId, projectId) {
+     // Assicurati che parentId e projectId siano valori numerici
+     parentId = parseInt(parentId, 10);
+     projectId = parseInt(projectId, 10);
+     
+     console.log(`Tentativo di impostare record padre ${parentId} del progetto ${projectId} come completato...`);
+     
      try {
-         // Prima recupera i dati attuali del record padre
-         const getResponse = await fetch(`/api/projects/${projectId}/history/${parentId}`);
-         if (!getResponse.ok) {
-             console.error(`Errore nel recuperare i dati del record padre ${parentId}`);
+         // 1. Prima ottieni tutti i record per verificare che l'ID esista davvero
+         console.log(`Verifico esistenza record nella cronologia del progetto...`);
+         const allHistoryUrl = `/api/projects/${projectId}/history`;
+         console.log(`URL per cronologia completa: ${allHistoryUrl}`);
+         
+         const historyResponse = await fetch(allHistoryUrl);
+         if (!historyResponse.ok) {
+             console.error(`Errore nel recuperare la cronologia del progetto: ${historyResponse.status}`);
+             alert(`Impossibile verificare la cronologia del progetto. Errore: ${historyResponse.status} ${historyResponse.statusText}`);
              return;
          }
          
-         // Ottieni i dati attuali del record
-         const parentData = await getResponse.json();
-         console.log(`Dati record padre recuperati:`, parentData);
+         const historyData = await historyResponse.json();
+         console.log(`Cronologia recuperata: ${historyData.length} record`);
          
-         // Aggiorna solo lo stato mantenendo invariati tutti gli altri campi
-         parentData.status = 'Completed';
+         // Trova il record specifico nella cronologia
+         const parentRecord = historyData.find(entry => entry.id === parentId);
+         if (!parentRecord) {
+             console.error(`Record padre con ID ${parentId} non trovato nella cronologia`);
+             alert(`Impossibile trovare il record padre con ID ${parentId}. L'aggiornamento dello stato non è possibile.`);
+             return;
+         }
          
-         // Invia l'update con tutti i campi originali
-         const updateResponse = await fetch(`/api/projects/${projectId}/history/${parentId}`, {
-             method: 'PUT',
-             headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify(parentData),
+         console.log(`Record padre trovato:`, parentRecord);
+         
+         // 2. Prepara i dati per l'aggiornamento - assicuriamoci di preservare tutti i campi
+         const updateData = {
+             date: parentRecord.date,
+             phase: parentRecord.phase,
+             description: parentRecord.description,
+             assigned_to: parentRecord.assigned_to, // Preserviamo assigned_to
+             assignedTo: parentRecord.assigned_to, // Aggiungiamo anche la versione camelCase
+             status: 'Completed' // Imposta lo stato a Completed
+         };
+         
+         // Assicuriamo che non ci siano valori null o undefined
+         Object.keys(updateData).forEach(key => {
+             if (updateData[key] === undefined || updateData[key] === null) {
+                 console.warn(`Campo ${key} è ${updateData[key]}, utilizzo stringa vuota come fallback`);
+                 updateData[key] = ''; // Fallback
+             }
          });
          
+         console.log(`Dati preparati per l'aggiornamento:`, updateData);
+         
+         // 3. Invia l'aggiornamento con tutti i campi originali
+         const updateUrl = `/api/projects/${projectId}/history/${parentId}`;
+         console.log(`URL per aggiornamento: ${updateUrl}`);
+         
+         const updateResponse = await fetch(updateUrl, {
+             method: 'PUT',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify(updateData)
+         });
+         
+         console.log(`Risposta aggiornamento - status: ${updateResponse.status}`);
+         
          if (!updateResponse.ok) {
-             console.error(`Errore nell'aggiornare lo stato del record padre ${parentId}`);
+             // In caso di errore, mostra un messaggio all'utente
+             const errorText = await updateResponse.text();
+             console.error(`Errore nell'aggiornare lo stato del record: ${errorText}`);
+             alert(`Impossibile aggiornare lo stato. Errore: ${updateResponse.status} ${updateResponse.statusText}\n${errorText}`);
          } else {
-             console.log(`Stato del record padre ${parentId} aggiornato a 'Completed' con successo`);
+             console.log(`Stato del record padre ${parentId} aggiornato a "Completed" con successo.`);
+             
+             // 4. Aggiorna immediatamente la UI per mostrare lo stato aggiornato
+             // Trova la riga del record padre nella tabella
+             const parentRow = document.querySelector(`tr[data-entry-id="${parentId}"]`);
+             if (parentRow) {
+                 // Aggiungi la classe 'completed' alla riga
+                 parentRow.classList.add('completed');
+                 // Aggiorna anche la cella dello stato
+                 const statusCell = parentRow.cells[4]; // La cella Status è la quinta (indice 4)
+                 if (statusCell) {
+                     statusCell.textContent = 'Completed';
+                 }
+                 console.log(`UI aggiornata: record padre ${parentId} ora visualizzato come "Completed"`);
+             } else {
+                 console.warn(`Non è stato possibile trovare la riga del record padre nella tabella per aggiornare la UI`);
+             }
          }
-         // Non è necessario ricaricare tutta la storia qui,
-         // fetchProjectHistory verrà chiamato dopo saveNewHistoryEntry
      } catch (error) {
-         console.error(`Errore di rete durante l'aggiornamento del record padre ${parentId}:`, error);
+         console.error(`Errore di rete durante l'operazione:`, error);
+         alert(`Errore di rete: ${error.message}`);
      }
 }
 
