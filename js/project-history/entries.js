@@ -98,6 +98,9 @@ function calculateLatestEntries(history) {
         }
         return map;
     }, {});
+    
+    // Salva la mappa delle fasi globalmente per riutilizzarla
+    window.projectPhasesMap = phaseMap;
 
     history.forEach(entry => {
         // Considera solo le entry pubbliche o accessibili all'utente
