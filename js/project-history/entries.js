@@ -98,9 +98,6 @@ function calculateLatestEntries(history) {
         }
         return map;
     }, {});
-    
-    // Salva la mappa delle fasi globalmente per riutilizzarla
-    window.projectPhasesMap = phaseMap;
 
     history.forEach(entry => {
         // Considera solo le entry pubbliche o accessibili all'utente
@@ -512,8 +509,8 @@ function createInputRow(parentEntry, projectId, isForwardAction) {
         // Salva la nuova entry
         const saved = await saveNewHistoryEntry(projectId, newRow); // saveNewHistoryEntry dovrebbe restituire l'ID o null/undefined
         if (saved && !isForwardAction) { // Se è una reply salvata con successo
-             // Imposta il record padre come completato (opzionale, basato sulla logica precedente)
-             // await markParentEntryComplete(parentEntry.id, projectId);
+             // Imposta il record padre come completato
+             await markParentEntryComplete(parentEntry.id, projectId);
         }
     });
 
@@ -528,16 +525,34 @@ function createInputRow(parentEntry, projectId, isForwardAction) {
     actionsCell.appendChild(cancelBtn);
 }
 
-// Funzione opzionale per marcare il padre come completato
+// Funzione per marcare il padre come completato
 async function markParentEntryComplete(parentId, projectId) {
      try {
-         const response = await fetch(`/api/projects/${projectId}/history/${parentId}`, {
+         // Prima recupera i dati attuali del record padre
+         const getResponse = await fetch(`/api/projects/${projectId}/history/${parentId}`);
+         if (!getResponse.ok) {
+             console.error(`Errore nel recuperare i dati del record padre ${parentId}`);
+             return;
+         }
+         
+         // Ottieni i dati attuali del record
+         const parentData = await getResponse.json();
+         console.log(`Dati record padre recuperati:`, parentData);
+         
+         // Aggiorna solo lo stato mantenendo invariati tutti gli altri campi
+         parentData.status = 'Completed';
+         
+         // Invia l'update con tutti i campi originali
+         const updateResponse = await fetch(`/api/projects/${projectId}/history/${parentId}`, {
              method: 'PUT',
              headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ status: 'Completed' }), // Aggiorna solo lo stato
+             body: JSON.stringify(parentData),
          });
-         if (!response.ok) {
+         
+         if (!updateResponse.ok) {
              console.error(`Errore nell'aggiornare lo stato del record padre ${parentId}`);
+         } else {
+             console.log(`Stato del record padre ${parentId} aggiornato a 'Completed' con successo`);
          }
          // Non è necessario ricaricare tutta la storia qui,
          // fetchProjectHistory verrà chiamato dopo saveNewHistoryEntry
@@ -740,7 +755,25 @@ export async function saveNewHistoryEntry(projectId, row, entryId = null) {
             throw new Error(`Errore durante il salvataggio: ${response.statusText} - ${errorData}`);
         }
 
-        const savedEntry = await response.json();
+        let savedEntry;
+        try {
+            // Verifica se c'è contenuto prima di provare a fare il parse JSON
+            const responseText = await response.text();
+            console.log('Risposta server:', responseText);
+            
+            if (responseText && responseText.trim().length > 0) {
+                savedEntry = JSON.parse(responseText);
+            } else {
+                // Se la risposta è vuota ma la richiesta è OK, 
+                // per operazioni di modifica può essere normale
+                console.log('Risposta vuota dal server, ma operazione completata con successo');
+                savedEntry = isEditing ? { id: entryId } : {}; // oggetto con almeno l'id se stiamo modificando
+            }
+        } catch (jsonError) {
+            console.warn('Errore nel parsing della risposta JSON:', jsonError);
+            // Creiamo un oggetto base per continuare l'operazione
+            savedEntry = isEditing ? { id: entryId } : {};
+        }
         console.log('Entry salvata:', savedEntry);
 
         // Ricarica la cronologia per mostrare la nuova entry/modifiche
