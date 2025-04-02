@@ -167,16 +167,16 @@ export function displayProjectHistory(history, projectId) {
         if (entry.is_forward === true) { isForward = true; isReply = false; }
         else if (entry.is_reply === true) { isReply = true; isForward = false; }
         else if (entry.parent_id) {
-             if (entry.description && entry.description.toLowerCase().includes('forward-')) { isForward = true; }
+             if (entry.description && (entry.description.toLowerCase().includes('forward-') || entry.description.toLowerCase().startsWith('fwd:'))) { isForward = true; }
              else { isReply = true; }
         }
         // ... (altri controlli come prima) ...
 
         if (entry.created_by) {
-            if (isReply || isForward) {
-                let iconClass = isReply ? 'fas fa-reply' : 'fas fa-share';
-                let iconColor = isReply ? '#0066cc' : '#cc6600';
-                let parentId = entry.parent_id || null;
+        if (isReply || isForward) {
+            let iconClass = isReply ? 'fas fa-reply' : 'fas fa-reply fa-flip-horizontal';
+            let iconColor = isReply ? '#0066cc' : '#e74c3c';
+            let parentId = entry.parent_id || null;
 
                 const actionIcon = document.createElement('i');
                 actionIcon.className = iconClass;

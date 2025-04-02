@@ -293,6 +293,118 @@ async function getProjectStatus(projectId) {
     }
 }
 
+/**
+ * Crea la progress bar per visualizzare lo stato delle fasi del progetto.
+ * @param {Array} projectHistory - Array di oggetti che rappresentano la cronologia del progetto.
+ * @param {Array} phases - Array di oggetti che rappresentano le fasi del progetto.
+ * @param {number} projectId - L'ID del progetto a cui appartiene la progress bar.
+ * @returns {HTMLElement} - Elemento DOM che rappresenta la progress bar.
+ */
+function createPhaseProgressBar(projectHistory, phases, projectId) {
+    // Ordina le fasi per order_num
+    const sortedPhases = [...phases].sort((a, b) => a.order_num - b.order_num);
+    
+    // Crea un container per la progress bar
+    const progressBar = document.createElement('div');
+    progressBar.className = 'phase-progress-bar';
+    
+    // Per ogni fase, determina il colore in base alla logica richiesta
+    sortedPhases.forEach((phase, index) => {
+        const phaseItem = document.createElement('div');
+        phaseItem.className = 'phase-progress-item';
+        
+        // Filtra i record della cronologia per questa fase (convertendo l'ID fase in stringa per il confronto)
+        const phaseRecords = projectHistory.filter(record => String(record.phase) === String(phase.id));
+        
+        // Verifica se ci sono record "in progress" per questa fase
+        const hasInProgress = phaseRecords.some(record => record.status === 'In Progress');
+        
+        // Verifica se ci sono record "completed" per questa fase
+        const hasCompleted = phaseRecords.some(record => record.status === 'Completed');
+        
+        // Verifica se ci sono fasi successive con record "in progress" o "completed"
+        const hasLaterPhaseActive = sortedPhases.slice(index + 1).some(laterPhase => {
+            const laterPhaseRecords = projectHistory.filter(record => String(record.phase) === String(laterPhase.id));
+            return laterPhaseRecords.some(record => 
+                record.status === 'In Progress' || record.status === 'Completed'
+            );
+        });
+        
+        // Trova l'ultimo record per questa fase (ordinato per data)
+        let latestRecord = null;
+        if (phaseRecords.length > 0) {
+            latestRecord = phaseRecords.sort((a, b) => 
+                new Date(b.date) - new Date(a.date)
+            )[0];
+        }
+        
+        // Prepara il testo del tooltip
+        let tooltipText = `${phase.name}: `;
+        
+        // Debug esteso - ispeziona i dati effettivi per capire il problema
+        console.log(`Fase ${phase.name} (ID: ${phase.id}):`, {
+            hasInProgress,
+            hasCompleted,
+            hasLaterPhaseActive,
+            recordsCount: phaseRecords.length
+        });
+        
+        // Verifica la corrispondenza degli ID
+        const phaseId = phase.id;
+        console.log('Record filtrati per questa fase:', phaseRecords);
+        console.log('Tutti i record nella history:', projectHistory.map(h => ({
+            phase: h.phase,
+            status: h.status,
+            phaseIdMatch: h.phase === phaseId, // Verifica corrispondenza
+            phaseIdTypeA: typeof h.phase,
+            phaseIdTypeB: typeof phaseId
+        })));
+        
+        // Applica la logica dei colori secondo le specifiche:
+        // - Giallo: se c'è almeno un task "in progress" per quella fase
+        // - Verde: se non ci sono record con stato "in progress" per quella fase e c'è almeno un record con status "completed"
+        // - Rosso: se NON ci sono task "completed" ED esiste una fase successiva con tasks "in progress" o "completed"
+        
+        if (hasInProgress) {
+            // GIALLO: se c'è almeno un task "in progress" per quella fase
+            phaseItem.classList.add('phase-progress-yellow');
+            tooltipText += 'In Progress';
+        } else if (hasCompleted) {
+            // VERDE: se non ci sono record con stato "in progress" per quella fase e c'è almeno un record con status "completed"
+            phaseItem.classList.add('phase-progress-green');
+            tooltipText += 'Completed';
+        } else if (hasLaterPhaseActive) {
+            // ROSSO: se NON ci sono task "completed" ED esiste una fase successiva con tasks "in progress" o "completed"
+            phaseItem.classList.add('phase-progress-red');
+            tooltipText += 'Non iniziato (fasi successive attive)';
+        } else {
+            // Grigio: nessuna attività in questa fase e nelle fasi successive
+            phaseItem.classList.add('phase-progress-none');
+            tooltipText += 'Non iniziato';
+        }
+        
+        // Aggiungi dettagli dell'ultimo record al tooltip se disponibile
+        if (latestRecord) {
+            tooltipText += `\nUltimo aggiornamento: ${latestRecord.date}`;
+            tooltipText += `\nDescrizione: ${latestRecord.description || 'Nessuna descrizione'}`;
+            tooltipText += `\nStato: ${latestRecord.status}`;
+            tooltipText += `\nAssegnato a: ${latestRecord.assigned_to || 'Non assegnato'}`;
+        }
+        phaseItem.title = tooltipText;
+
+        // Aggiungi l'event listener per il click
+        phaseItem.addEventListener('click', () => {
+            window.location.href = `project-details.html?id=${projectId}`;
+        });
+        // Aggiungi uno stile per indicare che è cliccabile
+        phaseItem.style.cursor = 'pointer';
+        
+        progressBar.appendChild(phaseItem);
+    });
+    
+    return progressBar;
+}
+
 // Function to display projects in the table
 async function displayProjects(projects) {
     console.log('Displaying projects:', projects);
@@ -302,6 +414,22 @@ async function displayProjects(projects) {
         return;
     }
     tableBody.innerHTML = ''; // Clear existing rows
+
+    // Carica le fasi del progetto se non sono già disponibili
+    if (!window.projectPhases) {
+        try {
+            const phasesResponse = await fetch('/api/phases');
+            if (phasesResponse.ok) {
+                window.projectPhases = await phasesResponse.json();
+            } else {
+                console.error('Errore nel caricamento delle fasi:', phasesResponse.status);
+                window.projectPhases = [];
+            }
+        } catch (error) {
+            console.error('Errore nel caricamento delle fasi:', error);
+            window.projectPhases = [];
+        }
+    }
 
     // Funzione per creare una riga della tabella
     const createTableRow = (project) => {
@@ -382,9 +510,37 @@ async function displayProjects(projects) {
             assignedToText = project.latest_assigned_to || 'Not Assigned';
         }
         
-        // Status
+        // Status - Aggiungi la progress bar
         const statusCell = row.insertCell(10);
-        statusCell.textContent = statusText;
+        
+        // Recupera la cronologia del progetto per creare la progress bar
+        fetch(`/api/projects/${project.id}/history`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(projectHistory => {
+                // Se ci sono fasi disponibili e cronologia, crea la progress bar
+                if (window.projectPhases && window.projectPhases.length > 0 && projectHistory && projectHistory.length > 0) {
+                    // Rimuovi eventuale contenuto precedente
+                    statusCell.innerHTML = '';
+                    
+                    // Crea e aggiungi la progress bar, passando anche l'ID del progetto
+                    const progressBar = createPhaseProgressBar(projectHistory, window.projectPhases, project.id);
+                    statusCell.appendChild(progressBar);
+                } else {
+                    // Fallback al testo originale se non ci sono dati sufficienti
+                    statusCell.textContent = statusText;
+                }
+            })
+            .catch(error => {
+                console.error(`Errore nel recupero della cronologia per il progetto ${project.id}:`, error);
+                statusCell.textContent = statusText; // Fallback al testo originale in caso di errore
+            });
+        
+        // Mantieni il testo originale come title per il tooltip
         statusCell.title = statusText;
         
         // Assigned to

@@ -1035,6 +1035,39 @@ tr.completed {
     opacity: 0.7;
 }
 
+/* Stili per la progress bar delle fasi */
+.phase-progress-bar {
+    display: flex;
+    height: 20px;
+    width: 100%;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.phase-progress-item {
+    flex: 1;
+    height: 100%;
+    margin: 0 1px;
+    position: relative;
+    cursor: help;
+}
+
+.phase-progress-green {
+    background-color: #4CAF50; /* Verde */
+}
+
+.phase-progress-yellow {
+    background-color: #FFEB3B; /* Giallo */
+}
+
+.phase-progress-red {
+    background-color: #F44336; /* Rosso */
+}
+
+.phase-progress-none {
+    background-color: #E0E0E0; /* Grigio */
+}
+
 /* Stile per l'header della colonna ordinata */
 th.sorted {
     background-color: #e3f2fd; /* Azzurro chiaro */
