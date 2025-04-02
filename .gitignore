@@ -4,6 +4,7 @@ node_modules/
 *.log
 uploads/
 database/*.db
+database/*.sqbpro
 database/backups/
 logs/onlyoffice/
 database/.public-ip-cache
