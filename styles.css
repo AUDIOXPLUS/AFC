@@ -1547,31 +1547,43 @@ table select:hover {
 .loading-content p {
     color: #555;
     font-size: 16px;
-    margin-bottom: 20px; /* Aggiunge spazio sotto il paragrafo */
+    margin-bottom: 15px; /* Ridotto spazio sotto il paragrafo */
 }
 
-/* Stili per la progress bar indeterminata */
-.loading-progress-bar {
+/* Contenitore per barra e percentuale */
+.loading-progress-container {
+    display: flex;
+    align-items: center;
+    gap: 10px; /* Spazio tra barra e percentuale */
     width: 100%;
-    height: 10px;
-    background-color: #e0e0e0;
-    border-radius: 5px;
-    overflow: hidden; /* Nasconde l'eccesso dell'animazione */
     margin-top: 15px; /* Spazio sopra la barra */
 }
 
-.loading-progress {
-    width: 100%;
-    height: 100%;
-    background-color: #3498db;
-    animation: loading-indeterminate 2s linear infinite;
+/* Stili per la progress bar determinata */
+.loading-progress-bar {
+    flex-grow: 1; /* Occupa lo spazio rimanente */
+    height: 12px; /* Leggermente più alta */
+    background-color: #e0e0e0;
+    border-radius: 6px;
+    overflow: hidden;
 }
 
-@keyframes loading-indeterminate {
-    0% {
-        transform: translateX(-100%);
-    }
-    100% {
-        transform: translateX(100%);
-    }
+.loading-progress {
+    height: 100%;
+    background-color: #3498db;
+    border-radius: 6px;
+    transition: width 0.3s ease-out; /* Transizione fluida per la larghezza */
+    text-align: center; /* Centra eventuale testo interno (non usato ora) */
+    color: white;
+    font-size: 10px;
+    line-height: 12px;
+}
+
+/* Stile per la percentuale */
+.loading-percentage {
+    font-size: 14px;
+    color: #555;
+    font-weight: bold;
+    min-width: 40px; /* Larghezza minima per evitare scatti */
+    text-align: right;
 }

@@ -169,24 +169,48 @@ function applyLastSorting() {
     }
 }
 
+// Funzione helper per aggiornare la progress bar e la percentuale
+function updateLoadingProgress(percentage) {
+    const progressBar = document.getElementById('loading-progress'); // ID corretto della barra interna
+    const percentageText = document.getElementById('loading-percentage'); // ID corretto dello span percentuale
+    if (progressBar && percentageText) {
+        const clampedPercentage = Math.max(0, Math.min(100, percentage)); // Assicura che sia tra 0 e 100
+        progressBar.style.width = `${clampedPercentage}%`; // Imposta la larghezza della barra interna
+        percentageText.textContent = `${Math.round(clampedPercentage)}%`; // Aggiorna il testo della percentuale
+        console.log(`Loading progress updated to ${clampedPercentage}%`); // Log progresso
+    } else {
+        console.warn('Progress bar or percentage element not found in the DOM.');
+    }
+}
+
 // Function to fetch project data from the backend
 async function fetchProjects() {
     console.log(`fetchProjects called. Timestamp: ${Date.now()}`); // Add timestamp log
     console.log('Fetching projects...');
-    // Mostra il popup di caricamento
     const loadingPopup = document.getElementById('loading-popup');
+
+    // Mostra il popup e imposta progresso a 0%
     if (loadingPopup) {
         loadingPopup.style.display = 'flex'; // Usa flex per centrare il contenuto
+        updateLoadingProgress(0); // Inizia da 0%
     }
+
     try {
+        // Fase 1: Fetch elenco progetti
         const showArchived = document.getElementById('show-archived').checked;
         const showOnHold = document.getElementById('show-on-hold').checked;
         const response = await fetch(`/api/projects?showArchived=${showArchived}&showOnHold=${showOnHold}`);
         if (!response.ok) {
+            // Nascondi popup in caso di errore fetch iniziale
+            if (loadingPopup) loadingPopup.style.display = 'none';
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         const projects = await response.json();
         console.log('Projects fetched from API:', projects); // Log the raw data
+
+        // Aggiorna progresso dopo fetch elenco progetti (es. 20%)
+        updateLoadingProgress(20);
+
         // Check for duplicates based on ID right here
         const projectIds = projects.map(p => p.id);
         const uniqueProjectIds = new Set(projectIds);
@@ -201,9 +225,12 @@ async function fetchProjects() {
             console.log('No duplicate project IDs received from API.'); // Confirm no duplicates
         }
 
-        // Recupera tutte le cronologie necessarie PRIMA di visualizzare
-        const histories = await fetchAllHistories(projects.map(p => p.id));
+        // Fase 2: Fetch cronologie con callback per aggiornamento progressivo
+        const histories = await fetchAllHistories(projects.map(p => p.id), updateLoadingProgress); // Passa la callback
 
+        // Rimosso: updateLoadingProgress(90); // L'aggiornamento ora è incrementale
+
+        // Fase 3: Visualizzazione
         await displayProjects(projects, histories); // Passa le cronologie a displayProjects
 
         // Riapplica i filtri dopo aver caricato i progetti
@@ -215,49 +242,75 @@ async function fetchProjects() {
         applyLastSorting();
     } catch (error) {
         handleNetworkError(error);
-    } finally {
-        // Nascondi il popup di caricamento in ogni caso (successo o errore)
-        // Lo nascondiamo qui invece che in displayProjects per coprire anche i casi di errore fetch
-        // if (loadingPopup) {
-        //     loadingPopup.style.display = 'none';
-        // }
-        // Nota: Spostato il nascondiglio in displayProjects per assicurarsi che sia nascosto *dopo* il rendering
+        // Assicura che il popup sia nascosto in caso di errore
+        if (loadingPopup) {
+            loadingPopup.style.display = 'none';
+        }
     }
+    // Il finally block non è più necessario qui, il popup viene nascosto da displayProjects o dal catch
 }
 
-// Nuova funzione per recuperare tutte le cronologie in parallelo
-async function fetchAllHistories(projectIds) {
+// Nuova funzione per recuperare tutte le cronologie in parallelo con callback di progresso
+async function fetchAllHistories(projectIds, progressCallback) {
     console.log('Fetching histories for projects:', projectIds);
+    let completedCount = 0;
+    const totalCount = projectIds.length;
+    const historiesMap = {}; // Oggetto per mappare gli ID alle cronologie
+
+    // Se non ci sono ID, ritorna subito una mappa vuota
+    if (totalCount === 0) {
+        if (progressCallback) progressCallback(90); // Se non ci sono cronologie, salta direttamente al 90%
+        return historiesMap;
+    }
+
     const historyPromises = projectIds.map(id =>
         fetch(`/api/projects/${id}/history`)
-            .then(response => {
+            .then(async response => { // Funzione interna asincrona per await response.json()
+                let data = [];
                 if (!response.ok) {
                     console.error(`Error fetching history for project ${id}: ${response.status}`);
-                    return []; // Restituisce array vuoto in caso di errore per non bloccare Promise.all
+                    // Non lanciare errore, ma usa array vuoto
+                } else {
+                    try {
+                        data = await response.json(); // Attendi il parsing del JSON
+                    } catch (jsonError) {
+                        console.error(`Error parsing JSON for project ${id}:`, jsonError);
+                        // Usa array vuoto se il JSON non è valido
+                    }
                 }
-                return response.json();
+                historiesMap[id] = data; // Salva i dati nella mappa
             })
             .catch(error => {
                 console.error(`Network error fetching history for project ${id}:`, error);
-                return []; // Restituisce array vuoto in caso di errore di rete
+                historiesMap[id] = []; // Salva array vuoto anche in caso di errore di rete
+            })
+            .finally(() => {
+                // Questo blocco viene eseguito sia in caso di successo che di errore del fetch/then
+                completedCount++;
+                if (progressCallback) {
+                    // Calcola percentuale: inizia da 20% e va fino a 90%
+                    // Il 70% del progresso è dedicato al fetch delle cronologie
+                    const currentPercentage = 20 + (completedCount / totalCount) * 70;
+                    progressCallback(currentPercentage);
+                }
             })
     );
 
     try {
-        const results = await Promise.all(historyPromises);
-        const historiesMap = {};
-        projectIds.forEach((id, index) => {
-            historiesMap[id] = results[index];
-        });
-        console.log('Histories fetched:', historiesMap);
-        return historiesMap;
+        // Attendiamo che tutte le promise (fetch e elaborazione) siano completate
+        await Promise.all(historyPromises);
+        console.log('All histories fetched and processed:', historiesMap);
+        return historiesMap; // Ritorna la mappa costruita
     } catch (error) {
-        // Questo catch è meno probabile che venga raggiunto a causa dei catch individuali, ma è una sicurezza
-        console.error('Error in Promise.all fetching histories:', error);
-        // Crea una mappa con array vuoti in caso di errore generale
-        const errorMap = {};
-        projectIds.forEach(id => { errorMap[id] = []; });
-        return errorMap;
+        // Questo catch è per errori imprevisti non gestiti nei singoli catch
+        console.error('Unexpected error during Promise.all for histories:', error);
+        // Ritorna la mappa parzialmente costruita o una vuota in caso di errore grave
+        projectIds.forEach(id => {
+            if (!(id in historiesMap)) {
+                historiesMap[id] = []; // Assicura che tutti gli ID abbiano una voce
+            }
+        });
+        return historiesMap;
     }
 }
 
@@ -320,7 +373,7 @@ async function getProjectStatus(projectId) {
                     assignedTo: activeEntry.assigned_to || 'Not Assigned'
                 };
             }
-            
+
             // Se l'utente non è il proprietario, cerca la prima entry non completata pubblica
             // o una entry privata di cui l'utente è proprietario
             for (let entry of history) {
@@ -372,44 +425,44 @@ async function getProjectStatus(projectId) {
 function createPhaseProgressBar(projectHistory, phases, projectId) {
     // Ordina le fasi per order_num
     const sortedPhases = [...phases].sort((a, b) => a.order_num - b.order_num);
-    
+
     // Crea un container per la progress bar
     const progressBar = document.createElement('div');
     progressBar.className = 'phase-progress-bar';
-    
+
     // Per ogni fase, determina il colore in base alla logica richiesta
     sortedPhases.forEach((phase, index) => {
         const phaseItem = document.createElement('div');
         phaseItem.className = 'phase-progress-item';
-        
+
         // Filtra i record della cronologia per questa fase (convertendo l'ID fase in stringa per il confronto)
         const phaseRecords = projectHistory.filter(record => String(record.phase) === String(phase.id));
-        
+
         // Verifica se ci sono record "in progress" per questa fase
         const hasInProgress = phaseRecords.some(record => record.status === 'In Progress');
-        
+
         // Verifica se ci sono record "completed" per questa fase
         const hasCompleted = phaseRecords.some(record => record.status === 'Completed');
-        
+
         // Verifica se ci sono fasi successive con record "in progress" o "completed"
         const hasLaterPhaseActive = sortedPhases.slice(index + 1).some(laterPhase => {
             const laterPhaseRecords = projectHistory.filter(record => String(record.phase) === String(laterPhase.id));
-            return laterPhaseRecords.some(record => 
+            return laterPhaseRecords.some(record =>
                 record.status === 'In Progress' || record.status === 'Completed'
             );
         });
-        
+
         // Trova l'ultimo record per questa fase (ordinato per data)
         let latestRecord = null;
         if (phaseRecords.length > 0) {
-            latestRecord = phaseRecords.sort((a, b) => 
+            latestRecord = phaseRecords.sort((a, b) =>
                 new Date(b.date) - new Date(a.date)
             )[0];
         }
-        
+
         // Prepara il testo del tooltip
         let tooltipText = `${phase.name}: `;
-        
+
         // Debug esteso - ispeziona i dati effettivi per capire il problema
         console.log(`Fase ${phase.name} (ID: ${phase.id}):`, {
             hasInProgress,
@@ -417,7 +470,7 @@ function createPhaseProgressBar(projectHistory, phases, projectId) {
             hasLaterPhaseActive,
             recordsCount: phaseRecords.length
         });
-        
+
         // Verifica la corrispondenza degli ID
         const phaseId = phase.id;
         console.log('Record filtrati per questa fase:', phaseRecords);
@@ -428,12 +481,12 @@ function createPhaseProgressBar(projectHistory, phases, projectId) {
             phaseIdTypeA: typeof h.phase,
             phaseIdTypeB: typeof phaseId
         })));
-        
+
         // Applica la logica dei colori secondo le specifiche:
         // - Giallo: se c'è almeno un task "in progress" per quella fase
         // - Verde: se non ci sono record con stato "in progress" per quella fase e c'è almeno un record con status "completed"
         // - Rosso: se NON ci sono task "completed" ED esiste una fase successiva con tasks "in progress" o "completed"
-        
+
         if (hasInProgress) {
             // GIALLO: se c'è almeno un task "in progress" per quella fase
             phaseItem.classList.add('phase-progress-yellow');
@@ -451,7 +504,7 @@ function createPhaseProgressBar(projectHistory, phases, projectId) {
             phaseItem.classList.add('phase-progress-none');
             tooltipText += 'Non iniziato';
         }
-        
+
         // Aggiungi dettagli dell'ultimo record al tooltip se disponibile
         if (latestRecord) {
             tooltipText += `\nUltimo aggiornamento: ${latestRecord.date}`;
@@ -467,28 +520,37 @@ function createPhaseProgressBar(projectHistory, phases, projectId) {
         });
         // Aggiungi uno stile per indicare che è cliccabile
         phaseItem.style.cursor = 'pointer';
-        
+
         progressBar.appendChild(phaseItem);
     });
-    
+
     return progressBar;
 }
 
 // Function to display projects in the table
 // Modificata per accettare le cronologie pre-caricate
 async function displayProjects(projects, histories) {
+    // Aggiorna progresso a 100% prima di iniziare il rendering pesante
+    updateLoadingProgress(100);
+
     console.log(`displayProjects called with ${projects.length} projects. Timestamp: ${Date.now()}`); // Add more detail to log
     const tableBody = document.getElementById('projects-table').getElementsByTagName('tbody')[0];
+    const loadingPopup = document.getElementById('loading-popup'); // Riferimento al popup
+
     if (!tableBody) {
         console.error('Table body not found!');
+        // Nascondi comunque il popup se la tabella non viene trovata
+        if (loadingPopup) loadingPopup.style.display = 'none';
         return;
     }
-    // Nascondi l'indicatore di caricamento prima di pulire la tabella
-    const loadingIndicator = document.getElementById('loading-indicator');
-    if (loadingIndicator) {
-        loadingIndicator.style.display = 'none';
-    }
-    tableBody.innerHTML = ''; // Clear existing rows (including the loading indicator)
+
+    // Rimosso: non c'è più #loading-indicator nella tabella
+    // const loadingIndicator = document.getElementById('loading-indicator');
+    // if (loadingIndicator) {
+    //     loadingIndicator.style.display = 'none';
+    // }
+
+    tableBody.innerHTML = ''; // Clear existing rows
 
     // Carica le fasi del progetto se non sono già disponibili
     if (!window.projectPhases) {
@@ -512,10 +574,10 @@ async function displayProjects(projects, histories) {
         console.log(`Creating row for project ID: ${project.id}`); // Log row creation
         const row = tableBody.insertRow();
         row.style.height = 'auto'; // Ensure consistent row height
-        
+
         // Funzione helper per gestire i valori vuoti
         const getValueOrDash = (value) => value || '-';
-        
+
         // Client
         const clientCell = row.insertCell(0);
         clientCell.textContent = getValueOrDash(project.client);
@@ -570,7 +632,7 @@ async function displayProjects(projects, histories) {
         // Determina lo status del progetto dalle informazioni incluse nella risposta API
         let statusText = 'No History';
         let assignedToText = 'Not Assigned';
-        
+
         if (project.latest_status) {
             // Se tutte le entry pubbliche sono completate, mostra "Completed"
             if (project.latest_status === 'Completed') {
@@ -582,11 +644,11 @@ async function displayProjects(projects, histories) {
             } else {
                 statusText = project.latest_status;
             }
-            
+
             // Aggiorna l'utente assegnato
             assignedToText = project.latest_assigned_to || 'Not Assigned';
         }
-        
+
         // Status - Aggiungi la progress bar
         const statusCell = row.insertCell(10);
 
@@ -610,7 +672,7 @@ async function displayProjects(projects, histories) {
 
         // Mantieni il testo originale come title per il tooltip
         statusCell.title = statusText;
-        
+
         // Assigned to
         const assignedToCell = row.insertCell(11);
         assignedToCell.textContent = assignedToText;
@@ -622,19 +684,19 @@ async function displayProjects(projects, histories) {
         priorityCell.title = priorityCell.textContent;
 
         const actionsCell = row.insertCell(13);
-        
+
         // Edit button
         const editBtn = document.createElement('button');
         editBtn.className = 'edit-btn';
         editBtn.textContent = 'Edit';
         editBtn.addEventListener('click', () => editProject(row, project.id));
-        
+
         // Delete button
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'delete-btn';
         deleteBtn.textContent = 'Delete';
         deleteBtn.addEventListener('click', () => confirmDelete(project.id));
-        
+
         // Archive/Unarchive button
         if (project.archived || project.latest_status === 'Completed') {
             const archiveBtn = document.createElement('button');
@@ -648,7 +710,7 @@ async function displayProjects(projects, histories) {
             });
             actionsCell.appendChild(archiveBtn);
         }
-        
+
         // Non è necessario evidenziare visivamente i progetti "On Hold" - il filtro viene gestito lato backend
 
         actionsCell.appendChild(editBtn);
@@ -665,15 +727,17 @@ async function displayProjects(projects, histories) {
     // Memorizza gli ID dei progetti autorizzati per il controllo in project-details.html
     const allowedIds = projects.map(project => String(project.id));
     localStorage.setItem('allowedProjectIds', JSON.stringify(allowedIds));
-    
+
     // Ripristina le larghezze delle colonne dopo aver caricato i dati
     restoreColumnWidths();
 
-    // Nascondi il popup di caricamento dopo che i dati sono stati visualizzati
-    const loadingPopup = document.getElementById('loading-popup');
-    if (loadingPopup) {
-        loadingPopup.style.display = 'none';
-    }
+    // Nascondi il popup di caricamento DOPO che i dati sono stati visualizzati
+    // Usiamo un piccolo timeout per permettere al browser di aggiornare la UI prima di nascondere
+    setTimeout(() => {
+        if (loadingPopup) {
+            loadingPopup.style.display = 'none';
+        }
+    }, 50); // Breve ritardo
 }
 
 // Function to handle adding a new project
@@ -682,7 +746,7 @@ function addProject() {
     const table = document.getElementById('projects-table');
     const savedVisibility = JSON.parse(localStorage.getItem('columnVisibility')) || {};
     const hiddenColumns = [];
-    
+
     // Salva quali colonne erano nascoste
     Object.keys(savedVisibility).forEach(columnIndex => {
         if (savedVisibility[columnIndex] === false) {
@@ -690,7 +754,7 @@ function addProject() {
             showColumn(table, parseInt(columnIndex));
         }
     });
-    
+
     const tableBody = table.getElementsByTagName('tbody')[0];
     const newRow = tableBody.insertRow(0); // Insert at the beginning
     newRow.classList.add('new-entry-row'); // Aggiungi una classe per lo styling
@@ -719,8 +783,8 @@ function addProject() {
     fields.forEach((field) => {
         const cell = newRow.insertCell(field.columnIndex);
         cell.classList.add('input-cell'); // Aggiungi una classe per lo styling
-        
-        // In fase di inserimento, tutte le colonne sono visibili 
+
+        // In fase di inserimento, tutte le colonne sono visibili
         // indipendentemente dalle impostazioni di visibilità
 
         if (!field.editable) {
@@ -729,18 +793,18 @@ function addProject() {
             if (field.name === 'productKind') {
                 // Crea un ID unico per il datalist
                 const datalistId = 'product-kinds-list-' + Math.random().toString(36).substr(2, 9);
-                
+
                 // Crea il datalist per product kinds
                 const datalist = document.createElement('datalist');
                 datalist.id = datalistId;
-                
+
                 // Crea l'input collegato al datalist
                 const input = document.createElement('input');
                 input.type = 'text';
                 input.name = field.name;
                 input.classList.add('new-entry-input');
                 input.setAttribute('list', datalistId);
-                
+
                 // Popola il datalist immediatamente se i product kinds sono già disponibili
                 if (window.productKinds) {
                     window.productKinds.forEach(pk => {
@@ -749,7 +813,7 @@ function addProject() {
                         datalist.appendChild(option);
                     });
                 }
-                
+
                 // Aggiorna il datalist quando vengono caricati nuovi product kinds
                 const updateDatalist = (event) => {
                     const productKinds = event.detail;
@@ -760,15 +824,15 @@ function addProject() {
                         datalist.appendChild(option);
                     });
                 };
-                
+
                 window.addEventListener('productKindsLoaded', updateDatalist);
-                
+
                 // Rimuovi l'event listener quando l'elemento viene rimosso
                 const cleanup = () => {
                     window.removeEventListener('productKindsLoaded', updateDatalist);
                 };
                 window.addEventListener('beforeunload', cleanup);
-                
+
                 cell.appendChild(datalist);
                 cell.appendChild(input);
             } else {
@@ -790,7 +854,7 @@ function addProject() {
     saveBtn.addEventListener('click', async function() {
         // Costruisci l'oggetto progetto estraendo i valori dalle celle
         const newProject = {};
-        
+
         fields.forEach(field => {
             if (field.editable) {
                 const cell = newRow.cells[field.columnIndex];
@@ -815,12 +879,12 @@ function addProject() {
                 console.log('Project added successfully');
                 const savedWidths = localStorage.getItem('projectsColumnWidths');
                 await fetchProjects(); // Refresh the project list and apply sorting
-                
+
                 // Riapplica le impostazioni di visibilità originali dopo il salvataggio
                 hiddenColumns.forEach(columnIndex => {
                     hideColumn(table, columnIndex);
                 });
-                
+
                 if (savedWidths) {
                     restoreColumnWidths(); // Ripristina le larghezze dopo l'aggiunta
                 }
@@ -862,18 +926,18 @@ function editProject(row, projectId) {
         if (i === 1) { // Campo productKind
             // Crea un ID unico per il datalist
             const datalistId = 'product-kinds-list-edit-' + Math.random().toString(36).substr(2, 9);
-            
+
             // Crea il datalist per product kinds
             const datalist = document.createElement('datalist');
             datalist.id = datalistId;
-            
+
             // Crea l'input collegato al datalist
             const input = document.createElement('input');
             input.type = 'text';
             input.value = projectData[Object.keys(projectData)[i]];
             input.style.backgroundColor = '#ffff99';
             input.setAttribute('list', datalistId);
-            
+
             // Popola il datalist immediatamente se i product kinds sono già disponibili
             if (window.productKinds) {
                 window.productKinds.forEach(pk => {
@@ -882,7 +946,7 @@ function editProject(row, projectId) {
                     datalist.appendChild(option);
                 });
             }
-            
+
             // Aggiorna il datalist quando vengono caricati nuovi product kinds
             const updateDatalist = (event) => {
                 const productKinds = event.detail;
@@ -893,15 +957,15 @@ function editProject(row, projectId) {
                     datalist.appendChild(option);
                 });
             };
-            
+
             window.addEventListener('productKindsLoaded', updateDatalist);
-            
+
             // Rimuovi l'event listener quando l'elemento viene rimosso
             const cleanup = () => {
                 window.removeEventListener('productKindsLoaded', updateDatalist);
             };
             window.addEventListener('beforeunload', cleanup);
-            
+
             cells[i].appendChild(datalist);
             cells[i].appendChild(input);
         } else {
@@ -976,7 +1040,7 @@ async function confirmDelete(projectId) {
                 const forceResponse = await fetch(`/api/projects/${projectId}?force=true`, {
                     method: 'DELETE',
                 });
-                
+
                 if (forceResponse.ok) {
                     console.log('Project and history successfully deleted');
                     await fetchProjects(); // Refresh the project list and apply sorting
@@ -1010,7 +1074,7 @@ function restoreColumnWidths() {
         const widths = JSON.parse(savedWidths);
         const table = document.getElementById('projects-table');
         const headerCells = table.getElementsByTagName('th');
-        
+
         widths.forEach((width, index) => {
             if (headerCells[index] && width) {
                 headerCells[index].style.width = width;
@@ -1047,7 +1111,7 @@ function enableColumnResizing() {
             startX = e.pageX;
             startWidth = headerCells[i].offsetWidth;
             totalWidth = Array.from(headerCells).reduce((sum, cell) => sum + cell.offsetWidth, 0);
-            
+
             document.addEventListener('mousemove', resizeColumn);
             document.addEventListener('mouseup', stopResize);
             resizer.classList.add('resizing');
@@ -1057,11 +1121,11 @@ function enableColumnResizing() {
             const widthChange = e.pageX - startX;
             const newWidth = Math.max(50, startWidth + widthChange); // Minimo 50px
             const newTotalWidth = totalWidth + (newWidth - startWidth);
-            
+
             // Verifica che la nuova larghezza totale non superi la larghezza del wrapper
             if (newTotalWidth <= maxTableWidth) {
                 headerCells[i].style.width = newWidth + 'px';
-                
+
                 // Aggiorna anche le celle del corpo della tabella
                 const tableRows = table.getElementsByTagName('tr');
                 for (let row of tableRows) {
@@ -1069,7 +1133,7 @@ function enableColumnResizing() {
                         row.cells[i].style.width = newWidth + 'px';
                     }
                 }
-                
+
                 // Salva le nuove larghezze
                 saveColumnWidths();
             }
@@ -1126,16 +1190,16 @@ function enableColumnSorting() {
                     // Converti in numeri se possibile
                     const aNum = parseFloat(aText);
                     const bNum = parseFloat(bText);
-                    
+
                     // Se entrambi sono numeri, confronta numericamente
                     if (!isNaN(aNum) && !isNaN(bNum)) {
                         return isAscending ? aNum - bNum : bNum - aNum;
                     }
-                    
+
                     // Se solo uno è numero, il numero va prima
                     if (!isNaN(aNum)) return isAscending ? -1 : 1;
                     if (!isNaN(bNum)) return isAscending ? 1 : -1;
-                    
+
                     // Se nessuno è numero, confronta come testo
                     return isAscending ? aText.localeCompare(bText) : bText.localeCompare(aText);
                 }
@@ -1147,7 +1211,7 @@ function enableColumnSorting() {
             // Raggruppa le righe con lo stesso valore
             let currentValue = '';
             let colorGroup = 1;
-            
+
             rows.forEach(row => {
                 const cellValue = row.cells[columnIndex].textContent.trim();
                 if (cellValue !== currentValue) {
@@ -1159,7 +1223,7 @@ function enableColumnSorting() {
 
             sortDirection[columnIndex] = !isAscending; // Toggle sort direction
             rows.forEach(row => table.getElementsByTagName('tbody')[0].appendChild(row)); // Reorder rows
-            
+
             // Ripristina le larghezze delle colonne dopo il sorting
             restoreColumnWidths();
         });
@@ -1176,7 +1240,7 @@ function enableLiveFiltering() {
     showArchivedCheckbox.addEventListener('change', () => {
         fetchProjects();
     });
-    
+
     // Gestione checkbox progetti on hold
     const showOnHoldCheckbox = document.getElementById('show-on-hold');
     showOnHoldCheckbox.addEventListener('change', () => {
@@ -1210,7 +1274,7 @@ function enableLiveFiltering() {
         textFilterInputs.forEach(input => {
             input.classList.toggle('filter-active', input.value.trim() !== '');
         });
-        
+
         const dateInputs = document.querySelectorAll('.filters input[type="date"]');
         dateInputs.forEach(input => {
             input.classList.toggle('filter-active', input.value !== '');
@@ -1241,7 +1305,7 @@ function enableLiveFiltering() {
             if (isMatch) {
                 const startDateFilter = dateFilterValues.startDate;
                 const endDateFilter = dateFilterValues.endDate;
-                
+
                 if (startDateFilter || endDateFilter) {
                     const rowStartDate = row.cells[8].textContent.trim();
                     const rowEndDate = row.cells[9].textContent.trim();
@@ -1263,7 +1327,7 @@ function enableLiveFiltering() {
 
             row.style.display = isMatch ? '' : 'none';
         });
-        
+
         // Ripristina le larghezze delle colonne dopo il filtering
         restoreColumnWidths();
     }
@@ -1350,10 +1414,10 @@ function enableLiveFiltering() {
         const savedFilters = localStorage.getItem('projectFilters');
         if (savedFilters) {
             const filters = JSON.parse(savedFilters);
-            
+
             // Verifica la compatibilità dei filtri con i permessi
             const validatedFilters = await checkFilterPermissions(filters);
-            
+
             // Applica i filtri di testo validati
             textFilterInputs.forEach((input, index) => {
                 const filterValue = Object.values(validatedFilters)[index];
@@ -1365,7 +1429,7 @@ function enableLiveFiltering() {
                 document.getElementById('start-date-filter').value = filters.dates.startDate || '';
                 document.getElementById('end-date-filter').value = filters.dates.endDate || '';
             }
-            
+
             // Applica i filtri
             applyFilters();
         }
@@ -1386,9 +1450,9 @@ function enableLiveFiltering() {
 
     // Espone le funzioni necessarie
     publicApi.applyFilters = applyFilters;
-    
+
     // Salva il riferimento globale
     filteringApi = publicApi;
-    
+
     return publicApi;
 }
