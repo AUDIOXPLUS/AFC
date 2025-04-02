@@ -173,6 +173,11 @@ function applyLastSorting() {
 async function fetchProjects() {
     console.log(`fetchProjects called. Timestamp: ${Date.now()}`); // Add timestamp log
     console.log('Fetching projects...');
+    // Mostra il popup di caricamento
+    const loadingPopup = document.getElementById('loading-popup');
+    if (loadingPopup) {
+        loadingPopup.style.display = 'flex'; // Usa flex per centrare il contenuto
+    }
     try {
         const showArchived = document.getElementById('show-archived').checked;
         const showOnHold = document.getElementById('show-on-hold').checked;
@@ -210,6 +215,13 @@ async function fetchProjects() {
         applyLastSorting();
     } catch (error) {
         handleNetworkError(error);
+    } finally {
+        // Nascondi il popup di caricamento in ogni caso (successo o errore)
+        // Lo nascondiamo qui invece che in displayProjects per coprire anche i casi di errore fetch
+        // if (loadingPopup) {
+        //     loadingPopup.style.display = 'none';
+        // }
+        // Nota: Spostato il nascondiglio in displayProjects per assicurarsi che sia nascosto *dopo* il rendering
     }
 }
 
@@ -471,7 +483,12 @@ async function displayProjects(projects, histories) {
         console.error('Table body not found!');
         return;
     }
-    tableBody.innerHTML = ''; // Clear existing rows
+    // Nascondi l'indicatore di caricamento prima di pulire la tabella
+    const loadingIndicator = document.getElementById('loading-indicator');
+    if (loadingIndicator) {
+        loadingIndicator.style.display = 'none';
+    }
+    tableBody.innerHTML = ''; // Clear existing rows (including the loading indicator)
 
     // Carica le fasi del progetto se non sono già disponibili
     if (!window.projectPhases) {
@@ -651,6 +668,12 @@ async function displayProjects(projects, histories) {
     
     // Ripristina le larghezze delle colonne dopo aver caricato i dati
     restoreColumnWidths();
+
+    // Nascondi il popup di caricamento dopo che i dati sono stati visualizzati
+    const loadingPopup = document.getElementById('loading-popup');
+    if (loadingPopup) {
+        loadingPopup.style.display = 'none';
+    }
 }
 
 // Function to handle adding a new project
