@@ -1,5 +1,6 @@
 // Dati del version log
 const versionLogData = [
+    { date: '02/04/25', description: 'Implemented progress bar. Fixed minor bugs' },
     { date: '29/03/25', description: 'Improved project and history loading speed. Implemented clipboard synchronization' },
     { date: '28/03/25', description: 'Implemented change password form' },
     { date: '28/03/25', description: 'Implemented urgent task prioritization. Separated autoassigned tasks from calculations. Enhanced visibility of new tasks' },
@@ -52,18 +53,59 @@ function createVersionLogPopup() {
     document.body.appendChild(popup);
 }
 
+// Funzione per aggiornare il testo della versione con il nome utente
+function updateVersionText() {
+    const versionTextElement = document.getElementById('version-text');
+    if (!versionTextElement) {
+        // Logga se l'elemento non viene trovato (potrebbe non essere ancora stato creato)
+        // console.warn("Elemento #version-text non ancora disponibile per l'aggiornamento.");
+        return;
+    }
+
+    // Recupera i dati dell'utente dal localStorage
+    const userData = localStorage.getItem('user');
+    let userName = 'User'; // Nome di default se non trovato o in caso di logout
+    if (userData) {
+        try {
+            const user = JSON.parse(userData);
+            if (user && user.name) {
+                userName = user.name;
+            }
+        } catch (e) {
+            // Logga l'errore nel parsing dei dati utente
+            console.error("Errore nel parsing dei dati utente dal localStorage:", e);
+        }
+    }
+
+    // Imposta il testo combinato: versione e nome utente
+    versionTextElement.textContent = `V3.6 - ${userName}`;
+}
+
+
 // Inizializza il version log
 function initializeVersionLog() {
     // Crea il testo della versione nel menu
     const nav = document.querySelector('nav');
+     // Verifica se l'elemento nav esiste prima di procedere
+    if (!nav) {
+        console.error("Elemento <nav> non trovato nel DOM.");
+        return; // Interrompi l'esecuzione se nav non è trovato
+    }
     const versionText = document.createElement('div');
     versionText.id = 'version-text';
     versionText.className = 'version-text';
-    versionText.textContent = 'V3.6';
     
-    // Inserisci il testo della versione dopo il logo
+    // Inserisci l'elemento nel DOM prima di tentare di aggiornarlo
     const logo = nav.querySelector('.logo');
-    logo.parentNode.insertBefore(versionText, logo.nextSibling);
+    if (logo && logo.parentNode) {
+        logo.parentNode.insertBefore(versionText, logo.nextSibling);
+    } else {
+        console.error("Logo o suo parent non trovato, impossibile inserire #version-text.");
+        return; // Interrompi se non si può inserire l'elemento
+    }
+
+    // Imposta il testo iniziale chiamando la funzione di aggiornamento
+    updateVersionText(); 
 
     // Crea il popup
     createVersionLogPopup();
@@ -85,3 +127,6 @@ function initializeVersionLog() {
 
 // Inizializza quando il DOM è pronto
 document.addEventListener('DOMContentLoaded', initializeVersionLog);
+
+// Ascolta i cambiamenti di autenticazione per aggiornare il nome utente
+window.addEventListener('authChange', updateVersionText);

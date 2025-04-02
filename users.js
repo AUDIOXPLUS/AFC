@@ -306,7 +306,8 @@ function displayLoggedInUser() {
         // Aggiorna il nome nel menu
         const userSpan = document.querySelector('.user-info span');
         if (userSpan) {
-            userSpan.textContent = `Welcome, ${userData.name}`;
+            // Rimosso "Welcome, " dal testo
+            userSpan.textContent = `${userData.name}`;
         }
     }
 }

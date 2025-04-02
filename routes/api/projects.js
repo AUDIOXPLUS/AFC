@@ -258,16 +258,20 @@ router.post('/', checkAuthentication, (req, res) => {
             }
 
             const phaseId = phaseRow ? phaseRow.id : null;
-            const historyQuery = `INSERT INTO project_history (project_id, date, phase, description, status, assigned_to) 
-                                VALUES (?, ?, ?, ?, ?, ?)`;
-            
+            // Aggiunto created_by alla query e ai valori
+            const historyQuery = `INSERT INTO project_history (project_id, date, phase, description, status, assigned_to, created_by)
+                                VALUES (?, ?, ?, ?, ?, ?, ?)`; // Aggiunto ? per created_by
+
             const currentDate = new Date().toISOString().split('T')[0];
             const description = 'Project created';
-            
-            req.db.run(historyQuery, [projectId, currentDate, phaseId, description, 'In Progress', req.session.user.name], function(err) {
+            const userId = req.session.user.id; // Ottieni l'ID utente dalla sessione
+
+            // Aggiunto userId come ultimo parametro per created_by
+            req.db.run(historyQuery, [projectId, currentDate, phaseId, description, 'In Progress', req.session.user.name, userId], function(err) {
                 if (err) {
                     console.error('Errore nell\'inserimento della cronologia:', err);
-                    return res.status(500).send('Errore del server');
+                    // Considera di restituire un errore JSON invece di solo testo
+                    return res.status(500).json({ error: 'Errore del server nell\'inserimento della cronologia iniziale' });
                 }
                 res.status(201).json({ id: projectId });
             });

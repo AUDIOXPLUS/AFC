@@ -33,14 +33,21 @@ async function checkAuthStatus() {
             console.log('Auth check: User authenticated');
             // Salva i dati dell'utente nel localStorage
             localStorage.setItem('user', JSON.stringify(data));
+            // Invia un evento per notificare il cambio di stato dell'autenticazione
+            window.dispatchEvent(new CustomEvent('authChange', { detail: data }));
             return true;
         }
         
-        // If no valid user data, redirect to login
+        // Se non ci sono dati utente validi, pulisci localStorage e invia evento
+        localStorage.removeItem('user');
+        window.dispatchEvent(new CustomEvent('authChange', { detail: null }));
         console.log('Auth check: Invalid user data');
         window.location.href = '/login.html';
         return false;
     } catch (error) {
+        // In caso di errore, pulisci localStorage e invia evento
+        localStorage.removeItem('user');
+        window.dispatchEvent(new CustomEvent('authChange', { detail: null }));
         console.error('Errore durante la verifica dell\'autenticazione:', error);
         window.location.href = '/login.html';
         return false;

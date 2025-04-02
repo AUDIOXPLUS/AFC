@@ -161,15 +161,23 @@ export function displayProjectHistory(history, projectId) {
         dateCell.style.position = 'relative';
 
         // --- Logica Reply/Forward e Icone ---
+        // --- Logica Reply/Forward e Icone ---
         let isReply = false;
         let isForward = false;
-        // ... (logica per determinare isReply/isForward come prima) ...
-        if (entry.is_forward === true) { isForward = true; isReply = false; }
-        else if (entry.is_reply === true) { isReply = true; isForward = false; }
-        else if (entry.parent_id) {
-             if (entry.description && (entry.description.toLowerCase().includes('forward-') || entry.description.toLowerCase().startsWith('fwd:'))) { isForward = true; }
-             else { isReply = true; }
+        
+        // Determina se è reply o forward basandosi SOLO sul parent_id e sulla descrizione,
+        // poiché i flag is_reply/is_forward non sono salvati nel DB.
+        if (entry.parent_id) { 
+             // Controlla se la descrizione indica un forward
+             if (entry.description && (entry.description.toLowerCase().includes('forward-') || entry.description.toLowerCase().startsWith('fwd:'))) { 
+                 isForward = true; 
+             }
+             // Altrimenti, se ha un parent_id ma non è un forward, è un reply
+             else { 
+                 isReply = true; 
+             }
         }
+        // Se non ha parent_id, non è né reply né forward.
         // ... (altri controlli come prima) ...
 
         if (entry.created_by) {
@@ -785,8 +793,8 @@ export async function saveNewHistoryEntry(projectId, row, entryId = null) {
         // const parentCreatedByName = row.getAttribute('data-parent-created-by-name'); // Non serve inviarlo
 
         if (parentId) entryData.parent_id = parseInt(parentId, 10);
-        if (isForward) entryData.is_forward = true;
-        if (isReply) entryData.is_reply = true;
+        // Rimosso: if (isForward) entryData.is_forward = true; // Non viene salvato dal server
+        // Rimosso: if (isReply) entryData.is_reply = true; // Non viene salvato dal server
 
         // Logica per created_by_name (catena utenti) - SOLO per nuove entry reply/forward
         const actionPrefix = isForward ? "FORWARD:" : "REPLY:";

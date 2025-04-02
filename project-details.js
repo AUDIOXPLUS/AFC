@@ -64,7 +64,8 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (userData && (userData.username || userData.name)) {
             window.currentUserId = String(userData.id);
             window.currentUserName = userData.name || userData.username;
-            document.querySelector('.user-info span').textContent = `Welcome, ${window.currentUserName}`;
+            // Rimosso "Welcome, " dal testo
+            document.querySelector('.user-info span').textContent = `${window.currentUserName}`;
         } else {
             console.error('Dati utente non validi:', userData);
             window.location.replace('login.html');
