@@ -1,5 +1,6 @@
 // Dati del version log
 const versionLogData = [
+    { date: '03/04/25', description: 'Fixed duplicated projects issue. Fixed project history save bug' },
     { date: '02/04/25', description: 'Implemented progress bar. Fixed minor bugs' },
     { date: '29/03/25', description: 'Improved project and history loading speed. Implemented clipboard synchronization' },
     { date: '28/03/25', description: 'Implemented change password form' },

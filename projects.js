@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 });
 
 async function initializeDashboard() {
+    console.log(`initializeDashboard called. Timestamp: ${Date.now()}`); // Log start of initialization
     document.getElementById('logout').addEventListener('click', function() {
         window.location.href = 'login.html';
     });
@@ -170,6 +171,7 @@ function applyLastSorting() {
 
 // Function to fetch project data from the backend
 async function fetchProjects() {
+    console.log(`fetchProjects called. Timestamp: ${Date.now()}`); // Add timestamp log
     console.log('Fetching projects...');
     try {
         const showArchived = document.getElementById('show-archived').checked;
@@ -179,8 +181,25 @@ async function fetchProjects() {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         const projects = await response.json();
-        console.log('Projects fetched:', projects);
-        await displayProjects(projects);
+        console.log('Projects fetched from API:', projects); // Log the raw data
+        // Check for duplicates based on ID right here
+        const projectIds = projects.map(p => p.id);
+        const uniqueProjectIds = new Set(projectIds);
+        if (projectIds.length !== uniqueProjectIds.size) {
+            console.warn('Duplicate project IDs received from API!');
+            // Log the duplicate IDs
+            const duplicateCounts = {};
+            projectIds.forEach(id => { duplicateCounts[id] = (duplicateCounts[id] || 0) + 1; });
+            const duplicates = Object.entries(duplicateCounts).filter(([id, count]) => count > 1);
+            console.warn('Duplicate IDs and counts:', duplicates);
+        } else {
+            console.log('No duplicate project IDs received from API.'); // Confirm no duplicates
+        }
+
+        // Recupera tutte le cronologie necessarie PRIMA di visualizzare
+        const histories = await fetchAllHistories(projects.map(p => p.id));
+
+        await displayProjects(projects, histories); // Passa le cronologie a displayProjects
 
         // Riapplica i filtri dopo aver caricato i progetti
         if (filteringApi && typeof filteringApi.applyFilters === 'function') {
@@ -194,7 +213,45 @@ async function fetchProjects() {
     }
 }
 
-// Funzione per recuperare lo status dalla cronologia del progetto
+// Nuova funzione per recuperare tutte le cronologie in parallelo
+async function fetchAllHistories(projectIds) {
+    console.log('Fetching histories for projects:', projectIds);
+    const historyPromises = projectIds.map(id =>
+        fetch(`/api/projects/${id}/history`)
+            .then(response => {
+                if (!response.ok) {
+                    console.error(`Error fetching history for project ${id}: ${response.status}`);
+                    return []; // Restituisce array vuoto in caso di errore per non bloccare Promise.all
+                }
+                return response.json();
+            })
+            .catch(error => {
+                console.error(`Network error fetching history for project ${id}:`, error);
+                return []; // Restituisce array vuoto in caso di errore di rete
+            })
+    );
+
+    try {
+        const results = await Promise.all(historyPromises);
+        const historiesMap = {};
+        projectIds.forEach((id, index) => {
+            historiesMap[id] = results[index];
+        });
+        console.log('Histories fetched:', historiesMap);
+        return historiesMap;
+    } catch (error) {
+        // Questo catch è meno probabile che venga raggiunto a causa dei catch individuali, ma è una sicurezza
+        console.error('Error in Promise.all fetching histories:', error);
+        // Crea una mappa con array vuoti in caso di errore generale
+        const errorMap = {};
+        projectIds.forEach(id => { errorMap[id] = []; });
+        return errorMap;
+    }
+}
+
+
+// Funzione per recuperare lo status dalla cronologia del progetto (NON PIU' USATA DIRETTAMENTE DA displayProjects)
+// Mantenuta per potenziale uso futuro o debug, ma la logica status è ora in displayProjects/createTableRow
 async function getProjectStatus(projectId) {
     try {
         const response = await fetch(`/api/projects/${projectId}/history`);
@@ -406,8 +463,9 @@ function createPhaseProgressBar(projectHistory, phases, projectId) {
 }
 
 // Function to display projects in the table
-async function displayProjects(projects) {
-    console.log('Displaying projects:', projects);
+// Modificata per accettare le cronologie pre-caricate
+async function displayProjects(projects, histories) {
+    console.log(`displayProjects called with ${projects.length} projects. Timestamp: ${Date.now()}`); // Add more detail to log
     const tableBody = document.getElementById('projects-table').getElementsByTagName('tbody')[0];
     if (!tableBody) {
         console.error('Table body not found!');
@@ -432,7 +490,9 @@ async function displayProjects(projects) {
     }
 
     // Funzione per creare una riga della tabella
-    const createTableRow = (project) => {
+    // Modificata per accettare la cronologia pre-caricata
+    const createTableRow = (project, projectHistory) => {
+        console.log(`Creating row for project ID: ${project.id}`); // Log row creation
         const row = tableBody.insertRow();
         row.style.height = 'auto'; // Ensure consistent row height
         
@@ -512,34 +572,25 @@ async function displayProjects(projects) {
         
         // Status - Aggiungi la progress bar
         const statusCell = row.insertCell(10);
-        
-        // Recupera la cronologia del progetto per creare la progress bar
-        fetch(`/api/projects/${project.id}/history`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(projectHistory => {
-                // Se ci sono fasi disponibili e cronologia, crea la progress bar
-                if (window.projectPhases && window.projectPhases.length > 0 && projectHistory && projectHistory.length > 0) {
-                    // Rimuovi eventuale contenuto precedente
-                    statusCell.innerHTML = '';
-                    
-                    // Crea e aggiungi la progress bar, passando anche l'ID del progetto
-                    const progressBar = createPhaseProgressBar(projectHistory, window.projectPhases, project.id);
-                    statusCell.appendChild(progressBar);
-                } else {
-                    // Fallback al testo originale se non ci sono dati sufficienti
-                    statusCell.textContent = statusText;
-                }
-            })
-            .catch(error => {
-                console.error(`Errore nel recupero della cronologia per il progetto ${project.id}:`, error);
-                statusCell.textContent = statusText; // Fallback al testo originale in caso di errore
-            });
-        
+
+        // Usa la cronologia pre-caricata per creare la progress bar
+        if (window.projectPhases && window.projectPhases.length > 0 && projectHistory && projectHistory.length > 0) {
+            // Rimuovi eventuale contenuto precedente (anche se la riga è nuova, per sicurezza)
+            statusCell.innerHTML = '';
+
+            // Crea e aggiungi la progress bar, passando anche l'ID del progetto
+            const progressBar = createPhaseProgressBar(projectHistory, window.projectPhases, project.id);
+            if (progressBar) { // createPhaseProgressBar potrebbe restituire null
+                 statusCell.appendChild(progressBar);
+            } else {
+                 // Fallback se la progress bar non può essere creata
+                 statusCell.textContent = statusText;
+            }
+        } else {
+            // Fallback al testo originale se non ci sono dati sufficienti
+            statusCell.textContent = statusText;
+        }
+
         // Mantieni il testo originale come title per il tooltip
         statusCell.title = statusText;
         
@@ -587,8 +638,12 @@ async function displayProjects(projects) {
         actionsCell.appendChild(deleteBtn);
     };
 
-    // Crea tutte le righe (non più in modo asincrono)
-    projects.forEach(project => createTableRow(project));
+    // Crea tutte le righe passando la cronologia specifica
+    projects.forEach(project => {
+        const projectHistory = histories[project.id] || []; // Usa la cronologia pre-caricata o un array vuoto
+        createTableRow(project, projectHistory); // Passa la cronologia a createTableRow
+    });
+
     console.log('Projects displayed successfully');
     // Memorizza gli ID dei progetti autorizzati per il controllo in project-details.html
     const allowedIds = projects.map(project => String(project.id));
