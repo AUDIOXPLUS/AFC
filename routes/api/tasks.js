@@ -79,17 +79,16 @@ router.get('/', checkAuthentication, async (req, res) => {
                 queryParams.push(req.session.user.name);
                 break;
             case 'own-factory':
-                // Ottieni tutti i task degli utenti della stessa factory dell'utente corrente
-                query += ` AND EXISTS (
-                    SELECT 1 FROM users u
-                    WHERE u.name = ph.assigned_to
-                    AND u.factory = (
-                        SELECT factory 
-                        FROM users 
-                        WHERE id = ?
-                    )
+                // L'utente vede i task se:
+                // 1. Il progetto appartiene alla sua factory OPPURE
+                // 2. Il task è assegnato direttamente a lui/lei
+                query += ` AND (
+                    p.factory = (SELECT factory FROM users WHERE id = ?) 
+                    OR 
+                    ph.assigned_to = ?
                 )`;
-                queryParams.push(req.session.user.id);
+                // Aggiungiamo sia l'ID utente (per la factory) sia il nome utente (per l'assegnazione diretta)
+                queryParams.push(req.session.user.id, req.session.user.name);
                 break;
             case 'all-factories':
                 // Ottieni tutti i task di tutte le factories
