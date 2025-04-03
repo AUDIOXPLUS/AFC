@@ -7,7 +7,8 @@
 if (!window.entryParentMap) window.entryParentMap = {};
 
 import { handleNetworkError, handleResponse } from './utils.js';
-import { updateFilesCell, fetchEntryFiles } from './files.js';
+// Importa anche handleFileUpload per l'event delegation
+import { updateFilesCell, fetchEntryFiles, handleFileUpload } from './files.js';
 
 /**
  * Recupera la cronologia del progetto e la ordina per data in ordine decrescente.
@@ -254,13 +255,10 @@ export function displayProjectHistory(history, projectId) {
 
         // --- Cella File ---
         const filesCell = row.insertCell(5);
-        // Chiama updateFilesCell DOPO che la riga è nel DOM (o passa la cella)
-        // Deferring this call slightly or passing the cell might be needed
-        // For now, keep the original logic but be aware it might need adjustment
-        fetchEntryFiles(entry.id, projectId).then(files => {
-             updateFilesCell(entry.id, projectId, filesCell); // Passa la cella per aggiornamento diretto
-        });
-
+        // updateFilesCell verrà chiamato dal callback di deleteFile o implicitamente dal rendering.
+        // Rimuoviamo la chiamata diretta qui per evitare conflitti con l'event delegation.
+        // L'aggiornamento iniziale della UI della cella (drag hints) avverrà comunque.
+        updateFilesCell(entry.id, projectId); // Chiamata per setup iniziale UI (drag hints) senza aggiungere listener drop
 
         // --- Cella Azioni ---
         const actionsCell = row.insertCell(6);
@@ -331,6 +329,58 @@ export function displayProjectHistory(history, projectId) {
 
     // Aggiungi tutte le righe al DOM in una sola operazione
     tableBody.appendChild(fragment);
+
+    // --- Event Delegation per Drag & Drop sul tbody (SOLO DROP) ---
+    // Rimuovi listener 'drop' precedente se esiste per evitare duplicati
+    if (tableBody._tableDropHandler) {
+        tableBody.removeEventListener('drop', tableBody._tableDropHandler);
+    }
+    // Rimosso dragover da qui
+
+    // Definisci l'handler per il drop una sola volta
+    const tableDropHandler = (e) => {
+        const targetCell = e.target.closest('td');
+
+        // Verifica se il drop è avvenuto sulla cella dei file (indice 5)
+        if (targetCell && targetCell.cellIndex === 5) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const row = targetCell.closest('tr');
+            const entryId = row?.getAttribute('data-entry-id');
+            const uploadContainer = targetCell.querySelector('.file-upload-container');
+
+            if (entryId && uploadContainer) {
+                const dt = e.dataTransfer;
+                const droppedFiles = dt.files;
+
+                if (droppedFiles.length > 0) {
+                    console.log(`[Delegation] Drop su entry ${entryId}, chiamo handleFileUpload`);
+                    // Chiama handleFileUpload passando i parametri corretti
+                    handleFileUpload(droppedFiles, uploadContainer, targetCell, entryId, projectId);
+                }
+            } else {
+                 console.log("[Delegation] Drop non valido (manca entryId o uploadContainer)");
+            }
+            // Resetta stile drag (anche se dovrebbe farlo l'handler su files.js, sicurezza in più)
+            const browseIcon = targetCell.querySelector('.fa-folder-open');
+            if(browseIcon) browseIcon.style.color = 'black';
+            targetCell.style.backgroundColor = '';
+            targetCell.style.boxShadow = '';
+        } else {
+             console.log("[Delegation] Drop ignorato (non su cella file)");
+        }
+    };
+
+    // Aggiungi SOLO il listener 'drop' al tbody
+    // Rimosso: tableBody.addEventListener('dragover', tableDragOverHandler, false);
+    tableBody.addEventListener('drop', tableDropHandler, false);
+
+    // Memorizza SOLO il riferimento a drop per poterlo rimuovere dopo
+    tableBody._tableDropHandler = tableDropHandler;
+    // Rimosso: tableBody._tableDragOverHandler = tableDragOverHandler;
+    // --- Fine Event Delegation ---
+
 
     // Riapplica i filtri dopo aver aggiunto tutte le righe
     if (window.filteringApi && typeof window.filteringApi.applyFilters === 'function') {

@@ -84,9 +84,10 @@ export async function deleteFile(fileId, projectId, updateCallback) {
  * @param {number} entryId - ID dell'entry
  * @param {number} projectId - ID del progetto
  */
-async function handleFileUpload(files, uploadContainer, filesCell, entryId, projectId) {
+// Esporta la funzione per usarla in entries.js
+export async function handleFileUpload(files, uploadContainer, filesCell, entryId, projectId) {
     if (files.length === 0) return;
-    
+
     // Disabilita l'input durante l'upload
     const fileInput = uploadContainer.querySelector('input[type="file"]');
     if (fileInput) fileInput.disabled = true;
@@ -122,18 +123,16 @@ async function handleFileUpload(files, uploadContainer, filesCell, entryId, proj
         
         // Aggiorna i pulsanti "Download All" e "Preview All"
         const buttonsContainer = filesCell.querySelector('.buttons-container');
-        if (buttonsContainer) {
-            // Rimuovi i vecchi pulsanti
-            while (buttonsContainer.firstChild) {
-                if (!buttonsContainer.firstChild.classList.contains('file-upload-container') && 
-                    !buttonsContainer.firstChild.classList.contains('drop-zone')) {
-                    buttonsContainer.removeChild(buttonsContainer.firstChild);
-                } else {
-                    break;
+        const uploadContainerRef = filesCell.querySelector('.file-upload-container'); // Riferimento all'uploader
+        if (buttonsContainer && uploadContainerRef) {
+            // Rimuovi tutti i pulsanti esistenti tranne l'uploader
+            Array.from(buttonsContainer.children).forEach(child => {
+                if (child !== uploadContainerRef) {
+                    buttonsContainer.removeChild(child);
                 }
-            }
-            
-            // Aggiungi i nuovi pulsanti se ci sono file
+            });
+
+            // Aggiungi i nuovi pulsanti se ci sono file, inserendoli prima dell'uploader
             if (files.length > 0) {
                 const downloadAllBtn = document.createElement('button');
                 downloadAllBtn.className = 'download-all-btn';
@@ -156,16 +155,10 @@ async function handleFileUpload(files, uploadContainer, filesCell, entryId, proj
                 previewAllBtn.addEventListener('click', async () => {
                     previewAllFiles(files);
                 });
-                
-                // Inserisci prima della zona di drop
-                const dropZone = buttonsContainer.querySelector('.drop-zone');
-                if (dropZone) {
-                    buttonsContainer.insertBefore(downloadAllBtn, dropZone);
-                    buttonsContainer.insertBefore(previewAllBtn, dropZone);
-                } else {
-                    buttonsContainer.insertBefore(downloadAllBtn, uploadContainer);
-                    buttonsContainer.insertBefore(previewAllBtn, uploadContainer);
-                }
+
+                // Inserisci i nuovi pulsanti prima dell'elemento di upload
+                buttonsContainer.insertBefore(downloadAllBtn, uploadContainerRef);
+                buttonsContainer.insertBefore(previewAllBtn, uploadContainerRef);
             }
         }
         
@@ -203,7 +196,21 @@ export async function updateFilesCell(entryId, projectId) {
     const row = document.querySelector(`tr[data-entry-id='${entryId}']`);
     if (!row) return;
 
-    const filesCell = row.cells[5];
+    let filesCell = row.cells[5];
+
+    // Rimuovi listener 'drop' esistente prima di svuotare e riaggiungere
+    // Controlla se un handler precedente è stato memorizzato sull'elemento
+    if (filesCell._dropHandler) {
+        filesCell.removeEventListener('drop', filesCell._dropHandler);
+        // console.log(`Rimosso vecchio listener drop da cella per entry ${entryId}`);
+    }
+    // Rimuovi anche i listener per dragenter, dragover, dragleave per sicurezza
+    if (filesCell._dragEnterHandler) filesCell.removeEventListener('dragenter', filesCell._dragEnterHandler);
+    if (filesCell._dragOverHandler) filesCell.removeEventListener('dragover', filesCell._dragOverHandler);
+    if (filesCell._dragLeaveHandler) filesCell.removeEventListener('dragleave', filesCell._dragLeaveHandler);
+
+
+    // Svuota la cella
     filesCell.innerHTML = '';
 
     // Crea il container principale con display flex
@@ -237,47 +244,67 @@ export async function updateFilesCell(entryId, projectId) {
     uploadContainer.appendChild(fileInput);
     uploadContainer.appendChild(browseIcon);
 
-    // Aggiungi eventi per il drag and drop - rendi l'intera cella compatibile con il drop
+    // Definisci setupDropEvents per memorizzare gli handler
     const setupDropEvents = (element) => {
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            element.addEventListener(eventName, (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-            }, false);
-        });
+        // let leaveTimeout; // Rimosso: usiamo il contatore
+        let dragCounter = 0; // Contatore per dragenter/dragleave
 
-        ['dragenter', 'dragover'].forEach(eventName => {
-            element.addEventListener(eventName, () => {
+        // Definisci gli handler
+        const handleDragEnter = (e) => {
+            e.preventDefault(); e.stopPropagation();
+            dragCounter++;
+            // Applica lo stile solo la prima volta che si entra
+            if (dragCounter === 1) {
                 browseIcon.style.color = '#007bff';
-                filesCell.style.backgroundColor = '#f0f7ff';
-                filesCell.style.boxShadow = '0 0 0 2px #007bff inset';
-            }, false);
-        });
-
-        ['dragleave', 'drop'].forEach(eventName => {
-            element.addEventListener(eventName, () => {
+                element.style.backgroundColor = '#f0f7ff';
+                element.style.boxShadow = '0 0 0 2px #007bff inset';
+            }
+        };
+        const handleDragOver = (e) => {
+            e.preventDefault(); e.stopPropagation(); // Necessario per permettere il drop
+            // Manteniamo l'applicazione dello stile qui per sicurezza,
+            // anche se teoricamente il contatore dovrebbe bastare.
+            browseIcon.style.color = '#007bff';
+            element.style.backgroundColor = '#f0f7ff';
+            element.style.boxShadow = '0 0 0 2px #007bff inset';
+        };
+        const handleDragLeave = (e) => {
+            e.preventDefault(); e.stopPropagation();
+            dragCounter--;
+            // Rimuovi lo stile solo quando il contatore torna a zero
+            if (dragCounter === 0) {
                 browseIcon.style.color = 'black';
-                filesCell.style.backgroundColor = '';
-                filesCell.style.boxShadow = '';
-            }, false);
-        });
+                element.style.backgroundColor = '';
+                element.style.boxShadow = '';
+            }
+        };
+        // Rimosso handleDrop da qui, verrà gestito da event delegation sul tbody
+
+        // Rimuovi handler precedenti (se esistono) prima di aggiungere i nuovi
+        if (element._dragEnterHandler) element.removeEventListener('dragenter', element._dragEnterHandler);
+        if (element._dragOverHandler) element.removeEventListener('dragover', element._dragOverHandler);
+        if (element._dragLeaveHandler) element.removeEventListener('dragleave', element._dragLeaveHandler);
+        // Drop è gestito altrove, quindi non serve rimuoverlo qui
+
+        // Aggiungi i nuovi handler (dragenter, dragover, dragleave)
+        element.addEventListener('dragenter', handleDragEnter, false);
+        element.addEventListener('dragover', handleDragOver, false); // Necessario per permettere il drop e per l'highlight continuo
+        element.addEventListener('dragleave', handleDragLeave, false);
+        // Drop non viene aggiunto qui
+
+        // Memorizza i riferimenti agli handler sull'elemento per poterli rimuovere dopo
+        element._dragEnterHandler = handleDragEnter;
+        element._dragOverHandler = handleDragOver;
+        element._dragLeaveHandler = handleDragLeave;
+        // Drop non viene memorizzato qui
+        // console.log(`Aggiunti listener dragenter/over/leave alla cella per entry ${entryId}`);
     };
 
-    // Configura eventi di drag and drop sia sull'icona che sull'intera cella
-    setupDropEvents(uploadContainer);
+    // Configura eventi di drag and drop solo sull'intera cella
     setupDropEvents(filesCell);
 
-    // Gestione del drop dei file (sia dall'icona che dalla cella)
-    [uploadContainer, filesCell].forEach(element => {
-        element.addEventListener('drop', (e) => {
-            const dt = e.dataTransfer;
-            const files = dt.files;
-            
-            if (files.length > 0) {
-                handleFileUpload(files, uploadContainer, filesCell, entryId, projectId);
-            }
-        }, false);
-    });
+    // Non serve più aggiungere il listener 'drop' separatamente qui
+    // filesCell.addEventListener('drop', ...); // Rimosso
 
     fileInput.addEventListener('change', function(e) {
         if (this.files.length > 0) {
