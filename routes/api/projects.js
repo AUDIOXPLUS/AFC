@@ -207,10 +207,75 @@ router.get('/', checkAuthentication, async (req, res) => {
             }
             console.log('Numero di righe trovate:', rows.length);
             console.log('Prima riga risultato:', rows[0]);
-            res.json(rows);
+            if (err) {
+                console.error('Errore nel recupero dei progetti:', err);
+                return res.status(500).json({ error: 'Errore del server' });
+            }
+            console.log('Numero di progetti trovati:', rows.length);
+            // Se non ci sono progetti, restituisci un array vuoto
+            if (rows.length === 0) {
+                return res.json([]);
+            }
+
+            // Estrai gli ID dei progetti trovati
+            const projectIds = rows.map(p => p.id);
+            const placeholders = projectIds.map(() => '?').join(',');
+
+            // Seconda query per recuperare tutta la cronologia per i progetti trovati
+            const historyQuery = `
+                SELECT ph.*, u.id as user_id, 
+                       u.name as creator_name,
+                       ph.parent_id
+                FROM project_history ph
+                LEFT JOIN users u ON ph.created_by = u.id
+                WHERE ph.project_id IN (${placeholders})
+                AND (
+                    ph.private_by IS NULL 
+                    OR ph.private_by = ? 
+                    OR ph.private_by LIKE ? 
+                    OR ph.private_by LIKE ? 
+                    OR ph.private_by LIKE ?
+                )
+                ORDER BY ph.project_id, ph.date DESC, ph.id DESC
+            `;
+
+            // Prepara i parametri per la ricerca con separatore virgola per la visibilità
+            const userId = req.session.user.id;
+            const userIdStr = String(userId);
+            const patterns = [
+                `${userIdStr}`,           // ID singolo
+                `${userIdStr},%`,         // Primo elemento della lista
+                `%,${userIdStr},%`,       // Elemento in mezzo alla lista
+                `%,${userIdStr}`          // Ultimo elemento della lista
+            ];
+            const historyParams = [...projectIds, userId, patterns[1], patterns[2], patterns[3]];
+
+            req.db.all(historyQuery, historyParams, (historyErr, historyRows) => {
+                if (historyErr) {
+                    console.error('Errore nel recupero delle cronologie:', historyErr);
+                    return res.status(500).json({ error: 'Errore del server nel recupero delle cronologie' });
+                }
+
+                // Raggruppa le cronologie per project_id
+                const historiesMap = {};
+                historyRows.forEach(h => {
+                    if (!historiesMap[h.project_id]) {
+                        historiesMap[h.project_id] = [];
+                    }
+                    historiesMap[h.project_id].push(h);
+                });
+
+                // Aggiungi l'array di cronologia a ciascun progetto
+                rows.forEach(project => {
+                    project.history = historiesMap[project.id] || []; // Aggiungi array vuoto se non c'è cronologia
+                });
+
+                console.log('Prima riga risultato con cronologia:', rows[0]);
+                res.json(rows);
+            });
         });
     } catch (error) {
-        console.error('Errore:', error);
+        console.error('Errore generale nel recupero progetti:', error);
         res.status(500).json({ error: 'Errore del server' });
     }
 });

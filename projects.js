@@ -225,13 +225,11 @@ async function fetchProjects() {
             console.log('No duplicate project IDs received from API.'); // Confirm no duplicates
         }
 
-        // Fase 2: Fetch cronologie con callback per aggiornamento progressivo
-        const histories = await fetchAllHistories(projects.map(p => p.id), updateLoadingProgress); // Passa la callback
+        // Aggiorna progresso prima della visualizzazione (es. 90%)
+        updateLoadingProgress(90);
 
-        // Rimosso: updateLoadingProgress(90); // L'aggiornamento ora è incrementale
-
-        // Fase 3: Visualizzazione
-        await displayProjects(projects, histories); // Passa le cronologie a displayProjects
+        // Fase 2: Visualizzazione (le cronologie sono ora incluse nei dati dei progetti)
+        await displayProjects(projects); // Non serve più passare 'histories'
 
         // Riapplica i filtri dopo aver caricato i progetti
         if (filteringApi && typeof filteringApi.applyFilters === 'function') {
@@ -248,172 +246,10 @@ async function fetchProjects() {
         }
     }
     // Il finally block non è più necessario qui, il popup viene nascosto da displayProjects o dal catch
-}
+} // <-- Aggiunta parentesi graffa mancante per chiudere fetchProjects
 
-// Nuova funzione per recuperare tutte le cronologie in parallelo con callback di progresso
-async function fetchAllHistories(projectIds, progressCallback) {
-    console.log('Fetching histories for projects:', projectIds);
-    let completedCount = 0;
-    const totalCount = projectIds.length;
-    const historiesMap = {}; // Oggetto per mappare gli ID alle cronologie
-
-    // Se non ci sono ID, ritorna subito una mappa vuota
-    if (totalCount === 0) {
-        if (progressCallback) progressCallback(90); // Se non ci sono cronologie, salta direttamente al 90%
-        return historiesMap;
-    }
-
-    const historyPromises = projectIds.map(id =>
-        fetch(`/api/projects/${id}/history`)
-            .then(async response => { // Funzione interna asincrona per await response.json()
-                let data = [];
-                if (!response.ok) {
-                    console.error(`Error fetching history for project ${id}: ${response.status}`);
-                    // Non lanciare errore, ma usa array vuoto
-                } else {
-                    try {
-                        data = await response.json(); // Attendi il parsing del JSON
-                    } catch (jsonError) {
-                        console.error(`Error parsing JSON for project ${id}:`, jsonError);
-                        // Usa array vuoto se il JSON non è valido
-                    }
-                }
-                historiesMap[id] = data; // Salva i dati nella mappa
-            })
-            .catch(error => {
-                console.error(`Network error fetching history for project ${id}:`, error);
-                historiesMap[id] = []; // Salva array vuoto anche in caso di errore di rete
-            })
-            .finally(() => {
-                // Questo blocco viene eseguito sia in caso di successo che di errore del fetch/then
-                completedCount++;
-                if (progressCallback) {
-                    // Calcola percentuale: inizia da 20% e va fino a 90%
-                    // Il 70% del progresso è dedicato al fetch delle cronologie
-                    const currentPercentage = 20 + (completedCount / totalCount) * 70;
-                    progressCallback(currentPercentage);
-                }
-            })
-    );
-
-    try {
-        // Attendiamo che tutte le promise (fetch e elaborazione) siano completate
-        await Promise.all(historyPromises);
-        console.log('All histories fetched and processed:', historiesMap);
-        return historiesMap; // Ritorna la mappa costruita
-    } catch (error) {
-        // Questo catch è per errori imprevisti non gestiti nei singoli catch
-        console.error('Unexpected error during Promise.all for histories:', error);
-        // Ritorna la mappa parzialmente costruita o una vuota in caso di errore grave
-        projectIds.forEach(id => {
-            if (!(id in historiesMap)) {
-                historiesMap[id] = []; // Assicura che tutti gli ID abbiano una voce
-            }
-        });
-        return historiesMap;
-    }
-}
-
-
-// Funzione per recuperare lo status dalla cronologia del progetto (NON PIU' USATA DIRETTAMENTE DA displayProjects)
-// Mantenuta per potenziale uso futuro o debug, ma la logica status è ora in displayProjects/createTableRow
-async function getProjectStatus(projectId) {
-    try {
-        const response = await fetch(`/api/projects/${projectId}/history`);
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const history = await response.json();
-        console.log('Project history:', history); // Debug log
-
-        // Ordina la cronologia per data in ordine decrescente
-        history.sort((a, b) => new Date(b.date) - new Date(a.date));
-        console.log('Sorted history:', history); // Debug log
-
-        // Se non ci sono entry nella cronologia
-        if (history.length === 0) {
-            return {
-                status: 'No History',
-                assignedTo: 'Not Assigned'
-            };
-        }
-
-        // Filtra le entry pubbliche e private
-        const publicEntries = history.filter(entry => entry.private_by === null);
-        const privateEntries = history.filter(entry => entry.private_by !== null);
-
-        // Verifica se tutte le entry pubbliche sono completate
-        const allPublicEntriesCompleted = publicEntries.every(entry => entry.status === 'Completed');
-
-        // Se tutte le entry pubbliche sono completate, mostra "Completed"
-        // anche se ci sono entry private non completate
-        if (allPublicEntriesCompleted && publicEntries.length > 0) {
-            console.log('All public entries completed, showing Completed status'); // Debug log
-            return {
-                status: 'Completed',
-                assignedTo: history[0].assigned_to || 'Not Assigned'
-            };
-        }
-
-        // Cerca la prima entry non completata
-        const activeEntry = history.find(entry => entry.status !== 'Completed');
-
-        // Se la prima entry non completata è privata
-        if (activeEntry.private_by !== null) {
-            // Se l'utente corrente è l'utente private_by, mostra lo status normalmente
-            if (activeEntry.private_by === window.currentUserId) {
-                if (activeEntry.status === 'On Hold') {
-                    return {
-                        status: 'On Hold',
-                        assignedTo: activeEntry.assigned_to || 'Not Assigned'
-                    };
-                }
-                return {
-                    status: `${activeEntry.description} (${activeEntry.status})`,
-                    assignedTo: activeEntry.assigned_to || 'Not Assigned'
-                };
-            }
-
-            // Se l'utente non è il proprietario, cerca la prima entry non completata pubblica
-            // o una entry privata di cui l'utente è proprietario
-            for (let entry of history) {
-                if (entry.status !== 'Completed') {
-                    if (entry.private_by === null || entry.private_by === window.currentUserId) {
-                        if (entry.status === 'On Hold') {
-                            return {
-                                status: 'On Hold',
-                                assignedTo: entry.assigned_to || 'Not Assigned'
-                            };
-                        }
-                        return {
-                            status: `${entry.description} (${entry.status})`,
-                            assignedTo: entry.assigned_to || 'Not Assigned'
-                        };
-                    }
-                }
-            }
-        }
-
-        // Se l'entry non completata è pubblica
-        if (activeEntry.status === 'On Hold') {
-            return {
-                status: 'On Hold',
-                assignedTo: activeEntry.assigned_to || 'Not Assigned'
-            };
-        }
-
-        return {
-            status: `${activeEntry.description} (${activeEntry.status})`,
-            assignedTo: activeEntry.assigned_to || 'Not Assigned'
-        };
-    } catch (error) {
-        console.error('Error fetching project history:', error);
-        return {
-            status: 'Error fetching history',
-            assignedTo: 'Not Assigned'
-        };
-    }
-}
+// Rimossa funzione fetchAllHistories - non più necessaria
+// Rimossa funzione getProjectStatus - non più necessaria
 
 /**
  * Crea la progress bar per visualizzare lo stato delle fasi del progetto.
@@ -528,12 +364,12 @@ function createPhaseProgressBar(projectHistory, phases, projectId) {
 }
 
 // Function to display projects in the table
-// Modificata per accettare le cronologie pre-caricate
-async function displayProjects(projects, histories) {
+// Modificata per usare la cronologia inclusa nell'oggetto project
+async function displayProjects(projects) {
     // Aggiorna progresso a 100% prima di iniziare il rendering pesante
     updateLoadingProgress(100);
 
-    console.log(`displayProjects called with ${projects.length} projects. Timestamp: ${Date.now()}`); // Add more detail to log
+    console.log(`displayProjects called with ${projects.length} projects. Timestamp: ${Date.now()}`);
     const tableBody = document.getElementById('projects-table').getElementsByTagName('tbody')[0];
     const loadingPopup = document.getElementById('loading-popup'); // Riferimento al popup
 
@@ -569,11 +405,12 @@ async function displayProjects(projects, histories) {
     }
 
     // Funzione per creare una riga della tabella
-    // Modificata per accettare la cronologia pre-caricata
-    const createTableRow = (project, projectHistory) => {
-        console.log(`Creating row for project ID: ${project.id}`); // Log row creation
+    // Accetta il progetto che ora include la sua cronologia
+    const createTableRow = (project) => {
+        console.log(`Creating row for project ID: ${project.id}`);
         const row = tableBody.insertRow();
         row.style.height = 'auto'; // Ensure consistent row height
+        const projectHistory = project.history || []; // Estrai la cronologia dall'oggetto progetto
 
         // Funzione helper per gestire i valori vuoti
         const getValueOrDash = (value) => value || '-';
@@ -717,10 +554,9 @@ async function displayProjects(projects, histories) {
         actionsCell.appendChild(deleteBtn);
     };
 
-    // Crea tutte le righe passando la cronologia specifica
+    // Crea tutte le righe (la cronologia è già dentro 'project')
     projects.forEach(project => {
-        const projectHistory = histories[project.id] || []; // Usa la cronologia pre-caricata o un array vuoto
-        createTableRow(project, projectHistory); // Passa la cronologia a createTableRow
+        createTableRow(project); // Passa l'intero oggetto progetto
     });
 
     console.log('Projects displayed successfully');
