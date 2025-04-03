@@ -77,6 +77,20 @@
         </div>
     </main>
 
+    <!-- Popup di caricamento -->
+    <div id="loading-popup" class="loading-popup" style="display: none;">
+        <div class="loading-content">
+            <h2>Loading...</h2>
+            <p>Please wait while the tasks are being loaded.</p> <!-- Modificato testo per tasks -->
+            <div class="loading-progress-container">
+                <div class="loading-progress-bar">
+                    <div id="loading-progress" class="loading-progress" style="width: 0%;"></div>
+                </div>
+                <span id="loading-percentage" class="loading-percentage">0%</span>
+            </div>
+        </div>
+    </div>
+
     <script src="version-log.js"></script>
     <script src="auth.js"></script>
     <script src="users.js"></script>

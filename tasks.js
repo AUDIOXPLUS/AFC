@@ -10,6 +10,20 @@ function handleNetworkError(error) {
     }
 }
 
+// Funzione helper per aggiornare la progress bar e la percentuale
+function updateLoadingProgress(percentage) {
+    const progressBar = document.getElementById('loading-progress'); // ID corretto della barra interna
+    const percentageText = document.getElementById('loading-percentage'); // ID corretto dello span percentuale
+    if (progressBar && percentageText) {
+        const clampedPercentage = Math.max(0, Math.min(100, percentage)); // Assicura che sia tra 0 e 100
+        progressBar.style.width = `${clampedPercentage}%`; // Imposta la larghezza della barra interna
+        percentageText.textContent = `${Math.round(clampedPercentage)}%`; // Aggiorna il testo della percentuale
+        console.log(`Loading progress updated to ${clampedPercentage}%`); // Log progresso
+    } else {
+        console.warn('Progress bar or percentage element not found in the DOM.');
+    }
+}
+
 // Variabile globale per mantenere il riferimento alle funzioni di filtering
 let filteringApi = null;
 
@@ -190,12 +204,25 @@ function applyLastSorting() {
 }
 
 async function fetchTasks() {
+    console.log(`fetchTasks called. Timestamp: ${Date.now()}`); // Add timestamp log
+    const loadingPopup = document.getElementById('loading-popup');
+
+    // Mostra il popup e imposta progresso a 0%
+    if (loadingPopup) {
+        loadingPopup.style.display = 'flex'; // Usa flex per centrare il contenuto
+        updateLoadingProgress(0); // Inizia da 0%
+    }
+
     try {
         console.log('Fetching tasks from API...');
         const response = await fetch('/api/tasks');
         console.log('Response status:', response.status);
         const tasks = await handleResponse(response);
         console.log('Fetched tasks:', tasks);
+
+        // Aggiorna progresso dopo fetch (es. 50%)
+        updateLoadingProgress(50);
+
         await displayTasks(tasks);
 
         // Riapplica i filtri dopo aver caricato i task
@@ -204,16 +231,36 @@ async function fetchTasks() {
         }
     } catch (error) {
         handleNetworkError(error);
+        // Assicura che il popup sia nascosto in caso di errore
+        if (loadingPopup) {
+            loadingPopup.style.display = 'none';
+        }
     }
+    // Il popup viene nascosto da displayTasks o dal catch
 }
 
 async function displayTasks(tasks) {
+    // Aggiorna progresso a 100% prima di iniziare il rendering pesante
+    updateLoadingProgress(100);
+
+    console.log(`displayTasks called with ${tasks.length} tasks. Timestamp: ${Date.now()}`);
+    const tableBody = document.getElementById('task-table').getElementsByTagName('tbody')[0];
+    const loadingPopup = document.getElementById('loading-popup'); // Riferimento al popup
+
     if (!currentUser) {
         console.error('Utente non disponibile per la visualizzazione dei task');
+        // Nascondi comunque il popup se l'utente non è disponibile
+        if (loadingPopup) loadingPopup.style.display = 'none';
         return;
     }
 
-    const tableBody = document.getElementById('task-table').getElementsByTagName('tbody')[0];
+    if (!tableBody) {
+        console.error('Table body not found!');
+        // Nascondi comunque il popup se la tabella non viene trovata
+        if (loadingPopup) loadingPopup.style.display = 'none';
+        return;
+    }
+
     tableBody.innerHTML = ''; // Clear existing rows
 
     // Usiamo Promise.all per attendere che tutte le righe siano create
@@ -255,6 +302,16 @@ async function displayTasks(tasks) {
     if (filteringApi && typeof filteringApi.applyFilters === 'function') {
         filteringApi.applyFilters();
     }
+
+    console.log('Tasks displayed successfully');
+
+    // Nascondi il popup di caricamento DOPO che i dati sono stati visualizzati
+    // Usiamo un piccolo timeout per permettere al browser di aggiornare la UI prima di nascondere
+    setTimeout(() => {
+        if (loadingPopup) {
+            loadingPopup.style.display = 'none';
+        }
+    }, 50); // Breve ritardo
 }
 
 // Function to enable live filtering
