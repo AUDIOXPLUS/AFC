@@ -727,4 +727,322 @@ router.post('/:id/archive', checkAuthentication, async (req, res) => {
     }
 });
 
+// Endpoint per clonare un progetto
+router.post('/:id/clone', checkAuthentication, async (req, res) => {
+    const originalProjectId = req.params.id;
+    const userId = req.session.user.id;
+    const userName = req.session.user.name;
+    const currentDate = new Date().toISOString().split('T')[0];
+
+    // Inizia una transazione
+    req.db.serialize(() => {
+        req.db.run('BEGIN TRANSACTION');
+
+        // 1. Recupera i dati del progetto originale
+        const getProjectQuery = 'SELECT * FROM projects WHERE id = ?';
+        req.db.get(getProjectQuery, [originalProjectId], (err, originalProject) => {
+            if (err) {
+                console.error('Errore nel recupero del progetto originale:', err);
+                req.db.run('ROLLBACK');
+                return res.status(500).json({ error: 'Errore nel recupero del progetto originale' });
+            }
+            if (!originalProject) {
+                req.db.run('ROLLBACK');
+                return res.status(404).json({ error: 'Progetto originale non trovato' });
+            }
+
+            // 2. Crea il nuovo progetto (modifica il modelNumber per distinguerlo)
+            const newModelNumber = `${originalProject.modelNumber} (Clone)`;
+            const insertProjectQuery = `INSERT INTO projects (factory, brand, range, line, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, priority, archived) 
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`; // Nuovo progetto non è archiviato
+            req.db.run(insertProjectQuery, [
+                originalProject.factory, originalProject.brand, originalProject.range, originalProject.line,
+                newModelNumber, originalProject.factoryModelNumber, originalProject.productKind, originalProject.client,
+                originalProject.startDate, originalProject.endDate, originalProject.priority
+            ], function(err) {
+                if (err) {
+                    console.error('Errore nell\'inserimento del progetto clonato:', err);
+                    req.db.run('ROLLBACK');
+                    return res.status(500).json({ error: 'Errore nella creazione del clone del progetto' });
+                }
+                const newProjectId = this.lastID;
+
+                // 3. Recupera la cronologia del progetto originale
+                const getHistoryQuery = 'SELECT * FROM project_history WHERE project_id = ? ORDER BY date ASC, id ASC'; // Ordina per data per mantenere l'ordine
+                req.db.all(getHistoryQuery, [originalProjectId], (err, historyEntries) => {
+                    if (err) {
+                        console.error('Errore nel recupero della cronologia originale:', err);
+                        req.db.run('ROLLBACK');
+                        return res.status(500).json({ error: 'Errore nel recupero della cronologia originale' });
+                    }
+
+                    // 4. Inserisci la cronologia copiata per il nuovo progetto
+                    const insertHistoryQuery = `INSERT INTO project_history (project_id, date, phase, description, assigned_to, status, created_by, private_by, parent_id, is_new) 
+                                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+                    // Usa Promise.all per gestire l'inserimento asincrono delle voci di cronologia
+                    const historyInsertPromises = historyEntries.map(entry => {
+                        return new Promise((resolve, reject) => {
+                            req.db.run(insertHistoryQuery, [
+                                newProjectId, entry.date, entry.phase, entry.description, entry.assigned_to,
+                                entry.status, entry.created_by, entry.private_by, entry.parent_id, entry.is_new
+                            ], function(err) {
+                                if (err) {
+                                    console.error('Errore nell\'inserimento di una voce di cronologia clonata:', err);
+                                    reject(err);
+                                } else {
+                                    const newHistoryId = this.lastID;
+                                    // 5. Recupera e copia i file associati a questa voce di cronologia (se presenti)
+                                    const getFilesQuery = 'SELECT * FROM project_files WHERE history_id = ?';
+                                    req.db.all(getFilesQuery, [entry.id], (fileErr, files) => {
+                                        if (fileErr) {
+                                            console.error('Errore nel recupero dei file originali:', fileErr);
+                                            return reject(fileErr); // Rifiuta la promise se c'è errore nel recupero file
+                                        }
+
+                                        if (files.length === 0) {
+                                            return resolve(); // Nessun file da copiare per questa entry
+                                        }
+
+                                        // Rimosso filesize e filetype dalla query e dai parametri
+                                        const insertFileQuery = `INSERT INTO project_files (project_id, history_id, filename, filepath, uploaded_by) 
+                                                                 VALUES (?, ?, ?, ?, ?)`;
+                                        const fileInsertPromises = files.map(file => {
+                                            // Qui dovremmo anche copiare fisicamente il file se necessario,
+                                            // ma per ora copiamo solo il record nel DB assumendo che i percorsi siano gestiti altrove o siano relativi/condivisi.
+                                            // Se i file sono in /uploads/project_id/history_id/, allora dobbiamo copiare la cartella.
+                                            // Per semplicità, ora copiamo solo il record DB.
+                                            // TODO: Implementare la copia fisica dei file se necessario.
+                                            return new Promise((fileResolve, fileReject) => {
+                                                // Rimosso file.filesize e file.filetype dai parametri
+                                                req.db.run(insertFileQuery, [
+                                                    newProjectId, newHistoryId, file.filename, file.filepath, file.uploaded_by
+                                                ], function(fileInsertErr) {
+                                                    if (fileInsertErr) {
+                                                        console.error('Errore nell\'inserimento del record file clonato:', fileInsertErr);
+                                                        fileReject(fileInsertErr);
+                                                    } else {
+                                                        fileResolve();
+                                                    }
+                                                });
+                                            });
+                                        });
+
+                                        Promise.all(fileInsertPromises)
+                                            .then(resolve) // Risolve la promise principale dell'entry di cronologia
+                                            .catch(reject); // Rifiuta se una delle copie file fallisce
+                                    });
+                                }
+                            });
+                        });
+                    });
+
+                    Promise.all(historyInsertPromises)
+                        .then(() => {
+                            // 6. Aggiungi una voce di cronologia per registrare l'azione di clone (usa nome progetto originale)
+                            const cloneHistoryQuery = `INSERT INTO project_history (project_id, date, description, status, assigned_to, created_by) 
+                                                       VALUES (?, ?, ?, ?, ?, ?)`;
+                            const cloneDescription = `Cloned from project: ${originalProject.client} - ${originalProject.modelNumber}`;
+                            req.db.run(cloneHistoryQuery, [newProjectId, currentDate, cloneDescription, 'Cloned', userName, userId], function(err) {
+                                if (err) {
+                                    console.error('Errore nell\'inserimento della voce di cronologia per il clone:', err);
+                                    req.db.run('ROLLBACK');
+                                    return res.status(500).json({ error: 'Errore nella registrazione dell\'azione di clone' });
+                                }
+
+                                // Commit della transazione
+                                req.db.run('COMMIT', (commitErr) => {
+                                    if (commitErr) {
+                                        console.error('Errore nel commit della transazione di clone:', commitErr);
+                                        return res.status(500).json({ error: 'Errore nel salvataggio del clone' });
+                                    }
+                                    res.status(201).json({ id: newProjectId, message: 'Progetto clonato con successo' });
+                                });
+                            });
+                        })
+                        .catch(err => {
+                            console.error('Errore durante la copia della cronologia o dei file:', err);
+                            req.db.run('ROLLBACK');
+                            res.status(500).json({ error: 'Errore durante la copia della cronologia o dei file' });
+                        });
+                });
+            });
+        });
+    });
+});
+
+// Endpoint per unire più progetti
+router.post('/merge', checkAuthentication, async (req, res) => {
+    const { projectIds } = req.body;
+    const userId = req.session.user.id;
+    const userName = req.session.user.name;
+    const currentDate = new Date().toISOString().split('T')[0];
+
+    if (!projectIds || !Array.isArray(projectIds) || projectIds.length < 2) {
+        return res.status(400).json({ error: 'Selezionare almeno due progetti da unire.' });
+    }
+
+    // Inizia una transazione
+    req.db.serialize(() => {
+        req.db.run('BEGIN TRANSACTION');
+
+        // 1. Recupera i dati del primo progetto come base per il nuovo progetto unito
+        const getBaseProjectQuery = 'SELECT * FROM projects WHERE id = ?';
+        req.db.get(getBaseProjectQuery, [projectIds[0]], (err, baseProject) => {
+            if (err) {
+                console.error('Errore nel recupero del progetto base per il merge:', err);
+                req.db.run('ROLLBACK');
+                return res.status(500).json({ error: 'Errore nel recupero del progetto base' });
+            }
+            if (!baseProject) {
+                req.db.run('ROLLBACK');
+                return res.status(404).json({ error: 'Progetto base non trovato' });
+            }
+
+            // 2. Crea il nuovo progetto unito (modifica il modelNumber)
+            // Aggiungi il prefisso "MERGED-" al model number del primo progetto
+            const newModelNumber = `MERGED-${baseProject.modelNumber}`; 
+            const insertProjectQuery = `INSERT INTO projects (factory, brand, range, line, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, priority, archived) 
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`; // Nuovo progetto non è archiviato
+            req.db.run(insertProjectQuery, [
+                baseProject.factory, baseProject.brand, baseProject.range, baseProject.line,
+                newModelNumber, baseProject.factoryModelNumber, baseProject.productKind, baseProject.client,
+                baseProject.startDate, baseProject.endDate, baseProject.priority // Usa i dati del primo progetto come base
+            ], function(err) {
+                if (err) {
+                    console.error('Errore nell\'inserimento del progetto unito:', err);
+                    req.db.run('ROLLBACK');
+                    return res.status(500).json({ error: 'Errore nella creazione del progetto unito' });
+                }
+                const newProjectId = this.lastID;
+
+                // 3. Recupera tutta la cronologia e i file da TUTTI i progetti selezionati
+                const placeholders = projectIds.map(() => '?').join(',');
+                const getHistoryQuery = `SELECT * FROM project_history WHERE project_id IN (${placeholders}) ORDER BY date ASC, id ASC`;
+                
+                req.db.all(getHistoryQuery, projectIds, (err, historyEntries) => {
+                    if (err) {
+                        console.error('Errore nel recupero delle cronologie originali:', err);
+                        req.db.run('ROLLBACK');
+                        return res.status(500).json({ error: 'Errore nel recupero delle cronologie originali' });
+                    }
+
+                    if (historyEntries.length === 0) {
+                        // Anche se non dovrebbe succedere se i progetti esistono, gestiamo il caso
+                         // Aggiungi una voce di cronologia per registrare l'azione di merge
+                        const mergeHistoryQuery = `INSERT INTO project_history (project_id, date, description, status, assigned_to, created_by) 
+                                                   VALUES (?, ?, ?, ?, ?, ?)`;
+                        // Descrizione più semplice che indica il numero di progetti uniti
+                        const mergeDescription = `Merged from ${projectIds.length} projects`; 
+                        req.db.run(mergeHistoryQuery, [newProjectId, currentDate, mergeDescription, 'Merged', userName, userId], function(err) {
+                            if (err) {
+                                console.error('Errore nell\'inserimento della voce di cronologia per il merge:', err);
+                                req.db.run('ROLLBACK');
+                                return res.status(500).json({ error: 'Errore nella registrazione dell\'azione di merge' });
+                            }
+                            // Commit della transazione anche se non c'era cronologia da copiare
+                            req.db.run('COMMIT', (commitErr) => {
+                                if (commitErr) {
+                                    console.error('Errore nel commit della transazione di merge (no history):', commitErr);
+                                    return res.status(500).json({ error: 'Errore nel salvataggio del merge' });
+                                }
+                                return res.status(201).json({ id: newProjectId, message: 'Progetti uniti con successo (senza cronologia pregressa)' });
+                            });
+                        });
+                        return; // Esce dalla funzione dopo aver gestito il caso senza cronologia
+                    }
+
+                    // 4. Inserisci la cronologia copiata per il nuovo progetto
+                    const insertHistoryQuery = `INSERT INTO project_history (project_id, date, phase, description, assigned_to, status, created_by, private_by, parent_id, is_new) 
+                                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+                    const historyInsertPromises = historyEntries.map(entry => {
+                        return new Promise((resolve, reject) => {
+                            req.db.run(insertHistoryQuery, [
+                                newProjectId, entry.date, entry.phase, entry.description, entry.assigned_to,
+                                entry.status, entry.created_by, entry.private_by, entry.parent_id, entry.is_new
+                            ], function(err) {
+                                if (err) {
+                                    console.error('Errore nell\'inserimento di una voce di cronologia unita:', err);
+                                    reject(err);
+                                } else {
+                                    const newHistoryId = this.lastID;
+                                    const originalHistoryId = entry.id; // ID della vecchia entry per trovare i file
+
+                                    // 5. Recupera e copia i file associati a questa voce di cronologia originale
+                                    const getFilesQuery = 'SELECT * FROM project_files WHERE history_id = ?';
+                                    req.db.all(getFilesQuery, [originalHistoryId], (fileErr, files) => {
+                                        if (fileErr) {
+                                            console.error('Errore nel recupero dei file originali per il merge:', fileErr);
+                                            return reject(fileErr);
+                                        }
+
+                                        if (files.length === 0) {
+                                            return resolve(); // Nessun file da copiare
+                                        }
+
+                                        // Rimosso filesize e filetype dalla query e dai parametri
+                                        const insertFileQuery = `INSERT INTO project_files (project_id, history_id, filename, filepath, uploaded_by) 
+                                                                 VALUES (?, ?, ?, ?, ?)`;
+                                        const fileInsertPromises = files.map(file => {
+                                            // TODO: Implementare la copia fisica dei file se necessario.
+                                            return new Promise((fileResolve, fileReject) => {
+                                                // Rimosso file.filesize e file.filetype dai parametri
+                                                req.db.run(insertFileQuery, [
+                                                    newProjectId, newHistoryId, file.filename, file.filepath, file.uploaded_by
+                                                ], function(fileInsertErr) {
+                                                    if (fileInsertErr) {
+                                                        console.error('Errore nell\'inserimento del record file unito:', fileInsertErr);
+                                                        fileReject(fileInsertErr);
+                                                    } else {
+                                                        fileResolve();
+                                                    }
+                                                });
+                                            });
+                                        });
+
+                                        Promise.all(fileInsertPromises)
+                                            .then(resolve)
+                                            .catch(reject);
+                                    });
+                                }
+                            });
+                        });
+                    });
+
+                    Promise.all(historyInsertPromises)
+                        .then(() => {
+                            // 6. Aggiungi una voce di cronologia per registrare l'azione di merge
+                            const mergeHistoryQuery = `INSERT INTO project_history (project_id, date, description, status, assigned_to, created_by) 
+                                                       VALUES (?, ?, ?, ?, ?, ?)`;
+                            // Descrizione più semplice che indica il numero di progetti uniti
+                            const mergeDescription = `Merged from ${projectIds.length} projects`;
+                            req.db.run(mergeHistoryQuery, [newProjectId, currentDate, mergeDescription, 'Merged', userName, userId], function(err) {
+                                if (err) {
+                                    console.error('Errore nell\'inserimento della voce di cronologia per il merge:', err);
+                                    req.db.run('ROLLBACK');
+                                    return res.status(500).json({ error: 'Errore nella registrazione dell\'azione di merge' });
+                                }
+
+                                // Commit della transazione
+                                req.db.run('COMMIT', (commitErr) => {
+                                    if (commitErr) {
+                                        console.error('Errore nel commit della transazione di merge:', commitErr);
+                                        return res.status(500).json({ error: 'Errore nel salvataggio del merge' });
+                                    }
+                                    res.status(201).json({ id: newProjectId, message: 'Progetti uniti con successo' });
+                                });
+                            });
+                        })
+                        .catch(err => {
+                            console.error('Errore durante la copia della cronologia o dei file nel merge:', err);
+                            req.db.run('ROLLBACK');
+                            res.status(500).json({ error: 'Errore durante la copia della cronologia o dei file' });
+                        });
+                });
+            });
+        });
+    });
+});
+
+
 module.exports = router;

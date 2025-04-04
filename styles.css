@@ -728,6 +728,26 @@ main > .table-actions, main > .add-btn {
     background-color: #27ae60;
 }
 
+/* Stile per i pulsanti di azione generici (es. Clone, Merge) */
+.action-btn {
+    background-color: #2ecc71; /* Verde, come add-btn */
+    color: black; /* Testo nero, come add-btn */
+    border: none;
+    padding: 6px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background-color 0.3s ease;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    margin-left: 5px; /* Aggiunge spazio tra i pulsanti */
+}
+
+.action-btn:hover {
+    background-color: #27ae60; /* Verde più scuro al hover, come add-btn */
+}
+
 /* Stili per il contenitore della tabella */
 .table-wrapper {
     width: 100%;
@@ -1192,7 +1212,128 @@ table select:hover {
     background-color: white;
     padding: 8px;
     border-radius: 5px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    cursor: pointer;
+}
+
+/* Stili per i filtri nella modale */
+.modal-filters {
+    display: flex;
+    gap: 10px; /* Spazio tra i filtri */
+    margin-bottom: 15px;
+}
+
+.modal-filter-input {
+    flex: 1; /* Occupa lo spazio disponibile equamente */
+    padding: 10px;
+    /* margin-bottom: 15px; */ /* Rimosso perché ora c'è il gap nel contenitore */
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1em;
+}
+
+/* Stili per la finestra modale */
+.modal {
+    display: none; /* Nascosto di default */
+    position: fixed; /* Rimane fisso durante lo scroll */
+    z-index: 1000; /* Sopra tutto il resto */
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto; /* Abilita lo scroll se necessario */
+    background-color: rgba(0,0,0,0.6); /* Sfondo semi-trasparente */
+}
+
+.modal-content {
+    background-color: #fefefe;
+    margin: 10% auto; /* Centrato verticalmente e orizzontalmente */
+    padding: 20px;
+    border: 1px solid #888;
+    width: 60%; /* Larghezza della modale */
+    max-width: 800px;
+    border-radius: 8px;
+    position: relative;
+}
+
+.close-btn {
+    color: #aaa;
+    position: absolute;
+    top: 10px;
+    right: 20px;
+    font-size: 28px;
+    font-weight: bold;
+}
+
+.close-btn:hover,
+.close-btn:focus {
+    color: black;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.modal h2 {
+    margin-top: 0;
+    color: #333;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+}
+
+.project-list-container {
+    max-height: 400px; /* Altezza massima, abilita scroll interno */
+    overflow-y: auto;
+    margin-bottom: 20px;
+    border: 1px solid #ddd;
+    padding: 10px;
+    background-color: #f9f9f9;
+}
+
+.project-list-container label {
+    display: block; /* Ogni progetto su una nuova riga */
+    margin-bottom: 8px;
+    padding: 5px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.project-list-container label:hover {
+    background-color: #eee;
+}
+
+.project-list-container input[type="checkbox"] {
+    margin-right: 10px;
+}
+
+.modal-actions {
+    text-align: right;
+    margin-top: 20px;
+}
+
+.modal-actions .action-btn,
+.modal-actions .cancel-btn {
+    padding: 10px 20px;
+    margin-left: 10px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1em;
+}
+
+.modal-actions .action-btn {
+    background-color: #4CAF50; /* Verde */
+    color: white;
+}
+
+.modal-actions .action-btn:hover {
+    background-color: #45a049;
+}
+
+.modal-actions .cancel-btn {
+    background-color: #f44336; /* Rosso */
+    color: white;
+}
+
+.modal-actions .cancel-btn:hover {
+    background-color: #da190b;
 }
 
 .summary-right {

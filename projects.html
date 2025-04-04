@@ -32,6 +32,7 @@
         <h1>Projects</h1>
         <div class="table-actions">
             <button id="add-project-btn" class="add-btn">Add Project</button>
+            <button id="clone-merge-project-btn" class="action-btn">Clone/Merge projects</button> <!-- Pulsante unificato Clone/Merge -->
         </div>
         <div class="filters">
             <div class="filter-group">
@@ -149,5 +150,24 @@
             // initializeDashboard(); // Rimosso: viene già chiamato da projects.js
         });
     </script>
+
+    <!-- Finestra modale per Clone/Merge -->
+    <div id="clone-merge-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeCloneMergeModal()">&times;</span>
+            <h2>Select Projects to Clone/Merge</h2>
+            <div class="modal-filters">
+                <input type="text" id="modal-client-filter" placeholder="Filter by Client..." class="modal-filter-input">
+                <input type="text" id="modal-model-filter" placeholder="Filter by Model..." class="modal-filter-input">
+            </div>
+            <div id="modal-project-list" class="project-list-container">
+                <!-- L'elenco dei progetti verrà caricato qui dinamicamente -->
+            </div>
+            <div class="modal-actions">
+                <button id="confirm-clone-merge-btn" class="action-btn">Confirm</button>
+                <button onclick="closeCloneMergeModal()" class="cancel-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

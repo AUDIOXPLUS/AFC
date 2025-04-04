@@ -53,9 +53,235 @@ async function initializeDashboard() {
     // Inizializza la gestione della visibilità delle colonne
     initializeColumnVisibility();
 
+    // Add event listener for the "Clone/Merge Project" button
+    document.getElementById('clone-merge-project-btn').addEventListener('click', openCloneMergeModal);
+
     // Initial fetch of projects (includerà il sorting)
     await fetchProjects();
+
+    // Restituisce l'API di filtraggio per poterla usare esternamente se necessario
+    return filteringApi; 
 }
+
+// --- Funzioni per Clone/Merge ---
+
+// Funzione per aprire la modale Clone/Merge
+function openCloneMergeModal() {
+    const modal = document.getElementById('clone-merge-modal');
+    if (modal) {
+        populateCloneMergeModal(); // Popola la lista prima di mostrarla
+        modal.style.display = 'block';
+        // Aggiungi l'event listener per il pulsante Confirm *solo* quando la modale è aperta
+        const confirmBtn = document.getElementById('confirm-clone-merge-btn');
+        if (confirmBtn) {
+            // Rimuovi eventuali listener precedenti per evitare duplicati
+             confirmBtn.removeEventListener('click', handleCloneMergeConfirm);
+             confirmBtn.addEventListener('click', handleCloneMergeConfirm);
+         }
+         // Aggiungi event listener per i NUOVI filtri
+         const clientFilterInput = document.getElementById('modal-client-filter');
+         const modelFilterInput = document.getElementById('modal-model-filter');
+         
+         if (clientFilterInput) {
+             clientFilterInput.removeEventListener('input', filterModalProjects); // Rimuovi listener precedenti
+             clientFilterInput.addEventListener('input', filterModalProjects);
+             clientFilterInput.value = ''; // Pulisci il filtro all'apertura
+         }
+          if (modelFilterInput) {
+             modelFilterInput.removeEventListener('input', filterModalProjects); // Rimuovi listener precedenti
+             modelFilterInput.addEventListener('input', filterModalProjects);
+             modelFilterInput.value = ''; // Pulisci il filtro all'apertura
+         }
+         filterModalProjects(); // Applica filtro iniziale (mostra tutto)
+         
+     } else {
+         console.error('Clone/Merge modal element not found.');
+     }
+ }
+
+ // Funzione per chiudere la modale Clone/Merge
+ function closeCloneMergeModal() {
+     // Pulisci anche i NUOVI filtri quando si chiude
+     const clientFilterInput = document.getElementById('modal-client-filter');
+     const modelFilterInput = document.getElementById('modal-model-filter');
+     if (clientFilterInput) {
+         clientFilterInput.value = '';
+     }
+      if (modelFilterInput) {
+         modelFilterInput.value = '';
+     }
+     const modal = document.getElementById('clone-merge-modal');
+     if (modal) {
+         modal.style.display = 'none';
+        // Opzionale: pulire la lista dei progetti nella modale
+        const projectListContainer = document.getElementById('modal-project-list');
+        if (projectListContainer) {
+            projectListContainer.innerHTML = 'Loading projects...'; // Reset content
+        }
+        // Rimuovi l'event listener dal pulsante Confirm quando la modale si chiude
+        const confirmBtn = document.getElementById('confirm-clone-merge-btn');
+         if (confirmBtn) {
+             confirmBtn.removeEventListener('click', handleCloneMergeConfirm);
+         }
+    }
+}
+
+// Funzione per popolare la modale con i progetti attivi
+async function populateCloneMergeModal() {
+    const projectListContainer = document.getElementById('modal-project-list');
+    if (!projectListContainer) {
+        console.error('Modal project list container not found.');
+        return;
+    }
+    projectListContainer.innerHTML = 'Loading active projects...'; // Messaggio di caricamento
+
+    try {
+        // Fetch solo progetti attivi (non archiviati, non completati - assumendo che l'API lo supporti)
+        // Potremmo aggiungere parametri tipo ?status=active o filtrare lato client
+        const response = await fetch('/api/projects?showArchived=false&showOnHold=false'); // Filtra archiviati e on hold
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        let projects = await response.json();
+
+        // Filtra ulteriormente per escludere i progetti completati (se non già fatto dall'API)
+        projects = projects.filter(p => p.latest_status !== 'Completed');
+
+        projectListContainer.innerHTML = ''; // Pulisci il container
+
+        if (projects.length === 0) {
+            projectListContainer.innerHTML = 'No active projects found to clone or merge.';
+            return;
+        }
+
+        projects.forEach(project => {
+            const label = document.createElement('label');
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.value = project.id;
+             checkbox.dataset.projectName = `${project.client} - ${project.modelNumber}`; // Salva nome per riferimento
+
+             label.appendChild(checkbox);
+             // Rimosso (ID: ${project.id}) dal testo visualizzato
+             label.appendChild(document.createTextNode(` ${project.client} - ${project.modelNumber}`)); 
+             projectListContainer.appendChild(label);
+         });
+
+    } catch (error) {
+        handleNetworkError(error);
+        projectListContainer.innerHTML = 'Error loading projects. Please try again.';
+    }
+}
+
+// Funzione per gestire la conferma del Clone/Merge
+async function handleCloneMergeConfirm() {
+    const selectedCheckboxes = document.querySelectorAll('#modal-project-list input[type="checkbox"]:checked');
+    const selectedProjectIds = Array.from(selectedCheckboxes).map(cb => cb.value);
+
+    if (selectedProjectIds.length === 0) {
+        alert('Please select at least one project.');
+        return;
+    }
+
+    closeCloneMergeModal(); // Chiudi la modale prima di iniziare l'operazione
+
+    // Mostra popup di caricamento generico
+    const loadingPopup = document.getElementById('loading-popup');
+    if (loadingPopup) {
+        loadingPopup.querySelector('h2').textContent = 'Processing...';
+        loadingPopup.querySelector('p').textContent = 'Please wait while the operation is being completed.';
+        // Nascondi la barra di progresso se presente, o impostala a indeterminato
+        const progressContainer = loadingPopup.querySelector('.loading-progress-container');
+        if (progressContainer) progressContainer.style.display = 'none';
+        loadingPopup.style.display = 'flex';
+    }
+
+
+    try {
+        let response;
+        if (selectedProjectIds.length === 1) {
+            // --- CLONE ---
+            const projectIdToClone = selectedProjectIds[0];
+            console.log(`Cloning project ID: ${projectIdToClone}`); // Log operazione
+            response = await fetch(`/api/projects/${projectIdToClone}/clone`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                // Non serve body per il clone semplice
+            });
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ error: 'Failed to clone project.' }));
+                throw new Error(errorData.error || `Clone failed with status: ${response.status}`);
+            }
+            console.log('Project cloned successfully.'); // Log successo
+
+        } else {
+            // --- MERGE ---
+            console.log(`Merging projects IDs: ${selectedProjectIds.join(', ')}`); // Log operazione
+            response = await fetch('/api/projects/merge', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ projectIds: selectedProjectIds }),
+            });
+             if (!response.ok) {
+                 const errorData = await response.json().catch(() => ({ error: 'Failed to merge projects.' }));
+                 throw new Error(errorData.error || `Merge failed with status: ${response.status}`);
+             }
+             console.log('Projects merged successfully.'); // Log successo
+        }
+
+        // Operazione completata con successo
+        await fetchProjects(); // Aggiorna la tabella
+
+    } catch (error) {
+        console.error('Error during clone/merge:', error);
+        alert(`An error occurred: ${error.message}`);
+        // Nascondi popup in caso di errore
+        if (loadingPopup) loadingPopup.style.display = 'none';
+    } finally {
+         // Assicurati che il popup di caricamento sia nascosto alla fine,
+         // fetchProjects() lo nasconderà se ha successo, ma lo nascondiamo qui
+         // per sicurezza in caso di errori non gestiti da fetchProjects
+         if (loadingPopup && loadingPopup.style.display !== 'none') {
+             // Ripristina testo e barra di progresso originali per usi futuri
+             loadingPopup.querySelector('h2').textContent = 'Loading...';
+             loadingPopup.querySelector('p').textContent = 'Please wait while the projects are being loaded.';
+             const progressContainer = loadingPopup.querySelector('.loading-progress-container');
+             if (progressContainer) progressContainer.style.display = 'flex'; // Mostra di nuovo
+             updateLoadingProgress(0); // Resetta progresso
+             loadingPopup.style.display = 'none';
+         }
+     }
+ }
+ 
+ // Funzione per filtrare i progetti nella modale (aggiornata per due filtri)
+ function filterModalProjects() {
+     const clientFilterInput = document.getElementById('modal-client-filter');
+     const modelFilterInput = document.getElementById('modal-model-filter');
+     const clientFilterText = clientFilterInput ? clientFilterInput.value.toLowerCase().trim() : '';
+     const modelFilterText = modelFilterInput ? modelFilterInput.value.toLowerCase().trim() : '';
+     
+     const projectListContainer = document.getElementById('modal-project-list');
+     const projectLabels = projectListContainer.getElementsByTagName('label');
+ 
+     Array.from(projectLabels).forEach(label => {
+         const checkbox = label.querySelector('input[type="checkbox"]');
+         // Usa il dataset che contiene "Client - ModelNumber"
+         const projectDataText = checkbox && checkbox.dataset.projectName ? checkbox.dataset.projectName.toLowerCase() : ''; 
+ 
+         // Verifica la corrispondenza con entrambi i filtri
+         const clientMatch = clientFilterText === '' || projectDataText.includes(clientFilterText);
+          const modelMatch = modelFilterText === '' || projectDataText.includes(modelFilterText);
+  
+          // Mostra l'elemento solo se corrisponde ad ALMENO UNO dei filtri (o se entrambi i filtri sono vuoti)
+          if (clientMatch || modelMatch) {
+              label.style.display = 'block'; // Usa block per coerenza con CSS
+          } else {
+              label.style.display = 'none'; // Nascondi l'elemento
+         }
+     });
+ }
+ 
+ // --- Fine Funzioni per Clone/Merge ---
 
 // Funzione per inizializzare la gestione della visibilità delle colonne
 function initializeColumnVisibility() {
