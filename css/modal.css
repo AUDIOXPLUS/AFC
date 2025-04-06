@@ -1,0 +1,391 @@
+/* Stili per le finestre modali (login, user selection, version log, project selection, loading) */
+
+/* Nuovi stili per la selezione utenti */
+.user-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    padding: 20px;
+    border: 2px solid #007bff;
+    border-radius: 8px;
+    box-shadow: 0 0 15px rgba(0,0,0,0.2);
+    z-index: 1000;
+    max-width: 400px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.user-modal h3 {
+    margin-top: 0;
+    color: #007bff;
+}
+
+.user-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 15px 0;
+}
+
+.user-list label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.user-list label:hover {
+    background: #f0f8ff;
+}
+
+.user-select-btn {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-left: 10px;
+    transition: opacity 0.2s;
+}
+
+.user-select-btn:hover {
+    opacity: 0.9;
+}
+
+.selected-users-label {
+    font-size: 0.9em;
+    color: #666;
+    margin-top: 5px;
+}
+
+/* Stile per il popup del log delle versioni */
+.version-log {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    z-index: 1001;
+    min-width: 400px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.version-log.show {
+    display: block;
+}
+
+.version-log h2 {
+    color: #2c3e50;
+    margin-bottom: 15px;
+    font-size: 18px;
+}
+
+.version-log table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    table-layout: fixed;
+}
+
+.version-log th, .version-log td {
+    padding: 8px;
+    text-align: left;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+/* Imposta larghezza fissa per la colonna date */
+.version-log th:first-child,
+.version-log td:first-child {
+    width: 85px; /* Larghezza ottimale per contenere la data (es: "19/02/25") */
+}
+
+/* La colonna description prenderà il resto dello spazio disponibile */
+.version-log th:last-child,
+.version-log td:last-child {
+    width: auto;
+    white-space: normal; /* Permette il wrapping del testo */
+    word-break: break-word; /* Spezza le parole lunghe se necessario */
+}
+
+/* Stile per la riga separatrice (spazio vuoto) */
+.version-log tr.date-separator td {
+    border-bottom: none; /* Rimuove il bordo inferiore normale */
+    border-top: none; /* Rimuove il bordo superiore */
+    padding: 8px 0; /* Aumenta lo spazio verticale per creare separazione */
+    height: 10px; /* Altezza minima per garantire lo spazio */
+    line-height: 10px; /* Coerente con l'altezza */
+}
+
+/* Overlay per lo sfondo scuro quando il popup è aperto */
+.version-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+}
+
+.version-overlay.show {
+    display: block;
+}
+
+/* Stili per la pagina di login */
+.login-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: #f0f0f0;
+}
+
+.login-form {
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    width: 300px;
+}
+
+.login-form h1 {
+    margin-bottom: 20px;
+    font-size: 24px;
+    color: #2c3e50;
+    text-align: center;
+}
+
+.login-form label {
+    display: block;
+    margin-bottom: 5px;
+    color: #555;
+}
+
+.login-form input[type="text"],
+.login-form input[type="password"] {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+.login-form button {
+    width: 100%;
+    padding: 10px;
+    background-color: #3498db;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.login-form button:hover {
+    background-color: #2980b9;
+}
+
+/* Stili per i filtri nella modale */
+.modal-filters {
+    display: flex;
+    gap: 10px; /* Spazio tra i filtri */
+    margin-bottom: 15px;
+}
+
+.modal-filter-input {
+    flex: 1; /* Occupa lo spazio disponibile equamente */
+    padding: 10px;
+    /* margin-bottom: 15px; */ /* Rimosso perché ora c'è il gap nel contenitore */
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1em;
+}
+
+/* Stili per la finestra modale generica */
+.modal {
+    display: none; /* Nascosto di default */
+    position: fixed; /* Rimane fisso durante lo scroll */
+    z-index: 1000; /* Sopra tutto il resto */
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto; /* Abilita lo scroll se necessario */
+    background-color: rgba(0,0,0,0.6); /* Sfondo semi-trasparente */
+}
+
+.modal-content {
+    background-color: #fefefe;
+    margin: 10% auto; /* Centrato verticalmente e orizzontalmente */
+    padding: 20px;
+    border: 1px solid #888;
+    width: 60%; /* Larghezza della modale */
+    max-width: 800px;
+    border-radius: 8px;
+    position: relative;
+}
+
+.close-btn {
+    color: #aaa;
+    position: absolute;
+    top: 10px;
+    right: 20px;
+    font-size: 28px;
+    font-weight: bold;
+}
+
+.close-btn:hover,
+.close-btn:focus {
+    color: black;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.modal h2 {
+    margin-top: 0;
+    color: #333;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+}
+
+.project-list-container {
+    max-height: 400px; /* Altezza massima, abilita scroll interno */
+    overflow-y: auto;
+    margin-bottom: 20px;
+    border: 1px solid #ddd;
+    padding: 10px;
+    background-color: #f9f9f9;
+}
+
+.project-list-container label {
+    display: block; /* Ogni progetto su una nuova riga */
+    margin-bottom: 8px;
+    padding: 5px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.project-list-container label:hover {
+    background-color: #eee;
+}
+
+.project-list-container input[type="checkbox"] {
+    margin-right: 10px;
+}
+
+.modal-actions {
+    text-align: right;
+    margin-top: 20px;
+}
+
+.modal-actions .action-btn,
+.modal-actions .cancel-btn {
+    padding: 10px 20px;
+    margin-left: 10px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1em;
+}
+
+.modal-actions .action-btn {
+    background-color: #4CAF50; /* Verde */
+    color: white;
+}
+
+.modal-actions .action-btn:hover {
+    background-color: #45a049;
+}
+
+.modal-actions .cancel-btn {
+    background-color: #f44336; /* Rosso */
+    color: white;
+}
+
+.modal-actions .cancel-btn:hover {
+    background-color: #da190b;
+}
+
+/* Stili per il popup di caricamento */
+.loading-popup {
+    position: fixed; /* Posizionamento fisso rispetto alla viewport */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5); /* Sfondo semi-trasparente */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000; /* Assicura che sia sopra tutto il resto */
+}
+
+.loading-content {
+    background-color: white;
+    padding: 30px 40px;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    text-align: center;
+}
+
+.loading-content h2 {
+    margin-top: 0;
+    color: #2c3e50;
+    font-size: 24px;
+}
+
+.loading-content p {
+    color: #555;
+    font-size: 16px;
+    margin-bottom: 15px; /* Ridotto spazio sotto il paragrafo */
+}
+
+/* Contenitore per barra e percentuale */
+.loading-progress-container {
+    display: flex;
+    align-items: center;
+    gap: 10px; /* Spazio tra barra e percentuale */
+    width: 100%;
+    margin-top: 15px; /* Spazio sopra la barra */
+}
+
+/* Stili per la progress bar determinata */
+.loading-progress-bar {
+    flex-grow: 1; /* Occupa lo spazio rimanente */
+    height: 12px; /* Leggermente più alta */
+    background-color: #e0e0e0;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.loading-progress {
+    height: 100%;
+    background-color: #3498db;
+    border-radius: 6px;
+    transition: width 0.3s ease-out; /* Transizione fluida per la larghezza */
+    text-align: center; /* Centra eventuale testo interno (non usato ora) */
+    color: white;
+    font-size: 10px;
+    line-height: 12px;
+}
+
+/* Stile per la percentuale */
+.loading-percentage {
+    font-size: 14px;
+    color: #555;
+    font-weight: bold;
+    min-width: 40px; /* Larghezza minima per evitare scatti */
+    text-align: right;
+}
