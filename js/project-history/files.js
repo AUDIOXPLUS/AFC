@@ -190,13 +190,28 @@ export async function handleFileUpload(files, uploadContainer, filesCell, entryI
  * Aggiorna la cella dei file nella riga della cronologia dopo un'operazione.
  * @param {number} entryId - L'ID della voce della cronologia.
  * @param {number} projectId - L'ID del progetto.
+ * @param {HTMLElement} [customFilesCell] - Cella dei file personalizzata (opzionale).
+ * @param {boolean} [canDelete] - Se l'utente può eliminare i file (opzionale).
  */
-export async function updateFilesCell(entryId, projectId) {
+export async function updateFilesCell(entryId, projectId, customFilesCell, canDelete) {
     const files = await fetchEntryFiles(entryId, projectId);
-    const row = document.querySelector(`tr[data-entry-id='${entryId}']`);
-    if (!row) return;
-
-    let filesCell = row.cells[5];
+    
+    // Usa la cella personalizzata se fornita, altrimenti la cerca nel DOM
+    let filesCell = customFilesCell;
+    if (!filesCell) {
+        const row = document.querySelector(`tr[data-entry-id='${entryId}']`);
+        if (!row) return;
+        filesCell = row.cells[5];
+    }
+    
+    // Se canDelete non è esplicitamente passato, determina se l'utente può eliminare in base alla riga
+    if (canDelete === undefined) {
+        const row = filesCell.closest('tr');
+        const entryCreatedBy = row.getAttribute('data-created-by');
+        canDelete = window.currentUserName === 'GOD' || 
+                   (entryCreatedBy && String(entryCreatedBy) === String(window.currentUserId)) ||
+                   !entryCreatedBy;
+    }
 
     // Rimuovi listener 'drop' esistente prima di svuotare e riaggiungere
     // Controlla se un handler precedente è stato memorizzato sull'elemento
@@ -351,7 +366,7 @@ export async function updateFilesCell(entryId, projectId) {
     const fileList = document.createElement('div');
     fileList.className = 'file-list';
     files.forEach(file => {
-        const fileItem = createFileItem(file, projectId, entryId);
+        const fileItem = createFileItem(file, projectId, entryId, canDelete);
         fileList.appendChild(fileItem);
     });
     filesCell.appendChild(fileList);
@@ -362,9 +377,10 @@ export async function updateFilesCell(entryId, projectId) {
  * @param {Object} file - Oggetto file con id, filename, filepath
  * @param {number} projectId - ID del progetto
  * @param {number} entryId - ID dell'entry
+ * @param {boolean} canDelete - Se l'utente può eliminare il file
  * @returns {HTMLElement} - Elemento HTML per il file
  */
-function createFileItem(file, projectId, entryId) {
+function createFileItem(file, projectId, entryId, canDelete) {
     const fileItem = document.createElement('div');
     fileItem.className = 'file-item';
     
@@ -391,18 +407,21 @@ function createFileItem(file, projectId, entryId) {
     downloadBtn.addEventListener('click', () => downloadFile(file.id));
     fileItem.appendChild(downloadBtn);
     
-    const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'delete-btn';
-    deleteBtn.setAttribute('data-file-id', file.id);
-    const deleteIcon = document.createElement('i');
-    deleteIcon.className = 'fas fa-trash';
-    deleteBtn.appendChild(deleteIcon);
-    deleteBtn.addEventListener('click', async () => {
-        await deleteFile(file.id, projectId, (entryId) => {
-            updateFilesCell(entryId, projectId);
+    // Aggiungi il pulsante di eliminazione solo se l'utente ha i permessi
+    if (canDelete) {
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'delete-btn';
+        deleteBtn.setAttribute('data-file-id', file.id);
+        const deleteIcon = document.createElement('i');
+        deleteIcon.className = 'fas fa-trash';
+        deleteBtn.appendChild(deleteIcon);
+        deleteBtn.addEventListener('click', async () => {
+            await deleteFile(file.id, projectId, (entryId) => {
+                updateFilesCell(entryId, projectId);
+            });
         });
-    });
-    fileItem.appendChild(deleteBtn);
+        fileItem.appendChild(deleteBtn);
+    }
     
     return fileItem;
 }

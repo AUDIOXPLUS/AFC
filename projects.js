@@ -111,8 +111,8 @@ async function fetchProjectCounts() {
         const onHoldCountSpan = document.getElementById('on-hold-count');
         const activeProjectCountSpan = document.getElementById('active-project-count');
 
-        if (archivedCountSpan) archivedCountSpan.textContent = counts.archived || 0;
-        if (onHoldCountSpan) onHoldCountSpan.textContent = counts.onHold || 0;
+        if (archivedCountSpan) archivedCountSpan.textContent = (counts.archived || 0);
+        if (onHoldCountSpan) onHoldCountSpan.textContent = (counts.onHold || 0);
         if (activeProjectCountSpan) activeProjectCountSpan.textContent = counts.active || 0;
 
     } catch (error) {

@@ -253,12 +253,20 @@ export function displayProjectHistory(history, projectId) {
         // --- Cella Stato ---
         row.insertCell(4).textContent = entry.status || '-';
 
-        // --- Cella File ---
-        const filesCell = row.insertCell(5);
-        // updateFilesCell verrà chiamato dal callback di deleteFile o implicitamente dal rendering.
-        // Rimuoviamo la chiamata diretta qui per evitare conflitti con l'event delegation.
-        // L'aggiornamento iniziale della UI della cella (drag hints) avverrà comunque.
-        updateFilesCell(entry.id, projectId); // Chiamata per setup iniziale UI (drag hints) senza aggiungere listener drop
+    // --- Cella File ---
+    const filesCell = row.insertCell(5);
+    
+    // Determina se l'utente può eliminare questa entry (per passare ai file)
+    let isGodUser = window.currentUserName === 'GOD';
+    let isOwner = entry.created_by && String(entry.created_by) === String(window.currentUserId);
+    let hasNoOwner = !entry.created_by;
+    const canDelete = isGodUser || isOwner || hasNoOwner;
+    
+    // Salva il valore created_by come attributo sulla riga per riferimento futuro
+    row.setAttribute('data-created-by', entry.created_by || '');
+    
+    // Chiamata per setup iniziale UI (drag hints) passando il permesso di eliminazione
+    updateFilesCell(entry.id, projectId, filesCell, canDelete);
 
         // --- Cella Azioni ---
         const actionsCell = row.insertCell(6);
@@ -277,9 +285,7 @@ export function displayProjectHistory(history, projectId) {
         actionsCell.appendChild(privacyBtn);
 
         // Pulsanti Edit/Delete (condizionali)
-        const isGodUser = window.currentUserName === 'GOD';
-        const isOwner = entry.created_by && String(entry.created_by) === String(window.currentUserId);
-        const hasNoOwner = !entry.created_by;
+        // Usiamo le variabili già dichiarate sopra
         if (isGodUser || isOwner || hasNoOwner) {
             const editBtn = document.createElement('button');
             editBtn.className = 'edit-btn';

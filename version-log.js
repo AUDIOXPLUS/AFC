@@ -1,6 +1,7 @@
 // Dati del version log (ristrutturati per leggibilità)
 const versionLogData = [
     // 06/04/25
+    { date: '06/04/25', description: 'Removed file delete icon for non-owner users' },
     { date: '06/04/25', description: 'Added cancel button to project creation/edit form' },
     { date: '06/04/25', description: 'Restricted Configuration page access for non-admin users' },
     { date: '06/04/25', description: 'Implemented client/factory dropdowns for new projects' },
