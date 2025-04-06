@@ -16,9 +16,12 @@ function updateLoadingProgress(percentage) {
     const percentageText = document.getElementById('loading-percentage'); // ID corretto dello span percentuale
     if (progressBar && percentageText) {
         const clampedPercentage = Math.max(0, Math.min(100, percentage)); // Assicura che sia tra 0 e 100
-        progressBar.style.width = `${clampedPercentage}%`; // Imposta la larghezza della barra interna
-        percentageText.textContent = `${Math.round(clampedPercentage)}%`; // Aggiorna il testo della percentuale
-        console.log(`Loading progress updated to ${clampedPercentage}%`); // Log progresso
+        // Usa setTimeout per dare al browser il tempo di aggiornare la UI
+        setTimeout(() => {
+            progressBar.style.width = `${clampedPercentage}%`; // Imposta la larghezza della barra interna
+            percentageText.textContent = `${Math.round(clampedPercentage)}%`; // Aggiorna il testo della percentuale
+            console.log(`Loading progress updated to ${clampedPercentage}%`); // Log progresso
+        }, 0); // Ritardo minimo per mettere in coda l'aggiornamento
     } else {
         console.warn('Progress bar or percentage element not found in the DOM.');
     }
@@ -240,8 +243,7 @@ async function fetchTasks() {
 }
 
 async function displayTasks(tasks) {
-    // Aggiorna progresso a 100% prima di iniziare il rendering pesante
-    updateLoadingProgress(100);
+    // NON aggiornare a 100% qui, ma alla fine
 
     console.log(`displayTasks called with ${tasks.length} tasks. Timestamp: ${Date.now()}`);
     const tableBody = document.getElementById('task-table').getElementsByTagName('tbody')[0];
@@ -306,6 +308,8 @@ async function displayTasks(tasks) {
     console.log('Tasks displayed successfully');
 
     // Nascondi il popup di caricamento DOPO che i dati sono stati visualizzati
+    // Aggiorna a 100% PRIMA di nascondere il popup
+    updateLoadingProgress(100);
     // Usiamo un piccolo timeout per permettere al browser di aggiornare la UI prima di nascondere
     setTimeout(() => {
         if (loadingPopup) {

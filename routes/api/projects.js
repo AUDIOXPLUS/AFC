@@ -478,7 +478,55 @@ router.post('/:id/history', checkAuthentication, (req, res) => {
             console.error('Errore nell\'inserimento della voce di cronologia:', err);
             return res.status(500).send('Errore del server');
         }
-        res.status(201).json({ id: this.lastID });
+        const newHistoryId = this.lastID; // ID della nuova voce appena creata
+
+        // Se la nuova voce ha un parent_id (es. creata con "forward"), copia i riferimenti ai file dal padre
+        if (parentId) {
+            console.log(`Copia dei riferimenti file da history_id ${parentId} a ${newHistoryId}`);
+            // 1. Recupera i file del parent
+            const getFilesQuery = 'SELECT * FROM project_files WHERE history_id = ?';
+            req.db.all(getFilesQuery, [parentId], (fileErr, files) => {
+                if (fileErr) {
+                    console.error(`Errore nel recupero dei file per la history_id ${parentId}:`, fileErr);
+                    // Non bloccare la risposta, ma logga l'errore.
+                } else if (files && files.length > 0) {
+                    // 2. Copia i riferimenti ai file per la nuova history entry
+                    // Rimosso filesize e filetype dalla query e dai parametri
+                    const insertFileQuery = `INSERT INTO project_files (project_id, history_id, filename, filepath, uploaded_by)
+                                             VALUES (?, ?, ?, ?, ?)`;
+                    const fileInsertPromises = files.map(file => {
+                        return new Promise((resolve, reject) => {
+                            // Rimosso file.filesize e file.filetype dai parametri
+                            req.db.run(insertFileQuery, [
+                                projectId, newHistoryId, file.filename, file.filepath, file.uploaded_by
+                            ], function(fileInsertErr) {
+                                if (fileInsertErr) {
+                                    console.error(`Errore nell'inserimento del file clonato ${file.filename} per la history_id ${newHistoryId}:`, fileInsertErr);
+                                    reject(fileInsertErr); // Rifiuta la singola promise
+                                } else {
+                                    console.log(`Riferimento file ${file.filename} copiato per history_id ${newHistoryId}`);
+                                    resolve();
+                                }
+                            });
+                        });
+                    });
+
+                    // Aspetta che tutte le copie dei file siano completate (o fallite)
+                    Promise.all(fileInsertPromises)
+                        .then(() => {
+                            console.log(`Tutti i ${files.length} riferimenti ai file copiati da history_id ${parentId} a ${newHistoryId}`);
+                        })
+                        .catch(err => {
+                            console.error(`Errore durante la copia di alcuni riferimenti file da history_id ${parentId} a ${newHistoryId}:`, err);
+                        });
+                } else {
+                    console.log(`Nessun file trovato da copiare per history_id ${parentId}`);
+                }
+                // La risposta viene inviata dopo questo blocco asincrono
+            });
+        }
+        // Invia la risposta dopo aver avviato (se necessario) la copia dei file
+        res.status(201).json({ id: newHistoryId });
     });
 });
 

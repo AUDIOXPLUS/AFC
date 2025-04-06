@@ -33,13 +33,100 @@ router.post('/login', (req, res) => {
     });
 });
 
-// Endpoint per ottenere l'utente della sessione con ID
+// Endpoint per ottenere l'utente della sessione con ID e permessi CRUD
 router.get('/session-user', (req, res) => {
-    if (req.session && req.session.user) {
-        res.json({ 
-            id: req.session.user.id, 
-            username: req.session.user.username, 
-            name: req.session.user.name 
+    if (req.session && req.session.user && req.session.user.id) {
+        const userId = req.session.user.id;
+        // Query per recuperare i permessi CRUD dell'utente
+        const query = `
+            SELECT c.id as crud_id, c.page, c.action, uc.properties
+            FROM crud c
+            JOIN user_crud uc ON c.id = uc.crud_id
+            WHERE uc.user_id = ?`;
+
+        req.db.all(query, [userId], (err, rows) => {
+            if (err) {
+                console.error('Errore nel recupero dei permessi CRUD per la sessione:', err);
+                // Invia comunque i dati utente base anche se i permessi falliscono
+                return res.json({
+                    id: req.session.user.id,
+                    username: req.session.user.username,
+                    name: req.session.user.name,
+                    permissions: {} // Permessi vuoti in caso di errore
+                });
+            }
+
+            // Elabora i permessi come nell'altro endpoint
+            const permissions = {};
+             // Inizializza le pagine note per assicurare che esistano nell'oggetto finale
+            const knownPages = ['Projects', 'Users', 'Tasks', 'CRUD', 'Configuration'];
+            knownPages.forEach(page => {
+                // Inizializza Configuration con read: false, le altre come oggetti vuoti
+                permissions[page] = page === 'Configuration' ? { read: false } : {};
+                 // Inizializza anche CRUD con read: { enabled: false } per coerenza
+                 if (page === 'CRUD') {
+                     permissions[page] = { read: { enabled: false } };
+                 }
+            });
+
+
+            rows.forEach(row => {
+                 // Gestione speciale per CRUD visible (ID 17)
+                if (row.crud_id === 17) {
+                    // Assicurati che CRUD.read sia un oggetto prima di assegnare enabled
+                    if (typeof permissions['CRUD']?.read !== 'object') {
+                         permissions['CRUD'] = { read: {} };
+                    }
+                    permissions['CRUD'].read.enabled = true;
+                    permissions['CRUD'].read.scope = 'all'; // Aggiungi scope per coerenza
+                    permissions['CRUD'].read.crudId = 17;
+                    return; // Passa alla riga successiva
+                }
+
+                // Assicurati che la pagina esista
+                if (!permissions[row.page]) {
+                    permissions[row.page] = {};
+                }
+
+                // Gestione specifica per Configuration.read
+                if (row.page === 'Configuration' && row.action === 'Read') {
+                     // Assicurati che Configuration.read esista come oggetto
+                     if (typeof permissions[row.page] !== 'object') {
+                         permissions[row.page] = {};
+                     }
+                    permissions[row.page].read = true; // Imposta a true se esiste il permesso
+                } else if (row.action === 'Read') { // Gestione Read per altre pagine
+                    let props;
+                    try {
+                        props = row.properties ? JSON.parse(row.properties) : {};
+                    } catch (e) {
+                        console.error(`Errore parsing properties per ${row.page} Read (ID: ${row.crud_id}):`, e);
+                        props = { enabled: true, scope: 'all' }; // Fallback
+                    }
+                     // Assicurati che page.read sia un oggetto
+                     if (typeof permissions[row.page]?.read !== 'object') {
+                         permissions[row.page] = { ...permissions[row.page], read: {} };
+                     }
+                    permissions[row.page].read = {
+                        enabled: props.enabled !== false,
+                        scope: props.scope || props.level || 'all',
+                        userIds: props.userIds
+                    };
+                } else { // Gestione Create, Update, Delete
+                    permissions[row.page][row.action.toLowerCase()] = true;
+                }
+            });
+
+             // Log dei permessi elaborati prima dell'invio
+             console.log('Permessi elaborati per /session-user:', JSON.stringify(permissions, null, 2));
+
+            // Invia i dati utente con i permessi elaborati
+            res.json({
+                id: req.session.user.id,
+                username: req.session.user.username,
+                name: req.session.user.name,
+                permissions: permissions // Aggiungi i permessi alla risposta
+            });
         });
     } else {
         res.status(401).json({ error: 'Utente non autenticato' });

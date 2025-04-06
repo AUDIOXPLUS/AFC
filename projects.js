@@ -19,11 +19,42 @@ document.addEventListener('DOMContentLoaded', async function() {
     await initializeDashboard();
 });
 
+// Variabili globali per memorizzare factory e client
+window.factories = [];
+window.clients = [];
+
 async function initializeDashboard() {
     console.log(`initializeDashboard called. Timestamp: ${Date.now()}`); // Log start of initialization
     document.getElementById('logout').addEventListener('click', function() {
         window.location.href = 'login.html';
     });
+
+    // Carica le factory disponibili
+    try {
+        const factoryResponse = await fetch('/api/team-members/factories');
+        if (!factoryResponse.ok) {
+            throw new Error(`HTTP error! status: ${factoryResponse.status}`);
+        }
+        window.factories = await factoryResponse.json();
+        console.log('Factories caricate:', window.factories); // Log in italiano
+    } catch (error) {
+        console.error('Errore nel caricamento delle factory:', error); // Log in italiano
+        handleNetworkError(error); // Gestione errore generica
+    }
+
+    // Carica i client disponibili
+    try {
+        const clientResponse = await fetch('/api/team-members/clients');
+        if (!clientResponse.ok) {
+            throw new Error(`HTTP error! status: ${clientResponse.status}`);
+        }
+        window.clients = await clientResponse.json();
+        console.log('Client caricati:', window.clients); // Log in italiano
+    } catch (error) {
+        console.error('Errore nel caricamento dei client:', error); // Log in italiano
+        handleNetworkError(error); // Gestione errore generica
+    }
+
 
     // Add event listener for the "Add Project" button
     document.getElementById('add-project-btn').addEventListener('click', addProject);
@@ -401,9 +432,12 @@ function updateLoadingProgress(percentage) {
     const percentageText = document.getElementById('loading-percentage'); // ID corretto dello span percentuale
     if (progressBar && percentageText) {
         const clampedPercentage = Math.max(0, Math.min(100, percentage)); // Assicura che sia tra 0 e 100
-        progressBar.style.width = `${clampedPercentage}%`; // Imposta la larghezza della barra interna
-        percentageText.textContent = `${Math.round(clampedPercentage)}%`; // Aggiorna il testo della percentuale
-        console.log(`Loading progress updated to ${clampedPercentage}%`); // Log progresso
+        // Usa setTimeout per dare al browser il tempo di aggiornare la UI
+        setTimeout(() => {
+            progressBar.style.width = `${clampedPercentage}%`; // Imposta la larghezza della barra interna
+            percentageText.textContent = `${Math.round(clampedPercentage)}%`; // Aggiorna il testo della percentuale
+            console.log(`Loading progress updated to ${clampedPercentage}%`); // Log progresso
+        }, 0); // Ritardo minimo per mettere in coda l'aggiornamento
     } else {
         console.warn('Progress bar or percentage element not found in the DOM.');
     }
@@ -823,9 +857,9 @@ function addProject() {
 
     // Definisci i campi con le loro proprietà
     const fields = [
-        { name: 'client', type: 'text', editable: true, columnIndex: 0 },
-        { name: 'productKind', type: 'text', editable: true, columnIndex: 1 },
-        { name: 'factory', type: 'text', editable: true, columnIndex: 2 },
+        { name: 'client', type: 'select', editable: true, columnIndex: 0 }, // Modificato tipo in 'select'
+        { name: 'productKind', type: 'text', editable: true, columnIndex: 1 }, // Usa datalist
+        { name: 'factory', type: 'select', editable: true, columnIndex: 2 }, // Modificato tipo in 'select'
         { name: 'brand', type: 'text', editable: true, columnIndex: 3 },
         { name: 'range', type: 'text', editable: true, columnIndex: 4 },
         { name: 'line', type: 'text', editable: true, columnIndex: 5 },
@@ -852,7 +886,29 @@ function addProject() {
         if (!field.editable) {
             cell.textContent = field.defaultValue;
         } else {
-            if (field.name === 'productKind') {
+             if (field.name === 'client') {
+                 // Crea un dropdown per i client
+                 const select = document.createElement('select');
+                 select.name = field.name;
+                 select.classList.add('new-entry-input');
+
+                 const defaultOption = document.createElement('option');
+                 defaultOption.value = '';
+                 defaultOption.textContent = 'Select Client'; // Testo in inglese
+                 select.appendChild(defaultOption);
+
+                 if (window.clients && window.clients.length > 0) {
+                     window.clients.forEach(clientName => {
+                         const option = document.createElement('option');
+                         option.value = clientName;
+                         option.textContent = clientName;
+                         select.appendChild(option);
+                     });
+                 } else {
+                     console.warn('Nessun client disponibile per popolare il dropdown.'); // Log in italiano
+                 }
+                 cell.appendChild(select);
+            } else if (field.name === 'productKind') {
                 // Crea un ID unico per il datalist
                 const datalistId = 'product-kinds-list-' + Math.random().toString(36).substr(2, 9);
 
@@ -897,7 +953,32 @@ function addProject() {
 
                 cell.appendChild(datalist);
                 cell.appendChild(input);
+            } else if (field.name === 'factory') {
+                // Crea un dropdown per le factory
+                const select = document.createElement('select');
+                select.name = field.name;
+                select.classList.add('new-entry-input'); // Usa la stessa classe per stile
+
+                // Aggiungi un'opzione vuota di default
+                const defaultOption = document.createElement('option');
+                defaultOption.value = '';
+                defaultOption.textContent = 'Select Factory'; // Testo in inglese
+                select.appendChild(defaultOption);
+
+                // Popola il dropdown con le factory caricate
+                if (window.factories && window.factories.length > 0) {
+                    window.factories.forEach(factoryName => {
+                        const option = document.createElement('option');
+                        option.value = factoryName;
+                        option.textContent = factoryName;
+                        select.appendChild(option);
+                    });
+                } else {
+                    console.warn('Nessuna factory disponibile per popolare il dropdown.'); // Log in italiano
+                }
+                cell.appendChild(select);
             } else {
+                // Gestione standard per altri input di testo/data
                 const input = document.createElement('input');
                 input.type = field.type;
                 input.name = field.name;
@@ -920,10 +1001,9 @@ function addProject() {
         fields.forEach(field => {
             if (field.editable) {
                 const cell = newRow.cells[field.columnIndex];
-                if (field.name === 'productKind') {
-                    newProject[field.name] = cell.querySelector('input').value;
-                } else if (cell.firstChild) {
-                    newProject[field.name] = cell.firstChild.value;
+                const inputElement = cell.querySelector('input, select'); // Seleziona input o select
+                if (inputElement) {
+                    newProject[field.name] = inputElement.value;
                 }
             }
         });
@@ -958,6 +1038,21 @@ function addProject() {
         }
     });
     actionsCell.appendChild(saveBtn);
+
+    // Aggiungi il pulsante Cancel
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.classList.add('cancel-btn'); // Aggiungi una classe per lo stile se necessario
+    cancelBtn.addEventListener('click', function() {
+        // Rimuovi la riga di inserimento
+        newRow.remove();
+        // Ripristina la visibilità delle colonne nascoste
+        hiddenColumns.forEach(columnIndex => {
+            hideColumn(table, columnIndex);
+        });
+        console.log('Inserimento progetto annullato.'); // Log in italiano
+    });
+    actionsCell.appendChild(cancelBtn); // Aggiungi il pulsante Cancel alla cella delle azioni
 }
 
 // Function to edit a project
@@ -985,7 +1080,29 @@ function editProject(row, projectId) {
             continue; // Salta le celle dello status e assignedTo
         }
         cells[i].innerHTML = '';
-        if (i === 1) { // Campo productKind
+        if (i === 0) { // Campo client (indice 0)
+            const select = document.createElement('select');
+            select.style.backgroundColor = '#ffff99';
+            select.classList.add('new-entry-input');
+
+            const defaultOption = document.createElement('option');
+            defaultOption.value = '';
+            defaultOption.textContent = 'Select Client';
+            select.appendChild(defaultOption);
+
+            if (window.clients && window.clients.length > 0) {
+                window.clients.forEach(clientName => {
+                    const option = document.createElement('option');
+                    option.value = clientName;
+                    option.textContent = clientName;
+                    if (clientName === projectData.client) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                });
+            }
+            cells[i].appendChild(select);
+        } else if (i === 1) { // Campo productKind
             // Crea un ID unico per il datalist
             const datalistId = 'product-kinds-list-edit-' + Math.random().toString(36).substr(2, 9);
 
@@ -1030,10 +1147,38 @@ function editProject(row, projectId) {
 
             cells[i].appendChild(datalist);
             cells[i].appendChild(input);
+        } else if (i === 2) { // Campo factory (indice 2)
+            const select = document.createElement('select');
+            select.style.backgroundColor = '#ffff99';
+            select.classList.add('new-entry-input'); // Usa la stessa classe per stile
+
+            // Aggiungi un'opzione vuota
+            const defaultOption = document.createElement('option');
+            defaultOption.value = '';
+            defaultOption.textContent = 'Select Factory';
+            select.appendChild(defaultOption);
+
+            // Popola con le factory disponibili
+            if (window.factories && window.factories.length > 0) {
+                window.factories.forEach(factoryName => {
+                    const option = document.createElement('option');
+                    option.value = factoryName;
+                    option.textContent = factoryName;
+                    // Seleziona il valore corrente del progetto
+                    if (factoryName === projectData.factory) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                });
+            }
+            cells[i].appendChild(select);
         } else {
+            // Gestione standard per altri input
             const input = document.createElement('input');
-            input.type = i === 8 || i === 9 ? 'date' : 'text';
-            input.value = projectData[Object.keys(projectData)[i]];
+            input.type = (i === 8 || i === 9) ? 'date' : 'text'; // Indici per startDate e endDate
+            // Usa Object.keys per ottenere il nome del campo corrispondente all'indice i
+            const fieldName = Object.keys(projectData)[i];
+            input.value = projectData[fieldName] || ''; // Usa valore dal projectData o stringa vuota
             input.style.backgroundColor = '#ffff99';
             cells[i].appendChild(input);
         }
@@ -1045,21 +1190,43 @@ function editProject(row, projectId) {
     const saveBtn = document.createElement('button');
     saveBtn.textContent = 'Save';
     saveBtn.addEventListener('click', async function() {
-        const updatedProject = {
-            client: cells[0].firstChild.value,
-            productKind: cells[1].querySelector('input').value,
-            factory: cells[2].firstChild.value,
-            brand: cells[3].firstChild.value,
-            range: cells[4].firstChild.value,
-            line: cells[5].firstChild.value,
-            modelNumber: cells[6].firstChild.value,
-            factoryModelNumber: cells[7].firstChild.value,
-            startDate: cells[8].firstChild.value,
-            endDate: cells[9].firstChild.value,
-            status: cells[10].textContent, // Mantiene lo status corrente
-            assignedTo: cells[11].textContent, // Mantiene l'utente assegnato corrente
-            priority: cells[12].firstChild.value
-        };
+        // Estrai i valori aggiornati dagli input/select nelle celle
+        const updatedProject = {};
+        const fieldNames = Object.keys(projectData); // Ottieni i nomi dei campi dall'oggetto originale
+
+        for (let i = 0; i < 13; i++) { // Itera fino all'indice della priorità
+            const fieldName = fieldNames[i];
+            if (i === 10 || i === 11) { // Salta status e assignedTo (non modificabili)
+                updatedProject[fieldName] = projectData[fieldName]; // Mantieni il valore originale
+                continue;
+            }
+            const cell = cells[i];
+            const inputElement = cell.querySelector('input, select'); // Trova l'input o il select
+            if (inputElement) {
+                updatedProject[fieldName] = inputElement.value;
+            } else {
+                // Fallback se non trova l'elemento (non dovrebbe succedere)
+                updatedProject[fieldName] = projectData[fieldName];
+            }
+        }
+
+        // Logica di salvataggio (ora usa il loop sopra)
+        // Vecchio codice commentato correttamente:
+        // const updatedProject_OLD = {
+        //    client: cells[0].firstChild.value,
+        //    productKind: cells[1].querySelector('input').value, // Gestisce il datalist
+        //    factory: cells[2].querySelector('select').value, // Ottieni valore dal select
+        //    brand: cells[3].firstChild.value,
+        //    range: cells[4].firstChild.value,
+        //    line: cells[5].firstChild.value,
+        //    modelNumber: cells[6].firstChild.value,
+        //    factoryModelNumber: cells[7].firstChild.value,
+        //    startDate: cells[8].firstChild.value,
+        //    endDate: cells[9].firstChild.value,
+        //    status: cells[10].textContent, // Mantiene lo status corrente
+        //    assignedTo: cells[11].textContent, // Mantiene l'utente assegnato corrente
+        //    priority: cells[12].firstChild.value
+        // };
 
         try {
             const response = await fetch(`/api/projects/${projectId}`, {
@@ -1085,6 +1252,21 @@ function editProject(row, projectId) {
         }
     });
     actionsCell.appendChild(saveBtn);
+
+    // Aggiungi il pulsante Cancel per la modifica
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.classList.add('cancel-btn'); // Usa la stessa classe o una specifica se necessario
+    cancelBtn.addEventListener('click', async function() {
+        // Ricarica semplicemente i progetti per annullare le modifiche e ripristinare la riga
+        console.log(`Modifica progetto ID ${projectId} annullata.`); // Log in italiano
+        const savedWidths = localStorage.getItem('projectsColumnWidths');
+        await fetchProjects(); // Ricarica la tabella per ripristinare lo stato originale
+        if (savedWidths) {
+            restoreColumnWidths(); // Ripristina le larghezze dopo il refresh
+        }
+    });
+    actionsCell.appendChild(cancelBtn); // Aggiungi il pulsante Cancel
 }
 
 // Function to handle project deletion

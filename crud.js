@@ -174,7 +174,17 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         // Creazione delle righe per ogni pagina
-        Object.keys(pages).forEach(pageName => {
+        const pageNames = Object.keys(pages);
+        // Aggiungi 'Configuration' se non è già presente dalle API (improbabile ma sicuro)
+        if (!pageNames.includes('Configuration')) {
+            pageNames.push('Configuration');
+            // Assicurati che esista un placeholder per le azioni di Configuration se non fornito dall'API
+            if (!pages['Configuration']) {
+                pages['Configuration'] = ['Read']; // Definiamo che Configuration ha solo l'azione 'Read' (accesso)
+            }
+        }
+
+        pageNames.forEach(pageName => {
             const row = table.insertRow();
             const pageCell = row.insertCell();
             pageCell.textContent = pageName;
@@ -234,11 +244,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     initializeSelectedUsers(pageName);
 
                     // Verifica se l'utente ha questa azione CRUD e imposta i valori
-                    if (userCrud[pageName]) {
+                    if (pageName === 'Configuration') {
+                        // Gestione specifica per Configuration: solo Read (accesso)
+                        if (actionType === 'Read') {
+                            checkbox.checked = userCrud['Configuration']?.read === true; // Controlla il permesso specifico
+                        } else {
+                            // Nascondi le altre azioni per Configuration
+                            cell.textContent = '—';
+                            return; // Salta il resto del codice per questa cella
+                        }
+                    } else if (userCrud[pageName]) { // Gestione per le altre pagine
                         const pagePermissions = userCrud[pageName];
                         if (typeof pagePermissions === 'object' && pagePermissions.read) {
                             checkbox.checked = true;
-                            
+
                             // Imposta lo scope corretto basato sulla factory e client_company
                             const scope = pagePermissions.read.scope;
                             select.value = scope;
@@ -286,7 +305,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Aggiorna lo stato iniziale del dropdown
                     toggleDropdownVisibility(checkbox);
                 } else {
-                    // Per le altre azioni, crea solo la checkbox
+                    // Per le altre azioni (non Read) o per pagine diverse da Configuration
                     const checkbox = document.createElement('input');
                     checkbox.type = 'checkbox';
                     checkbox.className = 'crud-checkbox';
@@ -297,7 +316,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (pageName === 'CRUD' && actionType === 'Read') {
                         // Verifica se l'utente ha il permesso CRUD
                         checkbox.checked = userCrud['CRUD']?.read?.enabled === true;
-                    } else if (userCrud[pageName] && 
+                    } else if (pageName === 'Configuration' && actionType === 'Read') {
+                        // Gestione specifica per Configuration (già gestita sopra, ma ri-verifichiamo per sicurezza)
+                        checkbox.checked = userCrud['Configuration']?.read === true;
+                    } else if (userCrud[pageName] &&
                         ((Array.isArray(userCrud[pageName]) && userCrud[pageName].includes(actionType)) ||
                          (typeof userCrud[pageName] === 'object' && userCrud[pageName][actionType.toLowerCase()]))) {
                         checkbox.checked = true;
@@ -366,28 +388,38 @@ document.addEventListener('DOMContentLoaded', function() {
             
             rows.forEach(row => {
                 const pageName = row.cells[0].textContent;
-                updatedCrud[pageName] = {};
-                
+                updatedCrud[pageName] = {}; // Inizializza l'oggetto per la pagina
+
                 // Gestisci tutte le azioni CRUD
                 const actions = ['Create', 'Read', 'Update', 'Delete'];
                 actions.forEach((action, index) => {
                     const cell = row.cells[index + 1];
-                    const checkbox = cell.querySelector('input[type="checkbox"]');
-                    
-                    if (action === 'Read') {
+                    const checkbox = cell.querySelector(`input[type="checkbox"][data-action="${action}"]`); // Selettore più specifico
+
+                    if (!checkbox) return; // Salta se non c'è checkbox (es. azioni non disponibili)
+
+                    const actionLower = action.toLowerCase();
+
+                    if (pageName === 'Configuration') {
+                        // Gestione specifica per Configuration
+                        if (action === 'Read') {
+                            updatedCrud[pageName].read = checkbox.checked; // Salva solo true/false per l'accesso
+                        }
+                        // Ignora le altre azioni per Configuration
+                    } else if (action === 'Read') {
+                        // Gestione Read per le altre pagine (CRUD, Projects, Users, Tasks)
                         if (pageName === 'CRUD') {
-                            // Gestione speciale per la riga CRUD
-                            // Gestione speciale per la riga CRUD - usa direttamente l'ID 17
-                            if (checkbox && checkbox.checked) {
-                                // Aggiungi il permesso CRUD visible (ID 17)
-                                updatedCrud['crud_visible'] = {
-                                    id: 17,
-                                    enabled: true
-                                };
-                            }
-                        } else {
-                            const readSelect = cell.querySelector('select');
-                            if (checkbox && checkbox.checked) {
+                             // Gestione speciale per la riga CRUD - usa direttamente l'ID 17
+                             if (checkbox && checkbox.checked) {
+                                 // Aggiungi il permesso CRUD visible (ID 17)
+                                 updatedCrud['crud_visible'] = {
+                                     id: 17,
+                                     enabled: true
+                                 };
+                             }
+                        } else { // Projects, Users, Tasks
+                            const readSelect = cell.querySelector('select.read-scope-select');
+                            if (checkbox.checked) {
                                 const scope = readSelect ? readSelect.value : 'all';
                                 
                                 // Struttura corretta per i permessi di lettura
@@ -422,14 +454,25 @@ document.addEventListener('DOMContentLoaded', function() {
                                 };
                             }
                         }
-                    } else {
-                        // Per le altre azioni, usa la prima lettera maiuscola
-                        const actionName = action.charAt(0).toUpperCase() + action.slice(1).toLowerCase();
-                        if (checkbox && checkbox.checked) {
-                            updatedCrud[pageName][actionName.toLowerCase()] = true;
+                    } else { // Create, Update, Delete per Projects, Users, Tasks
+                        if (checkbox.checked) {
+                            // Assicurati che updatedCrud[pageName] sia un oggetto
+                            if (typeof updatedCrud[pageName] !== 'object' || updatedCrud[pageName] === null) {
+                                updatedCrud[pageName] = {};
+                            }
+                            updatedCrud[pageName][actionLower] = true;
                         }
                     }
                 });
+
+                // Pulisci l'oggetto se è vuoto per una pagina (tranne Configuration che può essere solo {read: false})
+                if (pageName !== 'Configuration' && Object.keys(updatedCrud[pageName]).length === 0) {
+                    delete updatedCrud[pageName];
+                } else if (pageName === 'Configuration' && !updatedCrud[pageName].read) {
+                     // Se Configuration read è false, assicurati che venga inviato
+                     updatedCrud[pageName] = { read: false };
+                }
+
             });
 
         // Log dei dati prima dell'invio

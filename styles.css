@@ -806,10 +806,15 @@ th:last-child, td:last-child {
 /* Stile sticky per la colonna Actions solo su desktop */
 @media screen and (min-width: 769px) {
     th:last-child, td:last-child {
-        position: sticky; /* Mantiene la colonna sempre visibile */
+        /* position: sticky; /* Temporaneamente commentato per testare lo scroll orizzontale */
         right: 0; /* Ancora la colonna al lato destro */
         z-index: 2; /* Assicura che rimanga sopra le altre colonne */
         box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+        /* Manteniamo lo sfondo per coerenza visiva anche senza sticky */
+        background-color: #f5f5f5; /* Sfondo per th */
+    }
+    td:last-child {
+         background-color: white; /* Sfondo per td */
     }
 }
 

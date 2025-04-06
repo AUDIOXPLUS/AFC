@@ -370,6 +370,7 @@ function createFileItem(file, projectId, entryId) {
     
     const fileNameSpan = document.createElement('span');
     fileNameSpan.textContent = file.filename;
+    fileNameSpan.title = file.filename; // Aggiungo il tooltip con il nome del file
     fileNameSpan.style.cursor = 'pointer';
     fileNameSpan.style.textDecoration = 'underline';
     fileNameSpan.addEventListener('click', () => {
