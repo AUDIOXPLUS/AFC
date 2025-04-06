@@ -1,0 +1,367 @@
+/* Stili per le tabelle, inclusi header sticky, celle, ridimensionamento e azioni */
+
+/* Stili per i permessi di lettura nella tabella CRUD */
+.crud-table .read-permission {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Container per checkbox e dropdown Read */
+.read-permission-container {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.crud-table .read-permission select {
+    flex: 1;
+    min-width: 200px;
+    padding: 4px;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    font-size: 12px;
+    background-color: white;
+}
+
+.crud-table .crud-checkbox {
+    margin-right: 8px;
+    transform: scale(1.2);
+    cursor: pointer;
+    accent-color: #3498db;
+}
+
+/* Stili per il contenitore della tabella */
+.table-wrapper {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    background-color: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    /* Aggiungiamo position relative per il posizionamento dell'header sticky */
+    position: relative;
+    /* Aggiungiamo overflow-y auto per gestire lo scroll verticale */
+    overflow-y: auto;
+    /* Altezza massima per garantire lo scroll mantenendo uno spazio minimo dal fondo */
+    max-height: calc(100vh - 175px);
+}
+
+/* Stile per rendere l'header della tabella sticky */
+.table-wrapper thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: #f5f5f5;
+    /* Aggiungiamo un'ombra sotto l'header per separarlo visivamente */
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+/* Stile base per tutte le celle della tabella */
+th, td {
+    border: 1px solid #e0e0e0;
+    padding: 8px;
+    text-align: left;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    position: relative;
+    min-width: 50px; /* Larghezza minima per tutte le colonne */
+    transition: width 0.1s ease; /* Transizione fluida per il ridimensionamento */
+}
+
+/* Stile per la colonna Actions */
+th:last-child, td:last-child {
+    min-width: 65px; /* Larghezza minima base */
+    width: 65px; /* Larghezza base */
+    white-space: nowrap; /* Previene il wrapping dei pulsanti */
+    padding-right: 2px; /* Spazio minimo a destra */
+    padding-left: 2px; /* Spazio minimo a sinistra */
+    /* Rimosso background-color: inherit; per usare il default 'transparent' e mostrare lo sfondo della riga */
+}
+
+/* Stile sticky per la colonna Actions solo su desktop */
+@media screen and (min-width: 769px) {
+    th:last-child, td:last-child {
+        /* position: sticky; /* Temporaneamente commentato per testare lo scroll orizzontale */
+        right: 0; /* Ancora la colonna al lato destro */
+        z-index: 2; /* Assicura che rimanga sopra le altre colonne */
+        box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+        /* Manteniamo lo sfondo per coerenza visiva anche senza sticky */
+                /* background-color: #f5f5f5; /* Sfondo per th - Commentato per risolvere problema sfondo ultima colonna */
+            }
+            /* Rimosso background-color: white; per permettere l'ereditarietà dalla riga (tr) */
+            /* td:last-child {
+                 background-color: white; /* Sfondo per td */
+            /* } */
+        }
+
+/* Stile specifico per la colonna Actions nella pagina users */
+.users-page th:last-child,
+.users-page td:last-child {
+    min-width: 100px; /* Aumentata ulteriormente la larghezza per la pagina users */
+    width: 100px;
+    padding-right: 3px;
+    padding-left: 3px;
+}
+
+/* Aggiunge un'ombra per separare visivamente la colonna Actions */
+td:last-child {
+    box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+}
+
+/* Stile per il resizer */
+.resizer {
+    position: absolute;
+    right: -3px;
+    top: 0;
+    height: 100%;
+    width: 6px;
+    background: transparent;
+    cursor: col-resize;
+    user-select: none;
+    touch-action: none;
+    z-index: 1;
+}
+
+.resizer:hover, .resizer.resizing {
+    background: #2196f3;
+}
+
+/* Disabilita la transizione durante il ridimensionamento */
+.resizing th, .resizing td {
+    transition: none;
+}
+
+/* Mostra il testo completo al passaggio del mouse per tutte le colonne tranne Status e Actions */
+td:not(:nth-child(11)):not(:nth-child(14)):hover::after {
+    content: attr(title);
+    position: absolute;
+    left: 0;
+    top: 100%;
+    background: #333;
+    color: white;
+    padding: 5px;
+    border-radius: 3px;
+    z-index: 1000;
+    white-space: pre-wrap;
+    max-width: 400px;
+    word-wrap: break-word;
+}
+th:nth-child(12), td:nth-child(12) { min-width: 100px; } /* Assigned to */
+th:nth-child(13), td:nth-child(13) { min-width: 70px; } /* Priority */
+th:nth-child(14), td:nth-child(14) { min-width: 100px; } /* Actions */
+
+th {
+    background-color: #f5f5f5;
+    font-weight: bold;
+    color: #333;
+    cursor: pointer;
+}
+
+th i {
+    margin-left: 5px;
+    color: #999;
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 5px;
+}
+
+.status-dot.yellow {
+    background-color: #f1c40f;
+}
+
+.status-dot.green {
+    background-color: #2ecc71;
+}
+
+.status-dot.red {
+    background-color: #e74c3c;
+}
+
+.edit-btn, .delete-btn, .crud-btn, .archive-btn, .unarchive-btn, .privacy-btn, .preview-all-btn, .download-all-btn {
+    padding: 2px 3px; /* Ridotto ulteriormente il padding dei pulsanti */
+    margin-right: 1px; /* Ridotto ulteriormente il margine tra i pulsanti */
+    border: none;
+    border-radius: 2px; /* Ridotto il border-radius */
+    cursor: pointer;
+    font-size: 0.8em;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+/* Stili specifici per i pulsanti di preview e download */
+.preview-all-btn, .download-all-btn {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    text-decoration: none !important;
+    outline: none !important;
+    padding: 0 !important;
+    margin: 0 3px !important;
+}
+
+.preview-all-btn i, .download-all-btn i {
+    font-size: 12px;
+    display: block;
+}
+
+.set-completed-btn {
+    padding: 3px 6px; /* Uniformato con edit-btn e delete-btn */
+    margin-right: 4px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.8em; /* Uniformato con edit-btn e delete-btn */
+    transition: all 0.3s ease;
+    font-weight: 500;
+    background-color: #27ae60;
+    color: white;
+}
+
+#save-role-btn {
+    padding: 6px 12px;
+    margin-right: 4px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.3s ease;
+    font-weight: 500;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    background-color: #27ae60; /* Verde coerente con .set-completed-btn */
+    color: white;
+}
+
+#save-role-btn:hover {
+    background-color: #219a52;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+#save-role-btn:active {
+    transform: translateY(0);
+    box-shadow: none;
+}
+
+.edit-btn {
+    background-color: #3498db;
+    color: white;
+}
+
+.archive-btn, .unarchive-btn {
+    background-color: #95a5a6;
+    color: white;
+}
+
+.archive-btn:hover, .unarchive-btn:hover {
+    background-color: #7f8c8d;
+}
+
+.crud-btn {
+    background-color: #f39c12;
+    color: white;
+}
+
+.crud-btn:hover {
+    background-color: #d68910;
+}
+
+.delete-btn {
+    background-color: #e74c3c;
+    color: white;
+}
+
+
+.edit-btn:hover {
+    background-color: #2980b9;
+}
+
+.delete-btn:hover {
+    background-color: #c0392b;
+}
+
+.set-completed-btn:hover {
+    background-color: #219a52;
+}
+
+/* Stile per i task completati */
+tr.completed {
+    background-color: #e0e0e0;
+    opacity: 0.7;
+}
+
+/* Stile per l'header della colonna ordinata */
+th.sorted {
+    background-color: #e3f2fd; /* Azzurro chiaro */
+    border-bottom: 2px solid #2196f3; /* Linea blu sotto */
+}
+
+/* Stili per le righe ordinate */
+tr.sorted-asc-1, tr.sorted-desc-1 {
+    background-color: #e3f2fd; /* Azzurro chiaro per il primo gruppo */
+}
+
+tr.sorted-asc-2, tr.sorted-desc-2 {
+    background-color: #bbdefb; /* Azzurro più scuro per il secondo gruppo */
+}
+
+/* New styles for input elements in the table */
+table input[type="text"], table input[type="date"], table select {
+    border: 1px solid #ddd;
+    width: 100%;
+    box-sizing: border-box;
+    resize: none; /* Disabilita il ridimensionamento */
+    min-width: 150px; /* Larghezza minima aumentata per le select */
+    padding: 6px;
+    border-radius: 3px;
+}
+
+/* Stile specifico per gli input durante l'inserimento */
+table tr:first-child input[type="text"],
+table tr:first-child input[type="date"],
+table tr:first-child select {
+    border: 1px solid #3498db;
+    box-shadow: 0 0 3px rgba(52, 152, 219, 0.3);
+}
+
+/* Stile specifico per le select nella tabella */
+table select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 6px center;
+    background-size: 16px;
+    padding-right: 24px;
+}
+
+table select:hover {
+    cursor: pointer;
+    border-color: #3498db;
+}
+
+/* Highlighted input style */
+.highlighted-input {
+    background-color: #e0f7fa; /* Light cyan background */
+}

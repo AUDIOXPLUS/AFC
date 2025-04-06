@@ -1,0 +1,172 @@
+/* Stili di base per il corpo, header, navigazione, main, titoli e pulsanti generici */
+
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f0f0f0;
+}
+
+/* Classe per indicare che il sistema sta elaborando */
+.processing {
+    cursor: wait !important;
+}
+
+/* Assicura che tutti gli elementi ereditino il cursore wait quando il sistema sta elaborando */
+.processing * {
+    cursor: wait !important;
+}
+
+header {
+    background-color: #2c3e50;
+    color: white;
+    padding: 5px 20px; /* Ridotto padding verticale da 10px a 5px */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+nav {
+    display: flex;
+    align-items: center;
+}
+
+.logo {
+    font-size: 28px;
+    font-weight: bold;
+    margin-right: 20px;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    display: inline-block; /* Ensure the logo is inline */
+}
+
+nav ul {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+}
+
+nav ul li {
+    margin-right: 20px;
+}
+
+nav ul li a {
+    color: #a0b3c6;
+    text-decoration: none;
+    padding: 5px 10px; /* Ridotto padding verticale da 10px a 5px */
+    display: block;
+    font-size: 14px;
+    transition: color 0.3s ease;
+}
+
+nav ul li a:hover, nav ul li a.active {
+    color: white;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+}
+
+.user-info span {
+    margin-right: 10px;
+}
+
+.user-info a {
+    color: #3498db;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.user-info a:hover {
+    color: #2980b9;
+}
+
+main {
+    padding: 10px 20px; /* Ridotto padding superiore da 20px a 10px */
+}
+
+h1, main > h2 {
+    margin-bottom: 10px;
+    margin-top: 5px;
+    color: #2c3e50;
+    font-size: 20px;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+main > .table-actions, main > .add-btn {
+    display: inline-block;
+    margin: 0 0 10px 30px;
+    vertical-align: middle;
+}
+
+/* Stile per il pulsante urge tasks */
+.btn {
+    background-color: #f39c12; /* Arancione */
+    color: black;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background-color 0.3s ease;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    margin-left: 5px;
+}
+
+.btn:hover {
+    background-color: #d68910;
+}
+
+.add-btn {
+    background-color: #2ecc71;
+    color: black; /* Changed text color to black */
+    border: none;
+    padding: 6px 12px; /* Ridotto padding per rendere il pulsante più piccolo */
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 12px; /* Ridotto font size */
+    transition: background-color 0.3s ease;
+    height: 28px; /* Altezza fissa per uniformità */
+    display: inline-flex; /* Per gestire meglio l'allineamento verticale */
+    align-items: center; /* Centra verticalmente il testo */
+}
+
+.add-btn:hover {
+    background-color: #27ae60;
+}
+
+/* Stile per i pulsanti di azione generici (es. Clone, Merge) */
+.action-btn {
+    background-color: #2ecc71; /* Verde, come add-btn */
+    color: black; /* Testo nero, come add-btn */
+    border: none;
+    padding: 6px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background-color 0.3s ease;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    margin-left: 5px; /* Aggiunge spazio tra i pulsanti */
+}
+
+.action-btn:hover {
+    background-color: #27ae60; /* Verde più scuro al hover, come add-btn */
+}
+
+/* Stile per l'icona del lucchetto */
+.fa-lock {
+    color: #e74c3c; /* Rosso */
+    font-size: 0.8em; /* Stessa dimensione del testo degli altri pulsanti */
+}
+
+.fa-unlock {
+    color: #2c3e50; /* Grigio scuro/nero */
+    font-size: 0.8em; /* Stessa dimensione del testo degli altri pulsanti */
+}
