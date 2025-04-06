@@ -74,7 +74,7 @@
     padding: 20px;
     border-radius: 8px;
     box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-    z-index: 10001; /* Aumentato z-index */
+    z-index: 10101; /* Aumentato z-index ulteriormente */
     min-width: 400px;
     max-height: 80vh;
     overflow-y: auto;
@@ -135,7 +135,7 @@
     right: 0;
     bottom: 0;
     background: rgba(0,0,0,0.5);
-    z-index: 10000; /* Aumentato z-index */
+    z-index: 10100; /* Aumentato z-index ulteriormente */
 }
 
 .version-overlay.show {
