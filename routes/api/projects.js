@@ -9,6 +9,217 @@ router.get('/', checkAuthentication, async (req, res) => {
     try {
         const showArchived = req.query.showArchived === 'true';
         const showOnHold = req.query.showOnHold === 'true';
+        const countOnly = req.query.countOnly === 'true';
+        
+        // Se viene richiesto solo il conteggio, restituisci i conteggi per categoria
+        if (countOnly) {
+            // Ottieni i permessi CRUD dell'utente per la pagina projects
+            const permissionsQuery = `
+                SELECT c.properties, uc.properties as user_properties
+                FROM crud c
+                LEFT JOIN user_crud uc ON uc.crud_id = c.id AND uc.user_id = ?
+                WHERE c.page = 'Projects' 
+                AND c.action = 'Read'
+            `;
+            
+            const user = await new Promise((resolve, reject) => {
+                req.db.get(permissionsQuery, [req.session.user.id], (err, row) => {
+                    if (err) reject(err);
+                    else resolve(row);
+                });
+            });
+
+            if (!user || !user.user_properties) {
+                return res.status(403).json({ error: 'Permesso di lettura negato' });
+            }
+
+            let permissions;
+            try {
+                permissions = JSON.parse(user.user_properties);
+                
+                if (!permissions.enabled) {
+                    return res.status(403).json({ error: 'Permessi non abilitati' });
+                }
+            } catch (error) {
+                console.error('Errore nel parsing dei permessi:', error);
+                return res.status(403).json({ error: 'Permessi non validi' });
+            }
+
+            // Costruisci le query per contare i progetti per categoria
+            const countParams = [];
+            let permissionsFilter = '';
+            const level = permissions.level || permissions.scope;
+            
+            // Applica i filtri di permesso in base al livello
+            switch (level) {
+                case 'own':
+                    permissionsFilter = ` AND EXISTS (
+                        SELECT 1 FROM project_history ph
+                        WHERE ph.project_id = p.id
+                        AND ph.assigned_to = ?
+                    )`;
+                    countParams.push(req.session.user.name);
+                    break;
+                case 'own-factory':
+                    permissionsFilter = ` AND factory = (
+                        SELECT factory FROM users WHERE id = ?
+                    )`;
+                    countParams.push(req.session.user.id);
+                    break;
+                case 'all-factories':
+                    permissionsFilter = ` AND factory IS NOT NULL`;
+                    break;
+                case 'own-client':
+                    permissionsFilter = ` AND client = (
+                        SELECT client_company_name FROM users WHERE id = ?
+                    )`;
+                    countParams.push(req.session.user.id);
+                    break;
+                case 'all-clients':
+                    permissionsFilter = ` AND client IS NOT NULL`;
+                    break;
+                case 'user-projects':
+                    const userPermsQuery = `
+                        SELECT uc.properties
+                        FROM crud c
+                        JOIN user_crud uc ON c.id = uc.crud_id
+                        WHERE c.page = 'Users'
+                        AND c.action = 'Read'
+                        AND uc.user_id = ?
+                        AND uc.properties IS NOT NULL
+                    `;
+                    
+                    const userPerms = await new Promise((resolve, reject) => {
+                        req.db.get(userPermsQuery, [req.session.user.id], (err, row) => {
+                            if (err) reject(err);
+                            else resolve(row);
+                        });
+                    });
+
+                    if (userPerms && userPerms.properties) {
+                        try {
+                            const userProps = JSON.parse(userPerms.properties);
+                            if (Array.isArray(userProps.userIds) && userProps.userIds.length > 0) {
+                                permissionsFilter = ` AND EXISTS (
+                                    SELECT 1 FROM project_history ph
+                                    JOIN users u ON ph.assigned_to = u.name
+                                    WHERE ph.project_id = p.id
+                                    AND u.id IN (${userProps.userIds.map(() => '?').join(',')})
+                                )`;
+                                countParams.push(...userProps.userIds);
+                            } else {
+                                return res.status(403).json({ error: 'Nessun utente specifico definito nei permessi' });
+                            }
+                        } catch (e) {
+                            console.error('Errore nel parsing delle properties degli utenti:', e);
+                            return res.status(403).json({ error: 'Permessi non validi' });
+                        }
+                    } else {
+                        return res.status(403).json({ error: 'Nessun utente specifico definito nei permessi' });
+                    }
+                    break;
+                case 'all':
+                    // Nessun filtro aggiuntivo
+                    break;
+                default:
+                    return res.status(403).json({ error: 'Scope non valido' });
+            }
+
+            // Query per contare i progetti archiviati
+            const archivedQuery = `
+                SELECT COUNT(*) as count
+                FROM projects p
+                LEFT JOIN (
+                    SELECT ph1.*
+                    FROM project_history ph1
+                    LEFT JOIN project_history ph2 ON ph1.project_id = ph2.project_id AND 
+                                                   (ph1.date < ph2.date OR (ph1.date = ph2.date AND ph1.id < ph2.id))
+                    WHERE ph2.id IS NULL
+                ) latest_history ON p.id = latest_history.project_id
+                WHERE archived = 1
+                ${permissionsFilter}
+            `;
+
+            // Query per contare i progetti on hold
+            const onHoldQuery = `
+                SELECT COUNT(*) as count
+                FROM projects p
+                LEFT JOIN (
+                    SELECT ph1.*
+                    FROM project_history ph1
+                    LEFT JOIN project_history ph2 ON ph1.project_id = ph2.project_id AND 
+                                                   (ph1.date < ph2.date OR (ph1.date = ph2.date AND ph1.id < ph2.id))
+                    WHERE ph2.id IS NULL
+                ) latest_history ON p.id = latest_history.project_id
+                WHERE archived = 0 
+                AND EXISTS (
+                   SELECT 1 FROM project_history ph 
+                   WHERE ph.project_id = p.id 
+                   AND ph.status = 'On Hold'
+                   AND NOT EXISTS (
+                       SELECT 1 FROM project_history ph2
+                       WHERE ph2.project_id = p.id
+                       AND ph2.date > ph.date
+                   )
+                )
+                ${permissionsFilter}
+            `;
+
+            // Query per contare i progetti attivi (non archiviati e non on hold)
+            const activeQuery = `
+                SELECT COUNT(*) as count
+                FROM projects p
+                LEFT JOIN (
+                    SELECT ph1.*
+                    FROM project_history ph1
+                    LEFT JOIN project_history ph2 ON ph1.project_id = ph2.project_id AND 
+                                                   (ph1.date < ph2.date OR (ph1.date = ph2.date AND ph1.id < ph2.id))
+                    WHERE ph2.id IS NULL
+                ) latest_history ON p.id = latest_history.project_id
+                WHERE archived = 0
+                AND NOT EXISTS (
+                   SELECT 1 FROM project_history ph 
+                   WHERE ph.project_id = p.id 
+                   AND ph.status = 'On Hold'
+                   AND NOT EXISTS (
+                       SELECT 1 FROM project_history ph2
+                       WHERE ph2.project_id = p.id
+                       AND ph2.date > ph.date
+                   )
+                )
+                ${permissionsFilter}
+            `;
+
+            // Esegui le query per ottenere i conteggi
+            const [archivedCount, onHoldCount, activeCount] = await Promise.all([
+                new Promise((resolve, reject) => {
+                    req.db.get(archivedQuery, countParams, (err, row) => {
+                        if (err) reject(err);
+                        else resolve(row?.count || 0);
+                    });
+                }),
+                new Promise((resolve, reject) => {
+                    req.db.get(onHoldQuery, countParams, (err, row) => {
+                        if (err) reject(err);
+                        else resolve(row?.count || 0);
+                    });
+                }),
+                new Promise((resolve, reject) => {
+                    req.db.get(activeQuery, countParams, (err, row) => {
+                        if (err) reject(err);
+                        else resolve(row?.count || 0);
+                    });
+                })
+            ]);
+
+            // Restituisci i conteggi come JSON
+            return res.json({
+                archived: archivedCount,
+                onHold: onHoldCount,
+                active: activeCount,
+                total: archivedCount + onHoldCount + activeCount
+            });
+        }
         // Ottieni i permessi CRUD dell'utente per la pagina projects
         const permissionsQuery = `
             SELECT c.properties, uc.properties as user_properties

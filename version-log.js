@@ -1,21 +1,43 @@
-// Dati del version log
+// Dati del version log (ristrutturati per leggibilità)
 const versionLogData = [
-    { date: '06/04/25', description: 'Added cancel button to project creation/edit. Restricted Configuration page access for non-admins. Implemented client/factory dropdowns for new projects. Ensured full filename visibility on hover. Enabled file forwarding in project history. Stabilized page load progress bar. Fixed Edge browser visibility issues.' },
-    { date: '03/04/25', description: 'Fixed duplicated projects issue. Fixed project history save bug' },
-    { date: '02/04/25', description: 'Implemented progress bar. Fixed minor bugs' },
-    { date: '29/03/25', description: 'Improved project and history loading speed. Implemented clipboard synchronization' },
+    // 06/04/25
+    { date: '06/04/25', description: 'Added cancel button to project creation/edit form' },
+    { date: '06/04/25', description: 'Restricted Configuration page access for non-admin users' },
+    { date: '06/04/25', description: 'Implemented client/factory dropdowns for new projects' },
+    { date: '06/04/25', description: 'Ensured full filename visibility on hover' },
+    { date: '06/04/25', description: 'Enabled file forwarding in project history' },
+    { date: '06/04/25', description: 'Stabilized page load progress bar' },
+    { date: '06/04/25', description: 'Fixed Edge browser visibility issues' },
+    { date: '06/04/25', description: 'Added projects counting display' },
+    // 03/04/25
+    { date: '03/04/25', description: 'Fixed duplicated projects issue' },
+    { date: '03/04/25', description: 'Fixed project history save bug' },
+    // 02/04/25
+    { date: '02/04/25', description: 'Implemented progress bar' },
+    { date: '02/04/25', description: 'Fixed minor bugs' },
+    // 29/03/25
+    { date: '29/03/25', description: 'Improved project and history loading speed' },
+    { date: '29/03/25', description: 'Implemented clipboard synchronization' },
+    // 28/03/25
     { date: '28/03/25', description: 'Implemented change password form' },
-    { date: '28/03/25', description: 'Implemented urgent task prioritization. Separated autoassigned tasks from calculations. Enhanced visibility of new tasks' },
-    { date: '21/03/25', description: 'Implemented reply and forward for project history records. Added global statistics for tasks' },
+    { date: '28/03/25', description: 'Implemented urgent task prioritization' },
+    { date: '28/03/25', description: 'Separated autoassigned tasks from calculations' },
+    { date: '28/03/25', description: 'Enhanced visibility of new tasks' },
+    // 21/03/25
+    { date: '21/03/25', description: 'Implemented reply and forward for project history records' },
+    { date: '21/03/25', description: 'Added global statistics for tasks' },
+    // 27/02/25
     { date: '27/02/25', description: 'Implemented private record sharing with other users' },
     { date: '27/02/25', description: 'Fixed icon display bugs in project history' },
     { date: '27/02/25', description: 'Improved mobile device display' },
+    // 20/02/25
     { date: '20/02/25', description: 'Added preview all and download all files' },
+    // 19/02/25
     { date: '19/02/25', description: 'Fixed bugs for private records' },
-    { date: '19/02/25', description: 'Added version log' },
-    { date: '19/02/25', description: 'Fixed full screen view' },
-    { date: '19/02/25', description: 'Fixed priority sorting' },
-    { date: '19/02/25', description: 'Added column priority to tasks' }
+    { date: '19/02/25', description: 'Added version log feature' }, // Riformulato
+    { date: '19/02/25', description: 'Fixed full screen view issue' }, // Riformulato
+    { date: '19/02/25', description: 'Fixed priority sorting issue' }, // Riformulato
+    { date: '19/02/25', description: 'Added priority column to tasks' } // Riformulato
 ];
 
 // Crea il popup del version log
@@ -30,6 +52,24 @@ function createVersionLogPopup() {
     const popup = document.createElement('div');
     popup.id = 'version-log';
     popup.className = 'version-log';
+
+    let tableBodyContent = '';
+    let lastDate = null;
+
+    versionLogData.forEach((entry, index) => {
+        // Aggiungi un separatore se la data è cambiata (e non è la prima riga)
+        if (lastDate !== null && entry.date !== lastDate) {
+            tableBodyContent += `<tr class="date-separator"><td colspan="2"></td></tr>`;
+        }
+        // Aggiungi la riga del log
+        tableBodyContent += `
+            <tr>
+                <td>${entry.date === lastDate ? '' : entry.date}</td>
+                <td>${entry.description}</td>
+            </tr>
+        `;
+        lastDate = entry.date; // Aggiorna l'ultima data vista
+    });
     
     // Crea il contenuto del popup
     popup.innerHTML = `
@@ -42,12 +82,7 @@ function createVersionLogPopup() {
                 </tr>
             </thead>
             <tbody>
-                ${versionLogData.map(entry => `
-                    <tr>
-                        <td>${entry.date}</td>
-                        <td>${entry.description}</td>
-                    </tr>
-                `).join('')}
+                ${tableBodyContent}
             </tbody>
         </table>
     `;
@@ -59,14 +94,11 @@ function createVersionLogPopup() {
 function updateVersionText() {
     const versionTextElement = document.getElementById('version-text');
     if (!versionTextElement) {
-        // Logga se l'elemento non viene trovato (potrebbe non essere ancora stato creato)
-        // console.warn("Elemento #version-text non ancora disponibile per l'aggiornamento.");
         return;
     }
 
-    // Recupera i dati dell'utente dal localStorage
     const userData = localStorage.getItem('user');
-    let userName = 'User'; // Nome di default se non trovato o in caso di logout
+    let userName = 'User'; 
     if (userData) {
         try {
             const user = JSON.parse(userData);
@@ -74,45 +106,36 @@ function updateVersionText() {
                 userName = user.name;
             }
         } catch (e) {
-            // Logga l'errore nel parsing dei dati utente
             console.error("Errore nel parsing dei dati utente dal localStorage:", e);
         }
     }
 
-    // Imposta il testo combinato: versione e nome utente
     versionTextElement.textContent = `V3.6 - ${userName}`;
 }
 
 
 // Inizializza il version log
 function initializeVersionLog() {
-    // Crea il testo della versione nel menu
     const nav = document.querySelector('nav');
-     // Verifica se l'elemento nav esiste prima di procedere
     if (!nav) {
         console.error("Elemento <nav> non trovato nel DOM.");
-        return; // Interrompi l'esecuzione se nav non è trovato
+        return; 
     }
     const versionText = document.createElement('div');
     versionText.id = 'version-text';
     versionText.className = 'version-text';
     
-    // Inserisci l'elemento nel DOM prima di tentare di aggiornarlo
     const logo = nav.querySelector('.logo');
     if (logo && logo.parentNode) {
         logo.parentNode.insertBefore(versionText, logo.nextSibling);
     } else {
         console.error("Logo o suo parent non trovato, impossibile inserire #version-text.");
-        return; // Interrompi se non si può inserire l'elemento
+        return; 
     }
 
-    // Imposta il testo iniziale chiamando la funzione di aggiornamento
     updateVersionText(); 
-
-    // Crea il popup
     createVersionLogPopup();
 
-    // Gestione degli eventi
     const overlay = document.getElementById('version-overlay');
     const popup = document.getElementById('version-log');
 
@@ -127,8 +150,5 @@ function initializeVersionLog() {
     });
 }
 
-// Inizializza quando il DOM è pronto
 document.addEventListener('DOMContentLoaded', initializeVersionLog);
-
-// Ascolta i cambiamenti di autenticazione per aggiornare il nome utente
 window.addEventListener('authChange', updateVersionText);

@@ -198,6 +198,17 @@ nav {
 .version-log th:last-child,
 .version-log td:last-child {
     width: auto;
+    white-space: normal; /* Permette il wrapping del testo */
+    word-break: break-word; /* Spezza le parole lunghe se necessario */
+}
+
+/* Stile per la riga separatrice (spazio vuoto) */
+.version-log tr.date-separator td {
+    border-bottom: none; /* Rimuove il bordo inferiore normale */
+    border-top: none; /* Rimuove il bordo superiore */
+    padding: 8px 0; /* Aumenta lo spazio verticale per creare separazione */
+    height: 10px; /* Altezza minima per garantire lo spazio */
+    line-height: 10px; /* Coerente con l'altezza */
 }
 
 /* Overlay per lo sfondo scuro quando il popup è aperto */
@@ -557,6 +568,7 @@ main > .table-actions, main > .add-btn {
 /* Stile per i toggle filter sotto la riga dei filtri */
 .toggle-filters {
     display: flex;
+    align-items: center; /* Aggiunto per allineare verticalmente tutti i figli */
     width: 100%;
     margin-top: 8px;
     padding-top: 8px;
@@ -566,7 +578,7 @@ main > .table-actions, main > .add-btn {
 .toggle-filters label {
     display: flex;
     align-items: center;
-    margin-right: 20px;
+    margin-right: 0px; /* Rimosso margine destro per avvicinare al massimo il conteggio */
     font-size: 12px;
     color: #555;
     cursor: pointer;
@@ -576,6 +588,16 @@ main > .table-actions, main > .add-btn {
     margin-right: 5px;
     cursor: pointer;
     accent-color: #3498db;
+    vertical-align: middle; /* Aggiunto per allineare verticalmente la checkbox */
+}
+
+/* Stile per i conteggi accanto ai toggle filters */
+.toggle-filters .count-display {
+    /* Rimosso display: inline-flex e align-items: center */
+    font-size: 12px;
+    color: #555;
+    margin-left: 0px; /* Rimosso margine sinistro per avvicinare al massimo il conteggio */
+    margin-right: 20px; /* Mantiene spazio prima dell'elemento successivo */
 }
 
 .column-visibility {
@@ -1117,7 +1139,6 @@ table input[type="text"], table input[type="date"], table select {
     min-width: 150px; /* Larghezza minima aumentata per le select */
     padding: 6px;
     border-radius: 3px;
-    background-color: #fff;
 }
 
 /* Stile specifico per gli input durante l'inserimento */

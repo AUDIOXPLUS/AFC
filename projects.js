@@ -87,11 +87,45 @@ async function initializeDashboard() {
     // Add event listener for the "Clone/Merge Project" button
     document.getElementById('clone-merge-project-btn').addEventListener('click', openCloneMergeModal);
 
-    // Initial fetch of projects (includerà il sorting)
+    // Initial fetch of projects (includerà il sorting e l'aggiornamento dei conteggi)
     await fetchProjects();
 
     // Restituisce l'API di filtraggio per poterla usare esternamente se necessario
-    return filteringApi; 
+    return filteringApi;
+}
+
+// --- Funzione per recuperare i conteggi totali dei progetti ---
+async function fetchProjectCounts() {
+    console.log('Fetching project counts...'); // Log in italiano: Recupero conteggi progetti...
+    try {
+        // Chiama l'endpoint principale con il parametro countOnly=true
+        const response = await fetch('/api/projects?countOnly=true'); 
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const counts = await response.json();
+        console.log('Project counts received:', counts); // Log in italiano: Conteggi ricevuti:
+
+        // Aggiorna i conteggi nell'HTML
+        const archivedCountSpan = document.getElementById('archived-count');
+        const onHoldCountSpan = document.getElementById('on-hold-count');
+        const activeProjectCountSpan = document.getElementById('active-project-count');
+
+        if (archivedCountSpan) archivedCountSpan.textContent = counts.archived || 0;
+        if (onHoldCountSpan) onHoldCountSpan.textContent = counts.onHold || 0;
+        if (activeProjectCountSpan) activeProjectCountSpan.textContent = counts.active || 0;
+
+    } catch (error) {
+        console.error('Errore nel recupero dei conteggi dei progetti:', error); // Log in italiano
+        // Non bloccante, ma logga l'errore. Potremmo mostrare 'N/A' o '-' nei conteggi.
+        const archivedCountSpan = document.getElementById('archived-count');
+        const onHoldCountSpan = document.getElementById('on-hold-count');
+        const activeProjectCountSpan = document.getElementById('active-project-count');
+        if (archivedCountSpan) archivedCountSpan.textContent = '-';
+        if (onHoldCountSpan) onHoldCountSpan.textContent = '-';
+        if (activeProjectCountSpan) activeProjectCountSpan.textContent = '-';
+        handleNetworkError(error); // Gestione errore generica se necessario
+    }
 }
 
 // --- Funzioni per Clone/Merge ---
@@ -455,6 +489,9 @@ async function fetchProjects() {
         updateLoadingProgress(0); // Inizia da 0%
     }
 
+    // Aggiorna sempre i conteggi totali prima di caricare i progetti filtrati
+    await fetchProjectCounts();
+
     try {
         // Fase 1: Fetch elenco progetti
         const showArchived = document.getElementById('show-archived').checked;
@@ -630,6 +667,11 @@ async function displayProjects(projects) {
     updateLoadingProgress(100);
 
     console.log(`displayProjects called with ${projects.length} projects. Timestamp: ${Date.now()}`);
+    
+    // Aggiorna il conteggio dei progetti *visibili* (filtrati)
+    const activeProjectCountSpan = document.getElementById('active-project-count');
+    if (activeProjectCountSpan) activeProjectCountSpan.textContent = projects.length;
+
     const tableBody = document.getElementById('projects-table').getElementsByTagName('tbody')[0];
     const loadingPopup = document.getElementById('loading-popup'); // Riferimento al popup
 

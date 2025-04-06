@@ -89,11 +89,12 @@
             </div>
             <div class="toggle-filters">
                 <label>
-                    <input type="checkbox" id="show-archived"> Show archived projects
-                </label>
+                    <input type="checkbox" id="show-archived"> Show only archived projects
+                </label> <span class="count-display">(<span id="archived-count">0</span>)</span>
                 <label>
-                    <input type="checkbox" id="show-on-hold"> Show on hold projects
-                </label>
+                    <input type="checkbox" id="show-on-hold"> Show only on hold projects
+                </label> <span class="count-display">(<span id="on-hold-count">0</span>)</span>
+                <span class="active-count-label count-display" style="margin-left: 20px;">Active Projects: <span id="active-project-count">0</span></span>
             </div>
         </div>
         <div class="table-wrapper">
