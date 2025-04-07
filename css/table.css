@@ -365,3 +365,15 @@ table select:hover {
 .highlighted-input {
     background-color: #e0f7fa; /* Light cyan background */
 }
+
+/* Stile per evidenziare le righe di progetti nuovi/non letti con animazione lampeggiante */
+.new-project-row {
+  animation: highlight-pulse 1.5s infinite ease-in-out !important; /* Applica l'animazione lampeggiante */
+  /* Rimuoviamo il background statico, l'animazione lo gestisce */
+}
+/* Stile per evidenziare le righe di task nuovi/non letti (se necessario centralizzare) */
+.new-task-cell { /* Applica alla riga intera, come da tasks.js */
+    animation: highlight-pulse 1.5s infinite ease-in-out !important; /* Applica l'animazione lampeggiante */
+    /* Rimuoviamo il background statico, l'animazione lo gestisce */
+    /* font-weight: bold; /* Rimosso bold per coerenza con progetto, può essere aggiunto se richiesto */
+}

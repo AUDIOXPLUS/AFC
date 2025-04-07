@@ -88,6 +88,13 @@
     background-color: #E0E0E0; /* Grigio */
 }
 
+/* Stile per evidenziare i quadratini aggiornati nella progress bar */
+.new-project-item {
+    animation: highlight-pulse 1.5s infinite ease-in-out; /* Applica l'animazione lampeggiante */
+    border: 1px solid #e67e22; /* Bordo arancione per migliorare la visibilità */
+    box-shadow: 0 0 5px rgba(230, 126, 34, 0.7); /* Ombra per evidenziare ulteriormente */
+}
+
 /* Stili per il drag and drop dei file */
 .file-upload-container i {
     transition: color 0.3s ease;

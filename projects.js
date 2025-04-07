@@ -638,6 +638,16 @@ function createPhaseProgressBar(projectHistory, phases, projectId) {
             tooltipText += 'Non iniziato';
         }
 
+        // Verifica se ci sono voci nuove/aggiornate (is_new = true) per questa fase
+        const hasNewEntries = phaseRecords.some(record => record.is_new === true || record.is_new === 1);
+        
+        // Se ci sono voci nuove, aggiungi la classe per l'animazione di pulsazione
+        if (hasNewEntries) {
+            phaseItem.classList.add('new-project-item');
+            console.log(`[Evidenziazione] Fase ${phase.name} (ID: ${phase.id}) del progetto ${projectId}: Trovata voce aggiornata, applica evidenziazione al quadratino.`);
+            tooltipText += '\n(AGGIORNATO)';
+        }
+
         // Aggiungi dettagli dell'ultimo record al tooltip se disponibile
         if (latestRecord) {
             tooltipText += `\nUltimo aggiornamento: ${latestRecord.date}`;
@@ -713,6 +723,9 @@ async function displayProjects(projects) {
         const row = tableBody.insertRow();
         row.style.height = 'auto'; // Ensure consistent row height
         const projectHistory = project.history || []; // Estrai la cronologia dall'oggetto progetto
+
+        // Nota: la logica di evidenziazione è stata spostata nella funzione createPhaseProgressBar
+        // e ora viene applicata solo ai singoli quadratini della progress bar invece che all'intera riga
 
         // Funzione helper per gestire i valori vuoti
         const getValueOrDash = (value) => value || '-';
@@ -949,6 +962,41 @@ function addProject() {
                  } else {
                      console.warn('Nessun client disponibile per popolare il dropdown.'); // Log in italiano
                  }
+                 
+                 // Aggiungi l'opzione "add new client"
+                 const addNewClientOption = document.createElement('option');
+                 addNewClientOption.value = "__add_new_client__"; // Valore speciale per identificare questa opzione
+                 addNewClientOption.textContent = "Add new client";
+                 select.appendChild(addNewClientOption);
+                 
+                 // Aggiungi evento change per gestire la selezione di "add new client"
+                 select.addEventListener('change', function(e) {
+                     if (e.target.value === "__add_new_client__") {
+                         // Chiedi all'utente di inserire il nome del nuovo cliente
+                         const newClientName = prompt("Enter new client name:");
+                         if (newClientName && newClientName.trim() !== '') {
+                             // Aggiungi il nuovo cliente alla lista client globale se non esiste già
+                             if (!window.clients.includes(newClientName)) {
+                                 window.clients.push(newClientName);
+                                 console.log(`Nuovo cliente "${newClientName}" aggiunto alla lista.`); // Log in italiano
+                             }
+                             
+                             // Aggiungi il nuovo cliente come opzione della dropdown
+                             const newOption = document.createElement('option');
+                             newOption.value = newClientName;
+                             newOption.textContent = newClientName;
+                             
+                             // Inserisci prima dell'opzione "add new client"
+                             select.insertBefore(newOption, addNewClientOption);
+                             
+                             // Seleziona il nuovo cliente
+                             select.value = newClientName;
+                         } else {
+                             // Se l'utente annulla, ripristina la selezione di default
+                             select.value = '';
+                         }
+                     }
+                 });
                  cell.appendChild(select);
             } else if (field.name === 'productKind') {
                 // Crea un ID unico per il datalist
@@ -1040,6 +1088,21 @@ function addProject() {
         // Costruisci l'oggetto progetto estraendo i valori dalle celle
         const newProject = {};
 
+        // Trova l'input della startDate
+        const startDateInput = newRow.querySelector('input[name="startDate"]');
+
+        // Se la startDate è vuota, impostala alla data odierna
+        if (startDateInput && !startDateInput.value) {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0'); // Mesi da 0 a 11
+            const day = String(today.getDate()).padStart(2, '0');
+            const todayString = `${year}-${month}-${day}`;
+            startDateInput.value = todayString; // Aggiorna anche l'input visualizzato
+            console.log(`StartDate non inserita, impostata automaticamente a: ${todayString}`); // Log in italiano
+        }
+
+        // Costruisci l'oggetto progetto estraendo i valori dalle celle (inclusa la startDate eventualmente aggiornata)
         fields.forEach(field => {
             if (field.editable) {
                 const cell = newRow.cells[field.columnIndex];
@@ -1050,7 +1113,9 @@ function addProject() {
             }
         });
 
+
         try {
+            console.log('Invio nuovo progetto al backend:', newProject); // Log in italiano
             const response = await fetch('/api/projects', {
                 method: 'POST',
                 headers: {
@@ -1143,6 +1208,46 @@ function editProject(row, projectId) {
                     select.appendChild(option);
                 });
             }
+            
+            // Aggiungi l'opzione "add new client"
+            const addNewClientOption = document.createElement('option');
+            addNewClientOption.value = "__add_new_client__"; // Valore speciale per identificare questa opzione
+            addNewClientOption.textContent = "Add new client";
+            select.appendChild(addNewClientOption);
+            
+            // Aggiungi evento change per gestire la selezione di "add new client"
+            select.addEventListener('change', function(e) {
+                if (e.target.value === "__add_new_client__") {
+                    // Chiedi all'utente di inserire il nome del nuovo cliente
+                    const newClientName = prompt("Enter new client name:");
+                    if (newClientName && newClientName.trim() !== '') {
+                        // Aggiungi il nuovo cliente alla lista client globale se non esiste già
+                        if (!window.clients.includes(newClientName)) {
+                            window.clients.push(newClientName);
+                            console.log(`Nuovo cliente "${newClientName}" aggiunto alla lista.`); // Log in italiano
+                        }
+                        
+                        // Aggiungi il nuovo cliente come opzione della dropdown
+                        const newOption = document.createElement('option');
+                        newOption.value = newClientName;
+                        newOption.textContent = newClientName;
+                        
+                        // Inserisci prima dell'opzione "add new client"
+                        select.insertBefore(newOption, addNewClientOption);
+                        
+                        // Seleziona il nuovo cliente
+                        select.value = newClientName;
+                    } else {
+                        // Se l'utente annulla o inserisce un valore vuoto, torna al cliente originale se disponibile
+                        if (projectData.client) {
+                            select.value = projectData.client;
+                        } else {
+                            // Altrimenti imposta il valore a vuoto
+                            select.value = '';
+                        }
+                    }
+                }
+            });
             cells[i].appendChild(select);
         } else if (i === 1) { // Campo productKind
             // Crea un ID unico per il datalist

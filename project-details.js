@@ -88,7 +88,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
             // Resetta lo stato "nuovo" per i task di questo progetto per l'utente corrente
             try {
-                await fetch(`/api/projects/${projectId}/reset-new-status`, {
+                const resetResponse = await fetch(`/api/projects/${projectId}/reset-new-status`, { // Assign fetch result
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -97,17 +97,27 @@ document.addEventListener('DOMContentLoaded', async function() {
                         userId: window.currentUserId
                     })
                 });
+                // Log aggiunto per debug
+                console.log(`[DEBUG] Chiamata a /reset-new-status per progetto ${projectId} e utente ${window.currentUserId} completata. Status: ${resetResponse.status}`); // Log status response
+                if (!resetResponse.ok) {
+                     console.error(`[DEBUG] Reset status API call failed with status: ${resetResponse.status}`);
+                }
             } catch (error) {
                 console.error('Error resetting new status:', error);
             }
+
+            // Introduce a small delay to mitigate race condition with database update
+            await new Promise(resolve => setTimeout(resolve, 300)); // 300ms delay
 
             // Aggiorna il titolo del progetto
             document.getElementById('project-model-number').textContent = project.modelNumber;
             document.title = `Project Details: ${project.modelNumber}`;
 
             // Recupera lo status dalla cronologia filtrata
+            console.log(`[DEBUG] Fetching project history AFTER reset attempt...`); // Add log here
             const historyResponse = await fetch(`/api/projects/${projectId}/history`);
             const history = await window.handleResponse(historyResponse);
+            console.log(`[DEBUG] Project history fetched. Number of entries: ${history.length}. First entry is_new: ${history.length > 0 ? history[0].is_new : 'N/A'}`); // Log history fetch result
 
             // Determina lo status da mostrare
             let statusToShow = '-';
@@ -202,6 +212,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     };
 
     if (projectId) {
+        // La chiamata a /mark-as-read è stata rimossa perché l'evidenziazione
+        // ora dipende solo dalla corrispondenza delle date della cronologia con la startDate.
+
         await window.fetchTeamMembers(); // Assicura che teamMembers sia popolato prima
         await window.fetchProjectDetails(projectId);
         await window.fetchProjectPhases();
