@@ -828,11 +828,43 @@ export async function saveNewHistoryEntry(projectId, row, entryId = null) {
         return null;
     }
 
+    // Ottieni il valore della descrizione
+    let description = descriptionTextarea.value;
+    
+    // Verifica se è un forward, sia in caso di creazione che di modifica
+    let isActuallyForward = isForward; // Già determinato per nuove entry
+    
+    // Se stiamo modificando un record esistente, verifica se era un forward attraverso l'attributo o la descrizione
+    if (isEditing) {
+        // Verifica se la riga ha l'attributo data-is-forward (impostato nella funzione editHistoryEntry)
+        if (row.hasAttribute('data-is-forward')) {
+            isActuallyForward = true;
+            console.log('Record esistente identificato come forward tramite attributo durante la modifica');
+        }
+        // In alternativa, controlla la descrizione originale
+        else {
+            // Ottieni la descrizione originale
+            const originalDescription = descriptionTextarea.value || '';
+            
+            // Se la descrizione originale inizia con "Fwd:", è un forward
+            if (originalDescription.toLowerCase().startsWith('fwd:')) {
+                isActuallyForward = true;
+                console.log('Record esistente identificato come forward tramite descrizione durante la modifica');
+            }
+        }
+    }
+    
+    // Se è un forward (sia nuovo che esistente), assicurati che la descrizione inizi con "Fwd:"
+    if (isActuallyForward && !description.toLowerCase().startsWith('fwd:')) {
+        description = `Fwd: ${description}`;
+        console.log('Prefisso "Fwd:" aggiunto automaticamente alla descrizione del forward');
+    }
+    
     // Prepara l'oggetto dati
     const entryData = {
         date: dateInput.value,
         phase: phaseSelect.value, // Assumendo che il valore sia l'ID della fase
-        description: descriptionTextarea.value,
+        description: description, // Usa la descrizione modificata
         // Usa il NOME dell'utente come valore per assigned_to, come gestito dal backend
         assignedTo: assignedToSelect.value,
         assigned_to: assignedToSelect.value, // Campo duplicato per compatibilità? Meglio chiarire API
@@ -861,8 +893,24 @@ export async function saveNewHistoryEntry(projectId, row, entryId = null) {
 
     console.log('Dati da salvare:', entryData);
 
+    // Verifica che projectId ed entryId siano validi prima di costruire l'URL
+    if (isEditing && (!entryId || isNaN(parseInt(entryId, 10)))) {
+        console.error(`ID entry non valido per la modifica: ${entryId}`);
+        alert(`Errore: ID entry non valido (${entryId}). Impossibile salvare la modifica.`);
+        return null;
+    }
+    
+    if (!projectId || isNaN(parseInt(projectId, 10))) {
+        console.error(`ID progetto non valido: ${projectId}`);
+        alert(`Errore: ID progetto non valido (${projectId}). Impossibile salvare il record.`);
+        return null;
+    }
+    
+    // Costruisci l'URL e il metodo
     const url = isEditing ? `/api/projects/${projectId}/history/${entryId}` : `/api/projects/${projectId}/history`;
     const method = isEditing ? 'PUT' : 'POST';
+    
+    console.log(`Invio richiesta ${method} a ${url}`);
 
     try {
         const response = await fetch(url, {
@@ -981,6 +1029,18 @@ export function editHistoryEntry(entryId, projectId) {
 
     const cells = row.cells; // Usa row.cells invece di getElementsByTagName
     const originalData = {}; // Oggetto per salvare i valori originali
+    
+    // Verifica se il record è un forward (ha parent_id e descrizione inizia con "Fwd:")
+    // Prima otteniamo l'icona che potrebbe indicare che è un forward
+    const actionIcon = cells[0].querySelector('i[data-action-type="forward"]');
+    const isForward = !!actionIcon || 
+                     (cells[2].textContent && cells[2].textContent.toLowerCase().startsWith('fwd:'));
+    
+    if (isForward) {
+        // Aggiungiamo un attributo alla riga per ricordare che è un forward
+        row.setAttribute('data-is-forward', 'true');
+        console.log('Identificato record di tipo forward durante la modifica:', entryId);
+    }
 
     // Mappa indici colonne a nomi campi (più robusto)
     const fieldMap = {

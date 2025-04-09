@@ -885,47 +885,83 @@ router.delete('/:projectId/history/:entryId', checkAuthentication, (req, res) =>
             return res.status(500).json({ error: 'Errore nel recupero dei file associati' });
         }
 
-        // Rimuoviamo fisicamente i file dal filesystem
-        files.forEach(file => {
-            const filePath = path.join('/var/www/onlyoffice/Data', path.basename(file.filepath));
-            console.log('Eliminazione file:', filePath);
-            
-            if (fs.existsSync(filePath)) {
-                fs.remove(filePath, (err) => {
-                    if (err) {
-                        console.error('Errore nell\'eliminazione del file dal filesystem:', err);
-                    } else {
-                        console.log('File eliminato con successo:', filePath);
+        // Per ogni file, verifichiamo se è condiviso con altri record prima di eliminarlo fisicamente
+        const fileProcessingPromises = files.map(file => {
+            return new Promise((resolve, reject) => {
+                const filename = path.basename(file.filepath);
+                
+                // Verifica se il file viene utilizzato da altri record
+                req.db.get(
+                    'SELECT COUNT(*) as count FROM project_files WHERE filepath LIKE ? AND (project_id != ? OR history_id != ?)',
+                    ['%' + filename + '%', projectId, entryId],
+                    (err, result) => {
+                        if (err) {
+                            console.error('Errore nel controllo di riferimenti multipli al file:', err);
+                            reject(err);
+                            return;
+                        }
+                        
+                        // Se non ci sono altri riferimenti a questo file, lo eliminiamo fisicamente
+                        if (result.count === 0) {
+                            const filePath = path.join('/var/www/onlyoffice/Data', filename);
+                            console.log(`File ${filename} non è condiviso con altri record. Eliminazione fisica:`, filePath);
+                            
+                            if (fs.existsSync(filePath)) {
+                                fs.remove(filePath)
+                                    .then(() => {
+                                        console.log('File eliminato fisicamente con successo:', filePath);
+                                        resolve(true);
+                                    })
+                                    .catch(err => {
+                                        console.error('Errore nell\'eliminazione fisica del file:', err);
+                                        // Continuiamo comunque anche se fallisce l'eliminazione fisica
+                                        resolve(false);
+                                    });
+                            } else {
+                                console.warn('File non trovato per eliminazione fisica:', filePath);
+                                resolve(false);
+                            }
+                        } else {
+                            // Il file è condiviso, quindi non lo eliminiamo fisicamente
+                            console.log(`File ${filename} è condiviso con altri ${result.count} record. Non verrà eliminato fisicamente.`);
+                            resolve(false);
+                        }
                     }
-                });
-            } else {
-                console.warn('File non trovato per eliminazione:', filePath);
-            }
-        });
-
-        // Poi eliminiamo i file dal database
-        const deleteFilesQuery = `DELETE FROM project_files WHERE project_id = ? AND history_id = ?`;
-
-        req.db.run(deleteFilesQuery, [projectId, entryId], function(err) {
-            if (err) {
-                console.error('Errore nell\'eliminazione dei file associati:', err);
-                return res.status(500).json({ error: 'Errore nell\'eliminazione dei file associati' });
-            }
-
-            // Infine, eliminiamo la voce di cronologia
-            const deleteHistoryQuery = `DELETE FROM project_history WHERE project_id = ? AND id = ?`;
-
-            req.db.run(deleteHistoryQuery, [projectId, entryId], function(err) {
-                if (err) {
-                    console.error('Errore nell\'eliminazione della voce di cronologia:', err);
-                    return res.status(500).json({ error: 'Errore del server' });
-                }
-                if (this.changes === 0) {
-                    return res.status(404).json({ error: 'Voce di cronologia non trovata' });
-                }
-                res.status(200).json({ message: 'Voce di cronologia e file associati eliminati con successo' });
+                );
             });
         });
+
+        // Attendiamo il completamento di tutte le operazioni sui file
+        Promise.all(fileProcessingPromises)
+            .then(() => {
+                // Eliminiamo i riferimenti ai file dal database
+                const deleteFilesQuery = `DELETE FROM project_files WHERE project_id = ? AND history_id = ?`;
+                
+                req.db.run(deleteFilesQuery, [projectId, entryId], function(err) {
+                    if (err) {
+                        console.error('Errore nell\'eliminazione dei riferimenti ai file:', err);
+                        return res.status(500).json({ error: 'Errore nell\'eliminazione dei riferimenti ai file' });
+                    }
+                    
+                    // Infine, eliminiamo la voce di cronologia
+                    const deleteHistoryQuery = `DELETE FROM project_history WHERE project_id = ? AND id = ?`;
+                    
+                    req.db.run(deleteHistoryQuery, [projectId, entryId], function(err) {
+                        if (err) {
+                            console.error('Errore nell\'eliminazione della voce di cronologia:', err);
+                            return res.status(500).json({ error: 'Errore del server' });
+                        }
+                        if (this.changes === 0) {
+                            return res.status(404).json({ error: 'Voce di cronologia non trovata' });
+                        }
+                        res.status(200).json({ message: 'Voce di cronologia e riferimenti ai file eliminati con successo' });
+                    });
+                });
+            })
+            .catch(err => {
+                console.error('Errore durante l\'elaborazione dei file:', err);
+                return res.status(500).json({ error: 'Errore durante l\'elaborazione dei file' });
+            });
     });
 });
 

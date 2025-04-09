@@ -206,31 +206,64 @@ router.delete('/:fileId', checkAuthentication, (req, res) => {
             return res.status(403).json({ error: 'Cannot delete locked file' });
         }
         
-        req.db.run('DELETE FROM project_files WHERE id = ?', [fileId], function(err) {
-            if (err) {
-                return res.status(500).json({ error: 'Failed to delete file' });
-            }
-            
-            // Usa il percorso corretto per OnlyOffice
-            const filePath = path.join('/var/www/onlyoffice/Data', path.basename(file.filepath));
-            console.log('Original filepath:', file.filepath);
-            console.log('File path per OnlyOffice:', filePath);
-            
-            // Verifica che il file esista
-            if (!fs.existsSync(filePath)) {
-                console.error('File non trovato:', filePath);
-                return res.status(404).json({ error: 'File not found' });
-            }
+        // Prima di eliminare il file fisico, controlliamo se altre entry utilizzano lo stesso file
+        // Prendi il filename dal percorso del file
+        const filename = path.basename(file.filepath);
+        
+        // Verifica se il file viene utilizzato da altri record
+        req.db.get(
+            'SELECT COUNT(*) as count FROM project_files WHERE filepath LIKE ? AND id != ?',
+            ['%' + filename + '%', fileId],
+            (err, result) => {
+                if (err) {
+                    console.error('Errore nel controllo di riferimenti multipli al file:', err);
+                    return res.status(500).json({ error: 'Database error' });
+                }
+                
+                // Elimina il riferimento dal database
+                req.db.run('DELETE FROM project_files WHERE id = ?', [fileId], function(err) {
+                    if (err) {
+                        return res.status(500).json({ error: 'Failed to delete file reference' });
+                    }
+                    
+                    // Se ci sono altre entry che utilizzano questo file, non eliminarlo fisicamente
+                    if (result.count > 0) {
+                        console.log(`File ${filename} è condiviso con altri ${result.count} record. Non verrà eliminato fisicamente.`);
+                        return res.json({ 
+                            message: 'File reference deleted successfully',
+                            note: 'File is shared with other records and was not physically deleted'
+                        });
+                    }
+                    
+                    // Altrimenti, elimina fisicamente il file
+                    const filePath = path.join('/var/www/onlyoffice/Data', filename);
+                    console.log('Original filepath:', file.filepath);
+                    console.log('File path per OnlyOffice:', filePath);
+                    
+                    // Verifica che il file esista
+                    if (!fs.existsSync(filePath)) {
+                        console.error('File non trovato:', filePath);
+                        return res.status(200).json({ 
+                            message: 'File reference deleted successfully',
+                            note: 'Physical file not found on disk'
+                        });
+                    }
 
-            fs.remove(filePath)
-                .then(() => {
-                    res.json({ message: 'File deleted successfully' });
-                })
-                .catch(err => {
-                    console.error('Error deleting file from disk:', err);
-                    res.status(500).json({ error: 'Failed to delete file from disk' });
+                    fs.remove(filePath)
+                        .then(() => {
+                            res.json({ message: 'File deleted successfully' });
+                        })
+                        .catch(err => {
+                            console.error('Error deleting file from disk:', err);
+                            // Il riferimento è già stato rimosso, quindi restituisci un messaggio parziale di successo
+                            res.status(207).json({ 
+                                message: 'File reference deleted successfully',
+                                error: 'Failed to delete physical file from disk' 
+                            });
+                        });
                 });
-        });
+            }
+        );
     });
 });
 
