@@ -1,6 +1,38 @@
 // Dati del version log (ristrutturati per leggibilità)
 const versionLogData = [
     // 09/04/25 - V3.7
+    { 
+        date: '09/04/25', 
+        version: 'V3.7', 
+        description: `
+            <strong>Progress Bar Squares: Colors and Interactions</strong>
+            <div class="version-details">
+                <p><strong>Understanding the Progress Bar</strong></p>
+                <p>The progress bar displays squares that provide visual information about project phases:</p>
+                <ul class="sub-list">
+                    <li>Pulsating orange square: Indicates that a record has been recently updated in this phase</li>
+                    <li>Different colored squares: Each color represents a specific status</li>
+                    <li>Yellow: Phase has tasks "In Progress"</li>
+                    <li>Green: Phase has "Completed" tasks with no "In Progress" tasks</li>
+                    <li>Red: Phase has no activity but later phases are active</li>
+                    <li>Grey: Phase has no activity and no later phases are active</li>
+                </ul>
+                <p><strong>New Interactive Features</strong></p>
+                <p>The progress bar squares now offer two different interactions:</p>
+                <ul class="sub-list">
+                    <li><strong>Clicking on a pulsating square:</strong></li>
+                    <li>Opens the project details page</li>
+                    <li>Automatically highlights the recently updated entry in the history with an orange border</li>
+                    <li>Helps you quickly identify which record was updated</li>
+                    <li><strong>Clicking on a non-pulsating square:</strong></li>
+                    <li>Opens the project details page</li>
+                    <li>Automatically filters the history to show only entries from that phase</li>
+                    <li>Eliminates the need to manually select filters</li>
+                </ul>
+                <p>This feature makes navigation more efficient by providing direct access to filtered information or highlighting recent updates with a single click.</p>
+            </div>
+        `
+    },
     { date: '09/04/25', version: 'V3.7', description: 'Redesigned version log modal with improved readability' },
     
     // 07/04/25 - V3.6
@@ -62,6 +94,31 @@ function createVersionLogPopup() {
     popup.id = 'version-log';
     popup.className = 'version-log';
 
+    // Aggiungi stili CSS per le sottoliste e i dettagli
+    const styleElement = document.createElement('style');
+    styleElement.textContent = `
+        .version-details {
+            margin-left: 0;
+            margin-top: 5px;
+            font-size: 0.95em;
+        }
+        
+        .version-details p {
+            margin: 8px 0;
+        }
+        
+        .sub-list {
+            margin-top: 5px;
+            margin-bottom: 10px;
+            padding-left: 20px;
+        }
+        
+        .version-log li.feature-item {
+            margin-bottom: 15px;
+        }
+    `;
+    document.head.appendChild(styleElement);
+
     // Organizza i dati per versione
     const versionGroups = {};
     let currentVersion = null;
@@ -96,7 +153,7 @@ function createVersionLogPopup() {
         contentHTML += `
             <div class="version-header">[${group.version}] - ${dateFormatted}</div>
             <ul>
-                ${group.items.map(item => `<li>${item}</li>`).join('')}
+                ${group.items.map(item => `<li class="feature-item">${item}</li>`).join('')}
             </ul>
         `;
     });

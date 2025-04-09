@@ -87,3 +87,19 @@
     font-size: 12px;
     display: inline-block;
 }
+
+/* Stile per evidenziare i record corrispondenti ai quadratini lampeggianti */
+.highlight-from-progressbar {
+    outline: 3px solid #e67e22 !important; /* Bordo arancione per coerenza con i quadratini */
+    outline-offset: -3px;
+    position: relative;
+    z-index: 1;
+    animation: highlight-outline-pulse 1.5s infinite ease-in-out; /* Animazione del bordo */
+}
+
+/* Animazione per il bordo lampeggiante */
+@keyframes highlight-outline-pulse {
+    0% { outline-color: rgba(230, 126, 34, 0.3); }
+    50% { outline-color: rgba(230, 126, 34, 1); }
+    100% { outline-color: rgba(230, 126, 34, 0.3); }
+}

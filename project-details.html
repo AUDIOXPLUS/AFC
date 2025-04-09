@@ -54,7 +54,12 @@
                 <button id="urge-tasks-btn" class="btn">Urge Tasks</button>
             </div>
             <div class="filters">
-                <input type="text" id="phase-filter" placeholder="Phase">
+                <div class="phase-dropdown">
+                    <button id="phase-dropdown-btn">Phase</button>
+                    <div id="phase-filter" class="dropdown-content">
+                        <!-- Le fasi verranno popolate dinamicamente -->
+                    </div>
+                </div>
                 <input type="text" id="assigned-to-filter" placeholder="Assigned to">
                 <div class="status-dropdown">
                     <button id="status-dropdown-btn">Status</button>

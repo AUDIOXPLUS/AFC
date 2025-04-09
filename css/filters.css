@@ -125,7 +125,7 @@
     background-color: #2980b9;
 }
 
-/* Stili per i dropdown (status e column visibility) */
+/* Stili per i dropdown (phase, status e column visibility) */
 
 #column-visibility-btn {
     background-color: #fff;
@@ -141,6 +141,32 @@
     color: #333;
 }
 
+/* Stili per la dropdown dei filtri di fase */
+.phase-dropdown {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    z-index: 9999;
+    margin-right: 15px;
+    margin-bottom: 5px;
+}
+
+#phase-dropdown-btn {
+    background-color: #fff;
+    border: 1px solid #ddd;
+    padding: 5px 8px;
+    cursor: pointer;
+    font-size: 12px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100px;
+    color: #333;
+    height: 27px;
+    box-sizing: border-box;
+}
+
 /* Stili per la dropdown dei filtri di stato */
 .status-dropdown {
     position: relative;
@@ -149,6 +175,13 @@
     z-index: 9998;
     margin-right: 15px;
     margin-bottom: 5px;
+}
+
+/* Separatore nella dropdown */
+.dropdown-separator {
+    border-bottom: 1px solid #e0e0e0;
+    margin: 5px 0;
+    width: 100%;
 }
 
 #status-dropdown-btn {

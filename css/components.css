@@ -90,9 +90,11 @@
 
 /* Stile per evidenziare i quadratini aggiornati nella progress bar */
 .new-project-item {
-    animation: highlight-pulse 1.5s infinite ease-in-out; /* Applica l'animazione lampeggiante */
-    border: 1px solid #e67e22; /* Bordo arancione per migliorare la visibilità */
-    box-shadow: 0 0 5px rgba(230, 126, 34, 0.7); /* Ombra per evidenziare ulteriormente */
+    animation: highlight-pulse 0.8s infinite ease-in-out; /* Animazione più veloce */
+    border: 2px solid #ff5722; /* Bordo più spesso e colore più intenso */
+    box-shadow: 0 0 10px rgba(255, 87, 34, 0.9); /* Ombra più ampia e intensa */
+    z-index: 10; /* Assicura che il quadratino sia sopra gli altri elementi */
+    position: relative; /* Necessario per il corretto funzionamento di z-index */
 }
 
 /* Stili per il drag and drop dei file */

@@ -289,6 +289,92 @@ document.addEventListener('DOMContentLoaded', async function() {
              // Prova ad aggiornare in modo legacy se possibile, ma logga un warning
              window.updatePhaseSummary(); // Chiamata legacy con warning interno
         }
+        
+        // Verifica se ci sono parametri per fase nell'URL
+        const highlightPhaseId = urlParams.get('highlightPhase');
+        const filterPhaseId = urlParams.get('filterPhase');
+        
+        // Applica il filtro solo se è presente filterPhase e NON è presente highlightPhase
+        // Questo evita di filtrare quando l'utente clicca su un quadratino lampeggiante
+        if (filterPhaseId && !highlightPhaseId) {
+            // Trova il nome della fase corrispondente all'ID
+            let phaseName = filterPhaseId;
+            if (window.projectPhases && Array.isArray(window.projectPhases)) {
+                const phase = window.projectPhases.find(p => String(p.id) === String(filterPhaseId));
+                if (phase) {
+                    phaseName = phase.name;
+                }
+            }
+            
+            console.log(`Impostazione automatica del filtro Phase su: ${phaseName} (ID: ${filterPhaseId})`);
+            
+            // Implementazione per selezionare la fase nel nuovo dropdown
+            // Usiamo setTimeout per assicurarci che tutti gli elementi del DOM, incluso il dropdown delle fasi, siano pronti
+            setTimeout(() => {
+                // Cerca il dropdown delle fasi
+                const phaseDropdown = document.getElementById('phase-filter');
+                if (!phaseDropdown) {
+                    console.error("Dropdown delle fasi non trovato nel DOM");
+                    return;
+                }
+                
+                // Cerca il pulsante del dropdown
+                const phaseDropdownBtn = document.getElementById('phase-dropdown-btn');
+                if (!phaseDropdownBtn) {
+                    console.error("Pulsante dropdown delle fasi non trovato nel DOM");
+                    return;
+                }
+                
+                // Cerca la checkbox "All" e le checkbox delle fasi
+                const allCheckbox = phaseDropdown.querySelector('input[value="all"]');
+                const phaseCheckboxes = phaseDropdown.querySelectorAll('input[type="checkbox"]');
+                
+                // Trova la checkbox corrispondente alla fase da filtrare (per ID o per nome)
+                let targetCheckbox = null;
+                
+                // Cerca prima per ID fase
+                targetCheckbox = Array.from(phaseCheckboxes).find(
+                    cb => cb.dataset.phaseId && String(cb.dataset.phaseId) === String(filterPhaseId)
+                );
+                
+                // Se non trovata per ID, cerca per nome fase
+                if (!targetCheckbox) {
+                    targetCheckbox = Array.from(phaseCheckboxes).find(
+                        cb => cb.value === phaseName
+                    );
+                }
+                
+                // Se abbiamo trovato la checkbox corrispondente
+                if (targetCheckbox) {
+                    console.log(`Trovata checkbox per la fase "${phaseName}" (ID: ${filterPhaseId})`);
+                    
+                    // Deseleziona la checkbox "All"
+                    if (allCheckbox) {
+                        allCheckbox.checked = false;
+                    }
+                    
+                    // Seleziona la checkbox della fase
+                    targetCheckbox.checked = true;
+                    
+                    // Attiva l'evento change per applicare il filtro
+                    targetCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+                    
+                    // Evidenzia il pulsante dropdown per attirare l'attenzione
+                    phaseDropdownBtn.style.backgroundColor = '#ffff99'; // Giallo
+                    phaseDropdownBtn.style.fontWeight = 'bold';
+                    
+                    // Ripristina lo stile del pulsante dopo un po'
+                    setTimeout(() => {
+                        phaseDropdownBtn.style.backgroundColor = '';
+                        phaseDropdownBtn.style.fontWeight = '';
+                    }, 3000);
+                    
+                    console.log('Filtro fase applicato con successo');
+                } else {
+                    console.error(`Nessuna checkbox trovata per la fase "${phaseName}" (ID: ${filterPhaseId})`);
+                }
+            }, 1000); // Aumentato a 1000ms per dare più tempo al DOM di caricarsi completamente
+        }
     } else {
         console.error("La funzione fetchProjectHistory non è disponibile. Verificare che project-history.js sia caricato correttamente.");
     }
@@ -486,28 +572,139 @@ function enableLiveFiltering() {
     // Gestione dropdown status
     const statusDropdownBtn = document.getElementById('status-dropdown-btn');
     const statusDropdown = document.getElementById('status-filter');
+    
+    // Gestione dropdown phase
+    const phaseDropdownBtn = document.getElementById('phase-dropdown-btn');
+    const phaseDropdown = document.getElementById('phase-filter');
 
-    if (!statusDropdownBtn || !statusDropdown) {
+    if (!statusDropdownBtn || !statusDropdown || !phaseDropdownBtn || !phaseDropdown) {
         console.error('Dropdown elements not found in DOM');
         return;
     }
 
     console.log('Dropdown elements found:', {
         statusDropdownBtn: statusDropdownBtn,
-        statusDropdown: statusDropdown
+        statusDropdown: statusDropdown,
+        phaseDropdownBtn: phaseDropdownBtn,
+        phaseDropdown: phaseDropdown
     });
 
     const statusCheckboxes = statusDropdown.querySelectorAll('input[type="checkbox"]');
+    
+    // Funzione per popolare la dropdown delle fasi
+    function populatePhaseDropdown() {
+        // Verifica se le fasi sono state caricate
+        if (!window.projectPhases || !Array.isArray(window.projectPhases)) {
+            console.error('Le fasi del progetto non sono state caricate');
+            return;
+        }
+        
+        // Svuota il contenuto attuale
+        phaseDropdown.innerHTML = '';
+        
+        // Crea l'opzione "All" per mostrare tutte le fasi
+        const allLabel = document.createElement('label');
+        const allCheckbox = document.createElement('input');
+        allCheckbox.type = 'checkbox';
+        allCheckbox.value = 'all';
+        allCheckbox.checked = true; // Selezionato di default
+        allCheckbox.dataset.abbr = 'ALL';
+        allLabel.appendChild(allCheckbox);
+        allLabel.appendChild(document.createTextNode(' All'));
+        phaseDropdown.appendChild(allLabel);
+        
+        // Aggiunge un separatore
+        const separator = document.createElement('div');
+        separator.classList.add('dropdown-separator');
+        phaseDropdown.appendChild(separator);
+        
+        // Popola la dropdown con le fasi del progetto
+        window.projectPhases.forEach(phase => {
+            const label = document.createElement('label');
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.value = phase.name;
+            checkbox.dataset.abbr = phase.name.substring(0, 2).toUpperCase();
+            checkbox.dataset.phaseId = phase.id;
+            label.appendChild(checkbox);
+            label.appendChild(document.createTextNode(` ${phase.name}`));
+            phaseDropdown.appendChild(label);
+        });
+        
+        // Gestione degli eventi checkbox delle fasi
+        const phaseCheckboxes = phaseDropdown.querySelectorAll('input[type="checkbox"]');
+        phaseCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                // Se è il checkbox "All", gestisci tutte le altre checkbox
+                if (this.value === 'all') {
+                    phaseCheckboxes.forEach(cb => {
+                        if (cb !== this) {
+                            cb.checked = false;
+                        }
+                    });
+                } else {
+                    // Se è stato selezionato un altro checkbox, deseleziona "All"
+                    const allCheckbox = phaseDropdown.querySelector('input[value="all"]');
+                    if (allCheckbox) {
+                        allCheckbox.checked = false;
+                    }
+                    
+                    // Se nessun checkbox è selezionato, riseleziona "All"
+                    const anyChecked = Array.from(phaseCheckboxes).some(cb => cb.checked && cb.value !== 'all');
+                    if (!anyChecked && allCheckbox) {
+                        allCheckbox.checked = true;
+                    }
+                }
+                
+                // Applica i filtri e aggiorna il display
+                applyFilters();
+                updatePhaseDisplay();
+            });
+        });
+        
+        // Inizializza il testo del pulsante
+        updatePhaseDisplay();
+    }
+    
+    // Carica le fasi quando disponibili
+    if (window.projectPhases && Array.isArray(window.projectPhases)) {
+        populatePhaseDropdown();
+    } else {
+        // Ascolta l'evento di caricamento delle fasi
+        window.addEventListener('phasesLoaded', function(event) {
+            console.log('Fasi caricate, popolo dropdown:', event.detail);
+            populatePhaseDropdown();
+        });
+    }
 
-    // Gestione apertura/chiusura dropdown con miglior controllo degli eventi
+    // Gestione apertura/chiusura dropdown status con miglior controllo degli eventi
     statusDropdownBtn.addEventListener('click', function(event) {
         event.stopPropagation();
         statusDropdown.style.display = statusDropdown.style.display === 'block' ? 'none' : 'block';
         statusDropdownBtn.classList.toggle('active');
+        
+        // Chiudi l'altro dropdown se aperto
+        phaseDropdown.style.display = 'none';
+        phaseDropdownBtn.classList.remove('active');
+    });
+    
+    // Gestione apertura/chiusura dropdown phase
+    phaseDropdownBtn.addEventListener('click', function(event) {
+        event.stopPropagation();
+        phaseDropdown.style.display = phaseDropdown.style.display === 'block' ? 'none' : 'block';
+        phaseDropdownBtn.classList.toggle('active');
+        
+        // Chiudi l'altro dropdown se aperto
+        statusDropdown.style.display = 'none';
+        statusDropdownBtn.classList.remove('active');
     });
 
-    // Previene la chiusura quando si clicca dentro il dropdown
+    // Previene la chiusura quando si clicca dentro i dropdown
     statusDropdown.addEventListener('click', function(event) {
+        event.stopPropagation();
+    });
+    
+    phaseDropdown.addEventListener('click', function(event) {
         event.stopPropagation();
     });
 
@@ -515,6 +712,8 @@ function enableLiveFiltering() {
     document.addEventListener('click', function() {
         statusDropdown.style.display = 'none';
         statusDropdownBtn.classList.remove('active');
+        phaseDropdown.style.display = 'none';
+        phaseDropdownBtn.classList.remove('active');
     });
 
     // Gestione delle checkbox del filtro status
@@ -529,7 +728,23 @@ function enableLiveFiltering() {
     // Gestione filtri testo
     const textFilterInputs = document.querySelectorAll('.filters input[type="text"]');
     const tableRows = document.getElementById('history-table').getElementsByTagName('tbody')[0].rows;
-    const filterIndices = [1, 3]; // Indici delle colonne da filtrare
+    const filterIndices = [1, 3]; // Indici delle colonne da filtrare (Phase e Assigned To)
+
+    // Funzione per aggiornare il display delle fasi selezionate
+    function updatePhaseDisplay() {
+        // Ottieni tutte le checkbox della fase
+        const phaseCheckboxes = phaseDropdown.querySelectorAll('input[type="checkbox"]');
+        const selectedCheckboxes = Array.from(phaseCheckboxes).filter(cb => cb.checked);
+        
+        if (selectedCheckboxes.length === 0 || (selectedCheckboxes.length === 1 && selectedCheckboxes[0].value === 'all')) {
+            phaseDropdownBtn.textContent = 'Phase';
+            phaseDropdownBtn.classList.remove('filter-active');
+        } else {
+            const selectedPhases = selectedCheckboxes.map(cb => cb.getAttribute('data-abbr'));
+            phaseDropdownBtn.textContent = selectedPhases.join(', ');
+            phaseDropdownBtn.classList.add('filter-active');
+        }
+    }
 
     // Funzione per aggiornare il display degli stati selezionati
     function updateStatusDisplay() {
@@ -546,9 +761,10 @@ function enableLiveFiltering() {
     }
 
     // Funzione per salvare i filtri nel localStorage
-    function saveFilters(textFilterValues, selectedStatuses) {
+    function saveFilters(textFilterValues, selectedPhases, selectedStatuses) {
         const filters = {
             text: textFilterValues,
+            phases: selectedPhases,
             status: selectedStatuses
         };
         localStorage.setItem('historyFilters', JSON.stringify(filters));
@@ -560,6 +776,16 @@ function enableLiveFiltering() {
         const selectedStatuses = Array.from(statusCheckboxes)
             .filter(cb => cb.checked)
             .map(cb => cb.value);
+            
+        // Ottieni le fasi selezionate
+        const phaseCheckboxes = phaseDropdown.querySelectorAll('input[type="checkbox"]');
+        const selectedPhases = Array.from(phaseCheckboxes)
+            .filter(cb => cb.checked && cb.value !== 'all')
+            .map(cb => cb.value);
+        
+        // Controlla se è selezionato "All" per le fasi
+        const isAllPhasesSelected = Array.from(phaseCheckboxes)
+            .some(cb => cb.checked && cb.value === 'all');
 
         // Aggiorna lo stile dei filtri attivi
         textFilterInputs.forEach(input => {
@@ -567,33 +793,42 @@ function enableLiveFiltering() {
         });
 
         statusDropdownBtn.classList.toggle('filter-active', selectedStatuses.length > 0);
+        phaseDropdownBtn.classList.toggle('filter-active', selectedPhases.length > 0);
 
         // Salva i filtri nel localStorage
-        saveFilters(textFilterValues, selectedStatuses);
+        saveFilters(textFilterValues, selectedPhases, selectedStatuses);
 
+        // Aggiorna il display visivo dei filtri
         updateStatusDisplay();
+        updatePhaseDisplay();
 
         Array.from(tableRows).forEach(row => {
             let isMatch = true;
 
-            // Controllo filtri testo
-            for (let i = 0; i < textFilterValues.length; i++) {
-                const filterValue = textFilterValues[i];
-                const cellIndex = filterIndices[i];
+            // Controllo filtri testo (solo per Assigned To)
+            if (textFilterValues[0] && textFilterValues[0].length > 0) {
+                const cellIndex = filterIndices[1]; // Indice per Assigned To = 3
                 const cell = row.cells[cellIndex];
-
-                if (cell && filterValue) {
+                if (cell) {
                     const cellText = cell.textContent.toLowerCase().trim();
-                    if (!cellText.includes(filterValue)) {
+                    if (!cellText.includes(textFilterValues[0])) {
                         isMatch = false;
-                        break;
                     }
+                }
+            }
+
+            // Controllo filtro phase
+            if (isMatch && selectedPhases.length > 0 && !isAllPhasesSelected) {
+                const phaseCell = row.cells[1]; // Indice per Phase = 1
+                const phaseText = phaseCell.textContent.trim();
+                if (!selectedPhases.includes(phaseText)) {
+                    isMatch = false;
                 }
             }
 
             // Controllo filtro status
             if (isMatch && selectedStatuses.length > 0) {
-                const statusCell = row.cells[4];
+                const statusCell = row.cells[4]; // Indice per Status = 4
                 const statusText = statusCell.textContent.trim();
                 if (!selectedStatuses.includes(statusText)) {
                     isMatch = false;
@@ -602,6 +837,9 @@ function enableLiveFiltering() {
 
             row.style.display = isMatch ? '' : 'none';
         });
+        
+        // Aggiorna il phase summary per mostrare solo le voci filtrate
+        window.updatePhaseSummary();
     }
 
     // Funzione per caricare e applicare i filtri salvati

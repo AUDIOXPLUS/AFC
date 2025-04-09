@@ -149,12 +149,51 @@ export function displayProjectHistory(history, projectId) {
     }
     tableBody.innerHTML = ''; // Pulisce il corpo della tabella
 
+    // Controlla se ci sono parametri nell'URL per evidenziare o filtrare per fase
+    const urlParams = new URLSearchParams(window.location.search);
+    const highlightPhaseId = urlParams.get('highlightPhase');
+    const filterPhaseId = urlParams.get('filterPhase');
+    
+    console.log(`Verifica parametri URL - highlightPhase: ${highlightPhaseId}, filterPhase: ${filterPhaseId}`);
+    
+    // Se è richiesto di filtrare per fase, imposta il filtro nel campo Phase
+    if (filterPhaseId) {
+        // Trova il nome della fase corrispondente all'ID
+        const phaseName = window.projectPhasesMap && window.projectPhasesMap[filterPhaseId] 
+            ? window.projectPhasesMap[filterPhaseId] 
+            : String(filterPhaseId);
+            
+        console.log(`Impostazione filtro automatico sulla fase "${phaseName}" (ID: ${filterPhaseId})`);
+        
+        // Imposta il valore nel campo di filtro "Phase" (indice 0)
+        const phaseFilterInput = document.querySelector('.filters input[type="text"][placeholder="Phase"]');
+        if (phaseFilterInput) {
+            phaseFilterInput.value = phaseName;
+            // Trigger dell'evento input per attivare il filtro
+            phaseFilterInput.dispatchEvent(new Event('input', { bubbles: true }));
+            console.log(`Filtro Phase impostato su "${phaseName}"`);
+        } else {
+            console.error("Campo di filtro Phase non trovato nel DOM");
+        }
+    }
+    
     // Usa DocumentFragment per migliorare le prestazioni di inserimento nel DOM
     const fragment = document.createDocumentFragment();
 
     history.forEach(entry => { // Non serve async qui se non ci sono await nel loop diretto
         const row = document.createElement('tr'); // Crea la riga
         row.setAttribute('data-entry-id', entry.id);
+        
+        // Verifica se questa entry deve essere evidenziata
+        const shouldHighlight = highlightPhaseId && 
+                                String(entry.phase) === String(highlightPhaseId) && 
+                                (entry.is_new === true || entry.is_new === 1);
+        
+        if (shouldHighlight) {
+            // Usa la nuova classe per creare un bordo lampeggiante che mantenga il colore di sfondo originale
+            row.classList.add('highlight-from-progressbar');
+            console.log(`[Evidenziazione] Riga evidenziata con bordo per l'entry ${entry.id} della fase ${entry.phase} (è nuova)`);
+        }
 
         // --- Cella Data ---
         const dateCell = row.insertCell(0);

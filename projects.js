@@ -631,11 +631,11 @@ function createPhaseProgressBar(projectHistory, phases, projectId) {
         } else if (hasLaterPhaseActive) {
             // ROSSO: se NON ci sono task "completed" ED esiste una fase successiva con tasks "in progress" o "completed"
             phaseItem.classList.add('phase-progress-red');
-            tooltipText += 'Non iniziato (fasi successive attive)';
+            tooltipText += 'Not Started (subsequent phases active)';
         } else {
             // Grigio: nessuna attività in questa fase e nelle fasi successive
             phaseItem.classList.add('phase-progress-none');
-            tooltipText += 'Non iniziato';
+            tooltipText += 'Not Started';
         }
 
         // Verifica se ci sono voci nuove/aggiornate (is_new = true) per questa fase
@@ -645,21 +645,27 @@ function createPhaseProgressBar(projectHistory, phases, projectId) {
         if (hasNewEntries) {
             phaseItem.classList.add('new-project-item');
             console.log(`[Evidenziazione] Fase ${phase.name} (ID: ${phase.id}) del progetto ${projectId}: Trovata voce aggiornata, applica evidenziazione al quadratino.`);
-            tooltipText += '\n(AGGIORNATO)';
+            tooltipText += '\n(UPDATED)';
         }
 
         // Aggiungi dettagli dell'ultimo record al tooltip se disponibile
         if (latestRecord) {
-            tooltipText += `\nUltimo aggiornamento: ${latestRecord.date}`;
-            tooltipText += `\nDescrizione: ${latestRecord.description || 'Nessuna descrizione'}`;
-            tooltipText += `\nStato: ${latestRecord.status}`;
-            tooltipText += `\nAssegnato a: ${latestRecord.assigned_to || 'Non assegnato'}`;
+            tooltipText += `\nLast update: ${latestRecord.date}`;
+            tooltipText += `\nDescription: ${latestRecord.description || 'No description'}`;
+            tooltipText += `\nStatus: ${latestRecord.status}`;
+            tooltipText += `\nAssigned to: ${latestRecord.assigned_to || 'Not assigned'}`;
         }
         phaseItem.title = tooltipText;
 
         // Aggiungi l'event listener per il click
         phaseItem.addEventListener('click', () => {
-            window.location.href = `project-details.html?id=${projectId}`;
+            // Se è una voce aggiornata (lampeggiante), aggiunge SOLO il parametro highlightPhase
+            if (hasNewEntries) {
+                window.location.href = `project-details.html?id=${projectId}&highlightPhase=${phase.id}`;
+            } else {
+                // Se NON è una voce aggiornata, aggiunge SOLO il parametro filterPhase
+                window.location.href = `project-details.html?id=${projectId}&filterPhase=${phase.id}`;
+            }
         });
         // Aggiungi uno stile per indicare che è cliccabile
         phaseItem.style.cursor = 'pointer';

@@ -15,9 +15,18 @@
 
 /* Animazione pulsante per nuovi task */
 @keyframes highlight-pulse {
-    0% { background-color: transparent; }
-    50% { background-color: rgba(241, 196, 15, 0.7); }
-    100% { background-color: transparent; }
+    0% { 
+        background-color: transparent;
+        transform: scale(1);
+    }
+    50% { 
+        background-color: rgba(255, 140, 0, 0.9); /* Arancione più intenso */
+        transform: scale(1.15); /* Effetto pulsazione */
+    }
+    100% { 
+        background-color: transparent;
+        transform: scale(1);
+    }
 }
 
 /* Animazione per il gruppo bottleneck */
