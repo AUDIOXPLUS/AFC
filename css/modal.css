@@ -63,21 +63,24 @@
     margin-top: 5px;
 }
 
-/* Stile per il popup del log delle versioni */
+/* Stile per il popup del log delle versioni - Stile rinnovato */
 .version-log {
     display: none;
     position: fixed;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background: white;
-    padding: 20px;
+    background: #ffffff;
+    color: #2c3e50;
+    padding: 25px;
     border-radius: 8px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-    z-index: 10101; /* Aumentato z-index ulteriormente */
-    min-width: 400px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    z-index: 10101;
+    min-width: 500px;
+    max-width: 700px;
     max-height: 80vh;
     overflow-y: auto;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 .version-log.show {
@@ -86,47 +89,41 @@
 
 .version-log h2 {
     color: #2c3e50;
-    margin-bottom: 15px;
-    font-size: 18px;
-}
-
-.version-log table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
-    table-layout: fixed;
-}
-
-.version-log th, .version-log td {
-    padding: 8px;
-    text-align: left;
+    margin-bottom: 20px;
+    font-size: 22px;
     border-bottom: 1px solid #e0e0e0;
+    padding-bottom: 10px;
 }
 
-/* Imposta larghezza fissa per la colonna date */
-.version-log th:first-child,
-.version-log td:first-child {
-    width: 85px; /* Larghezza ottimale per contenere la data (es: "19/02/25") */
+.version-log .version-header {
+    font-size: 18px;
+    font-weight: bold;
+    margin: 25px 0 15px 0;
+    color: #3498db;
 }
 
-/* La colonna description prenderà il resto dello spazio disponibile */
-.version-log th:last-child,
-.version-log td:last-child {
-    width: auto;
-    white-space: normal; /* Permette il wrapping del testo */
-    word-break: break-word; /* Spezza le parole lunghe se necessario */
+.version-log .version-header:first-of-type {
+    margin-top: 0;
 }
 
-/* Stile per la riga separatrice (spazio vuoto) */
-.version-log tr.date-separator td {
-    border-bottom: none; /* Rimuove il bordo inferiore normale */
-    border-top: none; /* Rimuove il bordo superiore */
-    padding: 8px 0; /* Aumenta lo spazio verticale per creare separazione */
-    height: 10px; /* Altezza minima per garantire lo spazio */
-    line-height: 10px; /* Coerente con l'altezza */
+.version-log ul {
+    margin: 0 0 10px 0;
+    padding-left: 20px;
+    list-style-type: disc;
 }
 
-/* Overlay per lo sfondo scuro quando il popup è aperto */
+.version-log li {
+    margin-bottom: 8px;
+    line-height: 1.4;
+    color: #333;
+}
+
+.version-log .contributor {
+    color: #3498db;
+    font-style: italic;
+}
+
+/* Overlay per lo sfondo quando il popup è aperto */
 .version-overlay {
     display: none;
     position: fixed;
@@ -135,11 +132,26 @@
     right: 0;
     bottom: 0;
     background: rgba(0,0,0,0.5);
-    z-index: 10100; /* Aumentato z-index ulteriormente */
+    z-index: 10100;
 }
 
 .version-overlay.show {
     display: block;
+}
+
+/* Pulsante di chiusura per la finestra version log */
+.version-close-btn {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    color: #aaa;
+    font-size: 24px;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.version-close-btn:hover {
+    color: #333;
 }
 
 /* Stili per la pagina di login */
