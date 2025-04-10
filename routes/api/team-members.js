@@ -246,6 +246,7 @@ router.get('/factories', checkAuthentication, async (req, res) => {
             SELECT DISTINCT factory
             FROM users
             WHERE factory IS NOT NULL AND factory != ''
+            AND factory NOT IN ('FLT', 'FLT_FINANCIAL')
         `;
         const queryParams = [];
         const level = permissions.level || permissions.scope;
@@ -279,7 +280,7 @@ router.get('/factories', checkAuthentication, async (req, res) => {
                  // TODO: Chiarire la logica desiderata per own-client rispetto alle factory.
                  // Per ora, si comporta come 'all'.
                  console.warn("Logica permessi 'own-client' per le factory da rivedere. Attualmente mostra tutte."); // Log in italiano
-                 query = `SELECT DISTINCT factory FROM users WHERE factory IS NOT NULL AND factory != ''`; // Reset query a "mostra tutte"
+                 query = `SELECT DISTINCT factory FROM users WHERE factory IS NOT NULL AND factory != '' AND factory NOT IN ('FLT', 'FLT_FINANCIAL')`; // Reset query a "mostra tutte"
                  queryParams.length = 0; // Svuota parametri
                 break;
             case 'specific-users':
