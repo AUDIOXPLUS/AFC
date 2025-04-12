@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login</title>
+    <title data-translate="Login">Login</title> <!-- Traduci titolo -->
     <!-- <link rel="stylesheet" href="styles.css"> Vecchio riferimento -->
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/modal.css"> /* Specifico per login */
@@ -12,13 +12,13 @@
 <body>
     <div class="login-container">
         <form id="loginForm" class="login-form">
-            <h1><span class="logo">AFC</span> Login</h1>
-            <label for="username">Username:</label>
+            <h1><span class="logo">AFC</span> <span data-translate="Login">Login</span></h1>
+            <label for="username" data-translate="Username:">Username:</label>
             <input type="text" id="username" name="username" required>
-            <label for="password">Password:</label>
+            <label for="password" data-translate="Password:">Password:</label>
             <input type="password" id="password" name="password" required>
-            <button type="submit">Login</button>
-            <button type="button" id="changePasswordBtn" class="secondary-button">Change Password</button>
+            <button type="submit" data-translate="Login">Login</button>
+            <button type="button" id="changePasswordBtn" class="secondary-button" data-translate="Change Password">Change Password</button>
             <p id="message"></p>
         </form>
     </div>
@@ -35,23 +35,26 @@
             cursor: pointer;
             transition: background-color 0.3s ease;
         }
-        
+
         .secondary-button:hover {
             background-color: #5a6268;
         }
     </style>
 
+    <!-- Includi i18n.js anche qui, sebbene non ci sia l'header completo -->
+    <script src="i18n.js"></script>
     <script>
         document.getElementById('changePasswordBtn').addEventListener('click', function() {
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
-            
+
             if (!username || !password) {
-                document.getElementById('message').textContent = 'Please enter username and password first.';
+                // Usa la funzione translate per i messaggi di errore
+                document.getElementById('message').textContent = translate('Please enter username and password first.');
                 document.getElementById('message').style.color = 'red';
                 return;
             }
-            
+
             // Verifica credenziali prima di consentire il cambio password
             fetch('/api/login', {
                 method: 'POST',
@@ -76,19 +79,19 @@
                     }));
                     window.location.href = 'change-password.html';
                 } else {
-                    document.getElementById('message').textContent = 'Invalid credentials. Please enter correct username and password.'; 
+                    document.getElementById('message').textContent = translate('Invalid credentials. Please enter correct username and password.');
                     document.getElementById('message').style.color = 'red';
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                document.getElementById('message').textContent = 'Server connection error.';
+                document.getElementById('message').textContent = translate('Server connection error.');
                 document.getElementById('message').style.color = 'red';
             });
         });
         document.getElementById('loginForm').addEventListener('submit', function(event) {
             event.preventDefault();
-            
+
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
 
@@ -111,13 +114,15 @@
                     localStorage.setItem('loggedInUser', data.name); // Salva il nome dell'utente
                     window.location.href = 'projects.html'; // Reindirizza in caso di login riuscito
                 } else {
-                    document.getElementById('message').textContent = data.message; // Mostra il messaggio di errore
+                    // Traduci il messaggio di errore specifico se esiste, altrimenti usa un messaggio generico
+                    const errorMessage = data.message ? translate(data.message) : translate('Login failed.');
+                    document.getElementById('message').textContent = errorMessage;
                     document.getElementById('message').style.color = 'red';
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                document.getElementById('message').textContent = 'Server connection error.';
+                document.getElementById('message').textContent = translate('Server connection error.');
                 document.getElementById('message').style.color = 'red';
             });
         });

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Tasks</title>
+    <title data-translate="My Tasks">My Tasks</title> <!-- Traduci titolo -->
     <!-- <link rel="stylesheet" href="styles.css"> Vecchio riferimento -->
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/table.css">
@@ -20,10 +20,10 @@
         <nav>
             <div class="logo">AFC</div>
             <ul>
-                <li><a href="projects.html">Projects</a></li>
-                <li><a href="users.html">Team Members</a></li>
-                <li><a href="tasks.html">My Tasks</a></li>
-                <li><a href="configuration.html">Configuration</a></li>
+                <li><a href="projects.html" data-translate="Projects">Projects</a></li>
+                <li><a href="users.html" data-translate="Team Members">Team Members</a></li>
+                <li><a href="tasks.html" class="active" data-translate="My Tasks">My Tasks</a></li> <!-- Aggiunto class="active" -->
+                <li><a href="configuration.html" data-translate="Configuration">Configuration</a></li>
             </ul>
         </nav>
         <div class="user-info">
@@ -31,36 +31,37 @@
                 <i class="fas fa-bell"></i>
                 <span class="notification-count" style="display: none">0</span>
             </div>
-            <a href="#" id="logout">Logout</a>
+             <!-- Il selettore lingua verrà aggiunto qui da i18n.js -->
+            <a href="#" id="logout" data-translate="Logout">Logout</a>
         </div>
     </header>
     <main>
-        <h1>My Tasks</h1>
+        <h1 data-translate="My Tasks">My Tasks</h1>
         <div class="filters">
-            <input type="text" id="filter-input" placeholder="User">
-            <input type="text" id="factory-filter" placeholder="Factory">
-            <input type="text" id="model-filter" placeholder="Model n">
-            <input type="text" id="priority-filter" placeholder="Priority">
+            <input type="text" id="filter-input" placeholder="User" data-translate-placeholder="User">
+            <input type="text" id="factory-filter" placeholder="Factory" data-translate-placeholder="Factory">
+            <input type="text" id="model-filter" placeholder="Model n" data-translate-placeholder="Model n">
+            <input type="text" id="priority-filter" placeholder="Priority" data-translate-placeholder="Priority">
             <div class="status-dropdown">
-                <button id="status-dropdown-btn">
+                <button id="status-dropdown-btn" data-translate="Status">
                     Status
                 </button>
                 <div id="status-filter" class="dropdown-content">
-                    <label><input type="checkbox" value="In Progress" data-abbr="IP"> In Progress</label>
-                    <label><input type="checkbox" value="Completed" data-abbr="CO"> Completed</label>
-                    <label><input type="checkbox" value="On Hold" data-abbr="OH"> On Hold</label>
-                    <label><input type="checkbox" value="Archived" data-abbr="AR"> Archived</label>
+                    <label><input type="checkbox" value="In Progress" data-abbr="IP" data-translate="In Progress"> In Progress</label>
+                    <label><input type="checkbox" value="Completed" data-abbr="CO" data-translate="Completed"> Completed</label>
+                    <label><input type="checkbox" value="On Hold" data-abbr="OH" data-translate="On Hold"> On Hold</label>
+                    <label><input type="checkbox" value="Archived" data-abbr="AR" data-translate="Archived"> Archived</label>
                 </div>
             </div>
             <div id="groupings">
                 <div class="group-container">
                     <label class="priority-toggle">
                         <input type="checkbox" id="priority-only-toggle">
-                        <span class="toggle-label">Priority Only</span>
+                        <span class="toggle-label" data-translate="Priority Only">Priority Only</span>
                     </label>
-                    <span class="group-label" data-role="Client">Client: <span id="grouping-client">0</span></span>
-                    <span class="group-label" data-role="R&D China">R&D China: <span id="grouping-rd-china">0</span></span>
-                    <span class="group-label" data-role="Factories">Factories: <span id="grouping-factories">0</span></span>
+                    <span class="group-label" data-role="Client" data-translate="Client:">Client: <span id="grouping-client">0</span></span>
+                    <span class="group-label" data-role="R&D China" data-translate="R&D China:">R&D China: <span id="grouping-rd-china">0</span></span>
+                    <span class="group-label" data-role="Factories" data-translate="Factories:">Factories: <span id="grouping-factories">0</span></span>
                 </div>
             </div>
         </div>
@@ -68,13 +69,13 @@
             <table id="task-table">
                 <thead>
                     <tr>
-                        <th>Factory <i class="fas fa-sort"></i></th>
-                        <th>Model Number <i class="fas fa-sort"></i></th>
-                        <th>Date <i class="fas fa-sort"></i></th>
-                        <th>Task <i class="fas fa-sort"></i></th>
-                        <th>Assigned To <i class="fas fa-sort"></i></th>
-                        <th>Status <i class="fas fa-sort"></i></th>
-                        <th>Priority <i class="fas fa-sort"></i></th>
+                        <th data-translate="Factory">Factory <i class="fas fa-sort"></i></th>
+                        <th data-translate="Model Number">Model Number <i class="fas fa-sort"></i></th>
+                        <th data-translate="Date">Date <i class="fas fa-sort"></i></th>
+                        <th data-translate="Task">Task <i class="fas fa-sort"></i></th>
+                        <th data-translate="Assigned To">Assigned To <i class="fas fa-sort"></i></th>
+                        <th data-translate="Status">Status <i class="fas fa-sort"></i></th>
+                        <th data-translate="Priority">Priority <i class="fas fa-sort"></i></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -87,8 +88,8 @@
     <!-- Popup di caricamento -->
     <div id="loading-popup" class="loading-popup" style="display: none;">
         <div class="loading-content">
-            <h2>Loading...</h2>
-            <p>Please wait while the tasks are being loaded.</p> <!-- Modificato testo per tasks -->
+            <h2 data-translate="Loading...">Loading...</h2>
+            <p data-translate="Please wait while the tasks are being loaded.">Please wait while the tasks are being loaded.</p> <!-- Modificato testo per tasks -->
             <div class="loading-progress-container">
                 <div class="loading-progress-bar">
                     <div id="loading-progress" class="loading-progress" style="width: 0%;"></div>
@@ -102,9 +103,11 @@
     <script src="auth.js"></script>
     <script src="users.js"></script>
     <script src="tasks.js"></script>
+    <script src="i18n.js"></script> <!-- Aggiungi script i18n -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             displayLoggedInUser();
+            // initializeNotifications(); // Rimosso se non necessario qui
         });
     </script>
 </body>

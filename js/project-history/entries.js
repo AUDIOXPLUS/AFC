@@ -10,6 +10,234 @@ import { handleNetworkError, handleResponse } from './utils.js';
 // Importa anche handleFileUpload per l'event delegation
 import { updateFilesCell, fetchEntryFiles, handleFileUpload } from './files.js';
 
+
+// --- Logica Tooltip Personalizzato per Descrizione ---
+
+// Ottieni riferimenti agli elementi del tooltip una sola volta
+const tooltipElement = document.getElementById('history-custom-tooltip');
+const tooltipContent = document.getElementById('tooltip-content');
+const tooltipTranslateBtn = document.getElementById('tooltip-translate-btn');
+const tooltipLoading = document.getElementById('tooltip-loading');
+const tooltipError = document.getElementById('tooltip-error');
+let showTooltipTimer = null; // Timer per mostrare il tooltip con ritardo
+let hideTooltipTimer = null; // Timer per nascondere il tooltip
+let currentTargetCell = null; // Memorizza la cella target corrente
+let isMouseOverTooltip = false; // Flag per tracciare se il mouse è sopra il tooltip
+
+// Funzione per mostrare il tooltip (ora chiamata dopo il ritardo)
+function showTooltip(cell) {
+    // Rimosso event come parametro, ora passiamo direttamente la cella
+    // Aggiunto check per tooltipElement per evitare errori se non trovato
+    if (!cell || !tooltipElement) return;
+
+    // Verifica se il mouse è ancora sulla cella target quando il timer scade
+    // Questo previene la comparsa se l'utente si è spostato velocemente
+    if (cell !== currentTargetCell) {
+        console.log("Tooltip show cancelled: mouse left target cell before timer expired.");
+        return;
+    }
+    // Cancella timer di chiusura se presente (spostato da mouseover)
+    if (hideTooltipTimer) {
+        clearTimeout(hideTooltipTimer);
+        hideTooltipTimer = null;
+    }
+
+    const fullDescription = cell.dataset.fullDescription;
+    // Aggiunto check per tooltipContent
+    if (!fullDescription || !tooltipContent) return;
+
+    tooltipContent.textContent = fullDescription; // Imposta testo originale
+    // Aggiunti check null per elementi opzionali
+    if(tooltipError) tooltipError.textContent = ''; // Pulisci errori precedenti
+    if(tooltipLoading) tooltipLoading.style.display = 'none'; // Nascondi loading
+    if(tooltipTranslateBtn) tooltipTranslateBtn.disabled = false; // Abilita pulsante
+
+    // Posiziona il tooltip vicino alla cella
+    const rect = cell.getBoundingClientRect();
+    tooltipElement.style.left = `${rect.left + window.scrollX}px`;
+    // Modificato: Rimosso l'offset +5 per avvicinare il tooltip
+    tooltipElement.style.top = `${rect.bottom + window.scrollY}px`;
+    tooltipElement.style.display = 'block';
+}
+
+// Funzione per avviare il timer per nascondere il tooltip
+function startHideTooltipTimer() {
+    // Cancella qualsiasi timer precedente
+    if (hideTooltipTimer) {
+        clearTimeout(hideTooltipTimer);
+    }
+    hideTooltipTimer = setTimeout(() => {
+        // Nascondi solo se il mouse non è finito nel frattempo sul tooltip
+        if (!isMouseOverTooltip && tooltipElement) {
+            tooltipElement.style.display = 'none';
+            currentTargetCell = null;
+        }
+        hideTooltipTimer = null;
+    }, 300); // Ritardo prima di nascondere
+}
+
+// Funzione per gestire il click sul pulsante Translate
+async function handleTranslateClick() {
+    // Aggiunti check null per tutti gli elementi richiesti
+    if (!currentTargetCell || !tooltipContent || !tooltipLoading || !tooltipError || !tooltipTranslateBtn) {
+         console.error("Elementi del tooltip o cella target mancanti per la traduzione.");
+         return;
+    }
+
+    const originalText = currentTargetCell.dataset.fullDescription;
+    const currentTextInTooltip = tooltipContent.textContent;
+    // Rimuoviamo la dipendenza da uiLanguage per determinare targetLang
+    // const uiLanguage = typeof window !== 'undefined' && window.currentLanguage ? window.currentLanguage : 'en';
+    let targetLang;
+    let textToTranslate = originalText; // Traduci sempre l'originale
+
+    // --- NUOVA LOGICA: Determina targetLang basandosi sul contenuto di originalText ---
+    // Regex semplice per rilevare caratteri CJK (Cinese, Giapponese, Coreano)
+    // Questo è un approccio semplificato, potrebbe non essere perfetto per tutti i casi.
+    const containsChineseChars = /[\u4E00-\u9FFF\u3400-\u4DBF]/.test(originalText || ''); // Aggiunto fallback per originalText nullo
+
+    if (containsChineseChars) {
+        // Se il testo originale sembra Cinese, traduci in Inglese
+        targetLang = 'en';
+        console.log(`Rilevato testo originale come Cinese (o CJK). Target: ${targetLang}`);
+    } else {
+        // Altrimenti, assumi sia Inglese (o altra lingua non CJK) e traduci in Cinese
+        targetLang = 'zh';
+        console.log(`Testo originale non sembra Cinese (o CJK). Target: ${targetLang}`);
+    }
+    // --- FINE NUOVA LOGICA ---
+
+    console.log(`Traduzione richiesta. Testo: "${textToTranslate?.substring(0,30)}...", Target: ${targetLang}`);
+
+    if (!textToTranslate) {
+        tooltipError.textContent = 'No text to translate.';
+        return;
+    }
+
+    // Se il testo mostrato è già quello tradotto, rimetti l'originale invece di ritradurre
+    // Questo previene chiamate API multiple se l'utente clicca più volte
+    // Confrontiamo il testo attuale con l'originale per decidere se mostrare l'originale o chiamare l'API
+    if (currentTextInTooltip !== originalText) {
+        console.log("Mostro testo originale.");
+        tooltipContent.textContent = originalText;
+        // Potremmo voler cambiare l'icona/testo del pulsante qui per indicare "Mostra originale"
+        return; // Esce senza chiamare l'API
+    }
+
+    // Altrimenti, procedi con la chiamata API per tradurre
+    tooltipLoading.style.display = 'inline';
+    tooltipError.textContent = '';
+    tooltipTranslateBtn.disabled = true;
+
+    try {
+        const response = await fetch('/api/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                text: textToTranslate,
+                // fromLang: 'auto', // Lasciamo che Baidu rilevi l'origine (se supportato e utile)
+                targetLang: targetLang // Usa il targetLang calcolato correttamente
+            }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || `HTTP error ${response.status}`);
+        if (result.translatedText) {
+            tooltipContent.textContent = result.translatedText;
+        } else {
+            throw new Error('Traduzione non ricevuta.');
+        }
+    } catch (error) {
+        console.error('Errore durante la traduzione:', error);
+        tooltipError.textContent = `Error: ${error.message}`;
+        tooltipContent.textContent = originalText; // Ripristina originale
+    } finally {
+        tooltipLoading.style.display = 'none';
+        tooltipTranslateBtn.disabled = false;
+    }
+}
+
+// Funzione per aggiungere i listener del tooltip
+function setupTooltipListeners() {
+    const tableBody = document.getElementById('history-table')?.getElementsByTagName('tbody')[0];
+    if (!tableBody) {
+        console.warn("Tooltip listeners: Impossibile trovare tbody.");
+        return;
+    }
+
+    // Rimuovi listener precedenti
+    if (tableBody._tooltipMouseoverListener) tableBody.removeEventListener('mouseover', tableBody._tooltipMouseoverListener);
+    if (tableBody._tooltipMouseoutListener) tableBody.removeEventListener('mouseout', tableBody._tooltipMouseoutListener);
+
+    // Definisci i nuovi listener per il tbody
+    tableBody._tooltipMouseoverListener = (event) => {
+        const cell = event.target.closest('.history-description-cell');
+        if (cell) {
+            currentTargetCell = cell; // Memorizza la cella target
+            // Cancella qualsiasi timer di visualizzazione precedente
+            if (showTooltipTimer) {
+                clearTimeout(showTooltipTimer);
+            }
+            // Avvia il timer per mostrare il tooltip dopo 1.5 secondi
+            showTooltipTimer = setTimeout(() => {
+                // Passa la cella target alla funzione showTooltip
+                showTooltip(cell);
+                showTooltipTimer = null; // Resetta il timer dopo l'esecuzione
+            }, 1500); // Ritardo di 1.5 secondi
+        }
+    };
+    tableBody._tooltipMouseoutListener = (event) => {
+        const cell = event.target.closest('.history-description-cell');
+        if (cell) {
+            // Se il mouse esce dalla cella, cancella il timer per mostrare il tooltip
+            if (showTooltipTimer) {
+                clearTimeout(showTooltipTimer);
+                showTooltipTimer = null;
+            }
+            // NON avviare il timer per nascondere qui,
+            // viene gestito solo quando si esce dal tooltip stesso.
+            // startHideTooltipTimer(); // Rimosso da qui
+        }
+    };
+
+    // Aggiungi i nuovi listener al tbody
+    tableBody.addEventListener('mouseover', tableBody._tooltipMouseoverListener);
+    tableBody.addEventListener('mouseout', tableBody._tooltipMouseoutListener); // Riattivato per cancellare showTooltipTimer
+
+    // Aggiungi listener al tooltip stesso
+    if (tooltipElement) {
+        // Rimuovi listener precedenti
+        if (tooltipElement._tooltipMouseoverListener) tooltipElement.removeEventListener('mouseover', tooltipElement._tooltipMouseoverListener);
+        if (tooltipElement._tooltipMouseoutListener) tooltipElement.removeEventListener('mouseout', tooltipElement._tooltipMouseoutListener);
+        if (tooltipElement._translateClickListener && tooltipTranslateBtn) tooltipTranslateBtn.removeEventListener('click', tooltipElement._translateClickListener);
+
+        // Definisci i nuovi listener per il tooltip
+        tooltipElement._tooltipMouseoverListener = () => {
+            isMouseOverTooltip = true;
+            if (hideTooltipTimer) {
+                clearTimeout(hideTooltipTimer);
+                hideTooltipTimer = null;
+            }
+        };
+        tooltipElement._tooltipMouseoutListener = () => {
+            isMouseOverTooltip = false;
+            // Avvia il timer solo quando si esce dal tooltip
+            startHideTooltipTimer();
+        };
+        tooltipElement._translateClickListener = handleTranslateClick;
+
+        // Aggiungi i nuovi listener al tooltip
+        tooltipElement.addEventListener('mouseover', tooltipElement._tooltipMouseoverListener);
+        tooltipElement.addEventListener('mouseout', tooltipElement._tooltipMouseoutListener);
+        if(tooltipTranslateBtn) {
+            tooltipTranslateBtn.addEventListener('click', tooltipElement._translateClickListener);
+        }
+    } else {
+         console.warn("Elemento tooltip non trovato per aggiungere listener.");
+    }
+}
+// --- Fine Logica Tooltip ---
+
+
 /**
  * Recupera la cronologia del progetto e la ordina per data in ordine decrescente.
  * @param {number} projectId - L'ID del progetto.
@@ -280,7 +508,9 @@ export function displayProjectHistory(history, projectId) {
         let cleanDescription = entry.description || '';
         cleanDescription = cleanDescription.replace(/(forward-|reply-)/gi, '').replace(/\s*\[Parent:\s*\d+\]/g, '');
         descCell.textContent = cleanDescription; // Mostra testo pulito
-        descCell.title = entry.description || ''; // Tooltip con descrizione originale
+        // Rimosso: descCell.title = entry.description || ''; // Tooltip con descrizione originale
+        descCell.setAttribute('data-full-description', entry.description || ''); // Memorizza descrizione completa
+        descCell.classList.add('history-description-cell'); // Aggiunge classe per event delegation
 
         // --- Cella Assegnato A ---
         const assignedToCell = row.insertCell(3);
@@ -431,6 +661,9 @@ export function displayProjectHistory(history, projectId) {
     if (window.filteringApi && typeof window.filteringApi.applyFilters === 'function') {
         window.filteringApi.applyFilters();
     }
+
+    // Aggiungi listener per tooltip DOPO che la tabella è stata popolata
+    setupTooltipListeners();
 }
 
 // --- Funzioni Helper per Highlight ---

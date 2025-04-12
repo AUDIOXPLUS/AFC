@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Project Details</title>
+    <title data-translate="Project Details">Project Details</title> <!-- Traduci titolo -->
     <!-- <link rel="stylesheet" href="styles.css"> Vecchio riferimento -->
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/table.css">
@@ -21,10 +21,10 @@
         <nav>
             <div class="logo">AFC</div>
             <ul>
-                <li><a href="projects.html">Projects</a></li>
-                <li><a href="users.html">Team Members</a></li>
-                <li><a href="tasks.html">My Tasks</a></li>
-                <li><a href="configuration.html">Configuration</a></li>
+                <li><a href="projects.html" data-translate="Projects">Projects</a></li>
+                <li><a href="users.html" data-translate="Team Members">Team Members</a></li>
+                <li><a href="tasks.html" data-translate="My Tasks">My Tasks</a></li>
+                <li><a href="configuration.html" data-translate="Configuration">Configuration</a></li>
             </ul>
         </nav>
         <div class="user-info">
@@ -32,56 +32,64 @@
                 <i class="fas fa-bell"></i>
                 <span class="notification-count" style="display: none">0</span>
             </div>
-            <a href="#" id="logout">Logout</a>
+             <!-- Il selettore lingua verrà aggiunto qui da i18n.js -->
+            <a href="#" id="logout" data-translate="Logout">Logout</a>
         </div>
     </header>
     <main>
-        <h1>Project Details: <span id="project-model-number"></span></h1>
+        <h1 data-translate="Project Details:">Project Details: <span id="project-model-number"></span></h1>
         <div class="project-summary">
             <div class="summary-left">
-                <h2>Project Summary</h2>
-                <div id="project-details"></div>
+                <h2 data-translate="Project Summary">Project Summary</h2>
+                <div id="project-details">
+                    <!-- I dettagli verranno popolati da JS, ma le etichette statiche possono essere tradotte -->
+                    <!-- Esempio (la struttura effettiva dipende da project-details.js): -->
+                    <!-- <p><strong data-translate="Client:">Client:</strong> <span id="project-client-detail"></span></p> -->
+                </div>
             </div>
             <div class="summary-right">
-                <h2>Phase Summary</h2>
-                <div id="phase-summary"></div>
+                <h2 data-translate="Phase Summary">Phase Summary</h2>
+                <div id="phase-summary">
+                     <!-- Il sommario delle fasi verrà popolato da JS -->
+                </div>
             </div>
         </div>
         <div class="project-history">
             <div class="history-header">
-                <h1>Project History</h1>
-                <button id="add-entry-btn" class="add-btn">Add History Entry</button>
-                <button id="urge-tasks-btn" class="btn">Urge Tasks</button>
+                <h1 data-translate="Project History">Project History</h1>
+                <button id="add-entry-btn" class="add-btn" data-translate="Add History Entry">Add History Entry</button>
+                <button id="urge-tasks-btn" class="btn" data-translate="Urge Tasks">Urge Tasks</button>
             </div>
             <div class="filters">
                 <div class="phase-dropdown">
-                    <button id="phase-dropdown-btn">Phase</button>
+                    <button id="phase-dropdown-btn" data-translate="Phase">Phase</button>
                     <div id="phase-filter" class="dropdown-content">
                         <!-- Le fasi verranno popolate dinamicamente -->
+                        <label><input type="checkbox" value="" data-translate="All Phases"> All Phases</label>
                     </div>
                 </div>
-                <input type="text" id="assigned-to-filter" placeholder="Assigned to">
+                <input type="text" id="assigned-to-filter" placeholder="Assigned to" data-translate-placeholder="Assigned to">
                 <div class="status-dropdown">
-                    <button id="status-dropdown-btn">Status</button>
+                    <button id="status-dropdown-btn" data-translate="Status">Status</button>
                     <div id="status-filter" class="dropdown-content">
-                        <label><input type="checkbox" value="In Progress" data-abbr="IP"> In Progress</label>
-                        <label><input type="checkbox" value="Completed" data-abbr="CO"> Completed</label>
-                        <label><input type="checkbox" value="On Hold" data-abbr="OH"> On Hold</label>
-                        <label><input type="checkbox" value="Archived" data-abbr="AR"> Archived</label>
+                        <label><input type="checkbox" value="In Progress" data-abbr="IP" data-translate="In Progress"> In Progress</label>
+                        <label><input type="checkbox" value="Completed" data-abbr="CO" data-translate="Completed"> Completed</label>
+                        <label><input type="checkbox" value="On Hold" data-abbr="OH" data-translate="On Hold"> On Hold</label>
+                        <label><input type="checkbox" value="Archived" data-abbr="AR" data-translate="Archived"> Archived</label>
                     </div>
                 </div>
-                
+
             </div>
             <table id="history-table">
                 <thead>
                     <tr>
-                        <th>Date <i class="fas fa-sort"></i></th>
-                        <th>Phase <i class="fas fa-sort"></i></th>
-                        <th>Description <i class="fas fa-sort"></i></th>
-                        <th>Assigned To <i class="fas fa-sort"></i></th>
-                        <th>Status <i class="fas fa-sort"></i></th>
-                        <th>Files</th>
-                        <th>Actions</th>
+                        <th data-translate="Date">Date <i class="fas fa-sort"></i></th>
+                        <th data-translate="Phase">Phase <i class="fas fa-sort"></i></th>
+                        <th data-translate="Description">Description <i class="fas fa-sort"></i></th>
+                        <th data-translate="Assigned To">Assigned To <i class="fas fa-sort"></i></th>
+                        <th data-translate="Status">Status <i class="fas fa-sort"></i></th>
+                        <th data-translate="Files">Files</th>
+                        <th data-translate="Actions">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -97,6 +105,7 @@
     <script src="project-layout.js"></script>
     <script type="module" src="project-history.js"></script>
     <script src="mobile-menu.js"></script>
+    <script src="i18n.js"></script> <!-- Aggiungi script i18n -->
     <script>
         document.addEventListener('DOMContentLoaded', async function() {
             // Verifica l'autenticazione prima di procedere
@@ -107,5 +116,14 @@
             }
         });
     </script>
+
+    <!-- Tooltip personalizzato per la descrizione della cronologia -->
+    <div id="history-custom-tooltip" class="custom-tooltip" style="display: none; position: absolute; border: 1px solid #ccc; background-color: white; padding: 10px; z-index: 1000; max-width: 400px; word-wrap: break-word; box-shadow: 2px 2px 5px rgba(0,0,0,0.2); border-radius: 4px;">
+        <div id="tooltip-content" style="margin-bottom: 8px;"></div>
+        <button id="tooltip-translate-btn" style="margin-top: 5px; padding: 3px 8px; font-size: 11px; cursor: pointer; background-color: #eee; border: 1px solid #ccc; border-radius: 3px;">🌐 Translate</button>
+        <span id="tooltip-loading" style="display: none; margin-left: 8px; font-size: 11px; color: #555;">Translating...</span>
+        <div id="tooltip-error" style="color: red; font-size: 10px; margin-top: 5px;"></div>
+    </div>
+
 </body>
 </html>

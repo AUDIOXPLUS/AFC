@@ -12,6 +12,9 @@ services:
       PORT: 3000
       ONLYOFFICE_URL: http://localhost:8081  # usato dal frontend/JS per caricare l'editor
       UPLOADS_DIR: /var/www/onlyoffice/Data
+      # Baidu Translate API Credentials
+      BAIDU_TRANSLATE_APP_ID: 20250412002331038
+      BAIDU_TRANSLATE_API_KEY: xe5Be7KriQrgRrdfCR_c
     ports:
       - "3000:3000"
     volumes:

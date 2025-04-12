@@ -11,6 +11,8 @@ const phasesRouter = require('./routes/api/phases');
 const productKindsRouter = require('./routes/api/product-kinds');
 const teamMembersRouter = require('./routes/api/team-members');
 const tasksRouter = require('./routes/api/tasks');
+const translationsRouter = require('./routes/api/translations'); // Rotte per traduzioni GUI
+const translateRouter = require('./routes/api/translate'); // Rotte per traduzione on-demand Baidu
 const { router: filesRouter, upload } = require('./routes/api/files');
 const { backupDatabase, syncToOneDrive } = require('./database/backup-database');
 const backupCron = require('./database/setup-backup-cron');
@@ -77,6 +79,8 @@ router.use('/phases', phasesRouter);
 router.use('/product-kinds', productKindsRouter);
 router.use('/team-members', teamMembersRouter);
 router.use('/tasks', tasksRouter);
+router.use('/translations', translationsRouter); // Rotte per traduzioni GUI
+router.use('/translate', translateRouter); // Rotte per traduzione on-demand Baidu
 router.use('/files', filesRouter);
 
 // Endpoint per il caricamento dei file di progetto

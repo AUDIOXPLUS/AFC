@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Configuration</title>
+    <title data-translate="Configuration">Configuration</title> <!-- Traduci titolo -->
     <!-- <link rel="stylesheet" href="styles.css"> Vecchio riferimento -->
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/table.css">
@@ -18,10 +18,10 @@
         <nav>
             <div class="logo">AFC</div>
             <ul>
-                <li><a href="projects.html">Projects</a></li>
-                <li><a href="users.html">Team Members</a></li>
-                <li><a href="tasks.html">My Tasks</a></li>
-                <li><a href="configuration.html">Configuration</a></li>
+                <li><a href="projects.html" data-translate="Projects">Projects</a></li>
+                <li><a href="users.html" data-translate="Team Members">Team Members</a></li>
+                <li><a href="tasks.html" data-translate="My Tasks">My Tasks</a></li>
+                <li><a href="configuration.html" data-translate="Configuration">Configuration</a></li>
             </ul>
         </nav>
         <div class="user-info">
@@ -29,22 +29,23 @@
                 <i class="fas fa-bell"></i>
                 <span class="notification-count" style="display: none">0</span>
             </div>
-            <a href="#" id="logout">Logout</a>
+            <!-- Il selettore lingua verrà aggiunto qui da i18n.js -->
+            <a href="#" id="logout" data-translate="Logout">Logout</a>
         </div>
     </header>
 
         <main class="container">
             <section class="phases-section">
-                <h2>Project Phases</h2>
-                <button id="add-phase-btn" class="add-btn">Add Phase</button>
+                <h2 data-translate="Project Phases">Project Phases</h2>
+                <button id="add-phase-btn" class="add-btn" data-translate="Add Phase">Add Phase</button>
                 
                 <table id="phases-table" class="data-table">
                     <thead>
                         <tr>
-                            <th>Name</th>
-                            <th>Description</th>
-                            <th>Order</th>
-                            <th>Actions</th>
+                            <th data-translate="Name">Name</th>
+                            <th data-translate="Description">Description</th>
+                            <th data-translate="Order">Order</th>
+                            <th data-translate="Actions">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -54,16 +55,16 @@
             </section>
 
             <section class="product-kinds-section">
-                <h2>Product Kinds</h2>
-                <button id="add-product-kind-btn" class="add-btn">Add Product Kind</button>
+                <h2 data-translate="Product Kinds">Product Kinds</h2>
+                <button id="add-product-kind-btn" class="add-btn" data-translate="Add Product Kind">Add Product Kind</button>
                 
                 <table id="product-kinds-table" class="data-table">
                     <thead>
                         <tr>
-                            <th>Name</th>
-                            <th>Description</th>
-                            <th>Order</th>
-                            <th>Actions</th>
+                            <th data-translate="Name">Name</th>
+                            <th data-translate="Description">Description</th>
+                            <th data-translate="Order">Order</th>
+                            <th data-translate="Actions">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -73,18 +74,18 @@
             </section>
 
             <section class="backup-history-section">
-                <h2>Backup History</h2>
+                <h2 data-translate="Backup History">Backup History</h2>
                 <div class="backup-container">
                 <div class="backup-actions">
                     <div class="backup-control">
                         <div class="button-group">
-                            <button id="backupNowBtn" class="primary-btn">
+                            <button id="backupNowBtn" class="primary-btn" data-translate="Backup Now">
                                 <i class="fas fa-database"></i> Backup Now
                             </button>
-                            <button id="pullOneDriveBtn" class="secondary-btn">
+                            <button id="pullOneDriveBtn" class="secondary-btn" data-translate="Pull OneDrive Backup">
                                 <i class="fas fa-cloud-download-alt"></i> Pull OneDrive Backup
                             </button>
-                            <button id="pullServerBtn" class="secondary-btn" title="Synchronizes database and uploads directories from the remote server to this client. Only database and uploads folders will be copied.">
+                            <button id="pullServerBtn" class="secondary-btn" data-translate="Scarica db e files nel client" title="Synchronizes database and uploads directories from the remote server to this client. Only database and uploads folders will be copied.">
                                 <i class="fas fa-server"></i> Scarica db e files nel client
                             </button>
                         </div>
@@ -92,22 +93,41 @@
                             <label class="toggle-switch">
                                 <input type="checkbox" id="enableBackupsToggle" checked>
                                 <span class="toggle-slider"></span>
-                                <span class="toggle-label">Enable automatic backups</span>
+                                <span class="toggle-label" data-translate="Enable automatic backups">Enable automatic backups</span>
                             </label>
                         </div>
                             <div id="backupProgress" class="backup-progress" style="display: none;">
                                 <div class="progress-bar">
                                     <div class="progress-fill"></div>
                                 </div>
-                                <span class="progress-status">Backup in progress...</span>
+                                <span class="progress-status" data-translate="Backup in progress...">Backup in progress...</span>
                             </div>
                         </div>
                     </div>
                     <div class="backup-info">
-                        <p><i class="fas fa-info-circle"></i> To restore a backup, please contact your system administrator with the desired backup filename.</p>
+                        <p data-translate="To restore a backup, please contact your system administrator with the desired backup filename."><i class="fas fa-info-circle"></i> To restore a backup, please contact your system administrator with the desired backup filename.</p>
                     </div>
-                    <div id="backupList">Loading backup history...</div>
+                    <div id="backupList" data-translate="Loading backup history...">Loading backup history...</div>
                     <div class="pagination" id="backupPagination"></div>
+                </div>
+            </section>
+
+            <section class="translations-section">
+                <h2 data-translate="Translations (English to Chinese)">Translations (English to Chinese)</h2>
+                <button id="add-translation-btn" class="add-btn" data-translate="Add Translation">Add Translation</button>
+                <div class="table-wrapper">
+                    <table id="translations-table" class="data-table">
+                        <thead>
+                            <tr>
+                                <th data-translate="English Text">English Text</th>
+                                <th data-translate="Chinese Text">Chinese Text</th>
+                                <th data-translate="Actions">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Le traduzioni verranno inserite qui dinamicamente -->
+                        </tbody>
+                    </table>
                 </div>
             </section>
         </main>
@@ -553,7 +573,10 @@
     <script src="project-layout.js"></script>
     <script src="phases.js"></script>
     <script src="product-kinds.js"></script>
+    <script src="translations.js"></script> <!-- Script per la tabella traduzioni -->
+    <script src="i18n.js"></script> <!-- Script per la gestione delle traduzioni -->
     <script>
+        // Le funzioni specifiche di questa pagina rimangono qui
         function toggleBackupSection(type) {
             const table = document.getElementById(`backup-table-${type}`);
             const arrow = table.previousElementSibling.querySelector('.section-arrow');

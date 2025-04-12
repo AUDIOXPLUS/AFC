@@ -21,6 +21,13 @@ function handleNetworkError(error) {
 
 // Aggiunta di un listener per l'evento DOMContentLoaded
 document.addEventListener('DOMContentLoaded', async function() {
+    // Ottieni il riferimento all'elemento del titolo PRESTO
+    const modelNumberSpan = document.getElementById('project-model-number');
+    if (!modelNumberSpan) {
+         console.error("CRITICO: Elemento 'project-model-number' non trovato all'inizio di DOMContentLoaded!");
+         // Potrebbe essere necessario gestire questo caso se l'elemento è fondamentale
+    }
+
     // Verifica lo stato della connessione
     if (!navigator.onLine) {
         window.location.replace('login.html');
@@ -109,11 +116,16 @@ document.addEventListener('DOMContentLoaded', async function() {
             // Introduce a small delay to mitigate race condition with database update
             await new Promise(resolve => setTimeout(resolve, 300)); // 300ms delay
 
-            // Aggiorna il titolo del progetto
-            document.getElementById('project-model-number').textContent = project.modelNumber;
-            document.title = `Project Details: ${project.modelNumber}`;
+                // Aggiorna il titolo del progetto usando il riferimento salvato
+                if (modelNumberSpan) { // Usa il riferimento ottenuto all'inizio
+                    modelNumberSpan.textContent = project.modelNumber;
+                } else {
+                    // Questo log ora indica che l'elemento non era presente nemmeno all'inizio
+                    console.error("Elemento 'project-model-number' non trovato (verificato all'inizio di DOMContentLoaded).");
+                }
+                document.title = `Project Details: ${project.modelNumber}`;
 
-            // Recupera lo status dalla cronologia filtrata
+                // Recupera lo status dalla cronologia filtrata
             console.log(`[DEBUG] Fetching project history AFTER reset attempt...`); // Add log here
             const historyResponse = await fetch(`/api/projects/${projectId}/history`);
             const history = await window.handleResponse(historyResponse);
@@ -158,18 +170,18 @@ document.addEventListener('DOMContentLoaded', async function() {
             // Aggiorna il riepilogo del progetto
             const detailsDiv = document.getElementById('project-details');
             let htmlContent = `
-                <p><strong>Factory:</strong> ${project.factory || '-'}</p>
-                <p><strong>Model Number:</strong> ${project.modelNumber || '-'}</p>
-                <p><strong>Factory Model Number:</strong> ${project.factoryModelNumber || '-'}</p>
-                <p><strong>Product Kind:</strong> ${project.productKind || '-'}</p>
-                <p><strong>Client:</strong> ${project.client || '-'}</p>
-                <p><strong>Start Date:</strong> ${project.startDate || '-'}</p>
-                <p><strong>End Date:</strong> ${project.endDate || '-'}</p>
+                <p><strong data-translate="Factory">Factory:</strong> ${project.factory || '-'}</p>
+                <p><strong data-translate="Model Number">Model Number:</strong> ${project.modelNumber || '-'}</p>
+                <p><strong data-translate="Factory Model Number">Factory Model Number:</strong> ${project.factoryModelNumber || '-'}</p>
+                <p><strong data-translate="Product Kind">Product Kind:</strong> ${project.productKind || '-'}</p>
+                <p><strong data-translate="Client">Client:</strong> ${project.client || '-'}</p>
+                <p><strong data-translate="Start Date">Start Date:</strong> ${project.startDate || '-'}</p>
+                <p><strong data-translate="End Date">End Date:</strong> ${project.endDate || '-'}</p>
             `;
 
             // Aggiungi lo status solo se è visibile
             if (statusVisible) {
-                htmlContent += `<p><strong>Status:</strong> ${statusToShow}</p>`;
+                htmlContent += `<p><strong data-translate="Status">Status:</strong> ${statusToShow}</p>`;
             }
 
             detailsDiv.innerHTML = htmlContent;
@@ -535,6 +547,7 @@ window.updatePhaseSummary = function(latestEntries) {
             const phaseTitleDiv = document.createElement('div');
             const strong = document.createElement('strong');
             strong.textContent = phase;
+            strong.setAttribute('data-translate', phase); // Aggiunge attributo per traduzione
             phaseTitleDiv.appendChild(strong);
 
             const descriptionDiv = document.createElement('div');

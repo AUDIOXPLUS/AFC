@@ -11,6 +11,9 @@ services:
       ONLYOFFICE_URL: http://onlyoffice-document-server:80
       UPLOADS_DIR: /var/www/onlyoffice/Data
       SERVER_HOST: afcv3-backend
+      # Baidu Translate API Credentials
+      BAIDU_TRANSLATE_APP_ID: 20250412002331038
+      BAIDU_TRANSLATE_API_KEY: xe5Be7KriQrgRrdfCR_c
     ports:
       - 3000:3000
     volumes:
