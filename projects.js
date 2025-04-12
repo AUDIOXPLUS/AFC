@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 });
 
 // Variabili globali per memorizzare factory e client
-window.factories = [];
+window.factories = []; // Verrà popolato dopo il fetch dei progetti
 window.clients = [];
 
 async function initializeDashboard() {
@@ -29,31 +29,11 @@ async function initializeDashboard() {
         window.location.href = 'login.html';
     });
 
-    // Carica le factory disponibili
-    try {
-        const factoryResponse = await fetch('/api/team-members/factories');
-        if (!factoryResponse.ok) {
-            throw new Error(`HTTP error! status: ${factoryResponse.status}`);
-        }
-        window.factories = await factoryResponse.json();
-        console.log('Factories caricate:', window.factories); // Log in italiano
-    } catch (error) {
-        console.error('Errore nel caricamento delle factory:', error); // Log in italiano
-        handleNetworkError(error); // Gestione errore generica
-    }
+    // NOTA: Il caricamento delle factory è stato spostato dopo fetchProjects
+    // per derivarle dai progetti accessibili dall'utente.
 
-    // Carica i client disponibili
-    try {
-        const clientResponse = await fetch('/api/team-members/clients');
-        if (!clientResponse.ok) {
-            throw new Error(`HTTP error! status: ${clientResponse.status}`);
-        }
-        window.clients = await clientResponse.json();
-        console.log('Client caricati:', window.clients); // Log in italiano
-    } catch (error) {
-        console.error('Errore nel caricamento dei client:', error); // Log in italiano
-        handleNetworkError(error); // Gestione errore generica
-    }
+    // NOTA: Anche il caricamento dei client è stato spostato dopo fetchProjects
+    // per derivarli dai progetti accessibili dall'utente.
 
 
     // Add event listener for the "Add Project" button
@@ -87,11 +67,11 @@ async function initializeDashboard() {
     // Add event listener for the "Clone/Merge Project" button
     document.getElementById('clone-merge-project-btn').addEventListener('click', openCloneMergeModal);
 
-    // Initial fetch of projects (includerà il sorting e l'aggiornamento dei conteggi)
-    await fetchProjects();
+        // Initial fetch of projects (includerà il sorting, l'aggiornamento dei conteggi e il popolamento delle factory permesse)
+        await fetchProjects();
 
-    // Restituisce l'API di filtraggio per poterla usare esternamente se necessario
-    return filteringApi;
+        // Restituisce l'API di filtraggio per poterla usare esternamente se necessario
+        return filteringApi;
 }
 
 // --- Funzione per recuperare i conteggi totali dei progetti ---
@@ -504,6 +484,25 @@ async function fetchProjects() {
         }
         const projects = await response.json();
         console.log('Projects fetched from API:', projects); // Log the raw data
+
+        // --- NUOVA LOGICA: Estrai factory e client permessi dai progetti caricati ---
+        if (Array.isArray(projects)) {
+            // Factory
+            const allowedFactories = [...new Set(projects.map(p => p.factory).filter(Boolean))].sort();
+            window.factories = allowedFactories;
+            console.log('Factory permesse (derivate dai progetti):', window.factories); // Log in italiano
+
+            // Client
+            const allowedClients = [...new Set(projects.map(p => p.client).filter(Boolean))].sort();
+            window.clients = allowedClients;
+            console.log('Client permessi (derivati dai progetti):', window.clients); // Log in italiano
+
+        } else {
+            console.warn('Nessun progetto accessibile trovato o formato dati inatteso, le liste factory e client potrebbero essere vuote.');
+            window.factories = [];
+            window.clients = [];
+        }
+        // --- FINE NUOVA LOGICA ---
 
         // Aggiorna progresso dopo fetch elenco progetti (es. 20%)
         updateLoadingProgress(20);
@@ -1069,12 +1068,44 @@ function addProject() {
                         option.textContent = factoryName;
                         select.appendChild(option);
                     });
-                } else {
-                    console.warn('Nessuna factory disponibile per popolare il dropdown.'); // Log in italiano
-                }
-                cell.appendChild(select);
-            } else {
-                // Gestione standard per altri input di testo/data
+                 } else {
+                     console.warn('Nessuna factory disponibile per popolare il dropdown.'); // Log in italiano
+                 }
+
+                 // Aggiungi l'opzione "add new factory"
+                 const addNewFactoryOption = document.createElement('option');
+                 addNewFactoryOption.value = "__add_new_factory__"; // Valore speciale
+                 addNewFactoryOption.textContent = "Add new factory";
+                 select.appendChild(addNewFactoryOption);
+
+                 // Aggiungi evento change per gestire "add new factory"
+                 select.addEventListener('change', function(e) {
+                     if (e.target.value === "__add_new_factory__") {
+                         const newFactoryName = prompt("Enter new factory name:");
+                         if (newFactoryName && newFactoryName.trim() !== '') {
+                             // Aggiungi alla lista globale se non esiste
+                             if (!window.factories.includes(newFactoryName)) {
+                                 window.factories.push(newFactoryName);
+                                 window.factories.sort(); // Mantieni ordinato
+                                 console.log(`Nuova factory "${newFactoryName}" aggiunta alla lista.`); // Log in italiano
+                             }
+                             // Aggiungi come opzione alla dropdown
+                             const newOption = document.createElement('option');
+                             newOption.value = newFactoryName;
+                             newOption.textContent = newFactoryName;
+                             select.insertBefore(newOption, addNewFactoryOption);
+                             // Seleziona la nuova factory
+                             select.value = newFactoryName;
+                         } else {
+                             // Se l'utente annulla, ripristina la selezione di default
+                             select.value = '';
+                         }
+                     }
+                 });
+
+                 cell.appendChild(select);
+             } else {
+                 // Gestione standard per altri input di testo/data
                 const input = document.createElement('input');
                 input.type = field.type;
                 input.name = field.name;
@@ -1320,13 +1351,48 @@ function editProject(row, projectId) {
                     // Seleziona il valore corrente del progetto
                     if (factoryName === projectData.factory) {
                         option.selected = true;
-                    }
-                    select.appendChild(option);
-                });
-            }
-            cells[i].appendChild(select);
-        } else {
-            // Gestione standard per altri input
+                     }
+                     select.appendChild(option);
+                 });
+             }
+
+             // Aggiungi l'opzione "add new factory"
+             const addNewFactoryOption = document.createElement('option');
+             addNewFactoryOption.value = "__add_new_factory__"; // Valore speciale
+             addNewFactoryOption.textContent = "Add new factory";
+             select.appendChild(addNewFactoryOption);
+
+             // Salva il valore originale per il reset in caso di annullamento
+             const originalFactoryValue = projectData.factory;
+
+             // Aggiungi evento change per gestire "add new factory"
+             select.addEventListener('change', function(e) {
+                 if (e.target.value === "__add_new_factory__") {
+                     const newFactoryName = prompt("Enter new factory name:");
+                     if (newFactoryName && newFactoryName.trim() !== '') {
+                         // Aggiungi alla lista globale se non esiste
+                         if (!window.factories.includes(newFactoryName)) {
+                             window.factories.push(newFactoryName);
+                             window.factories.sort(); // Mantieni ordinato
+                             console.log(`Nuova factory "${newFactoryName}" aggiunta alla lista.`); // Log in italiano
+                         }
+                         // Aggiungi come opzione alla dropdown
+                         const newOption = document.createElement('option');
+                         newOption.value = newFactoryName;
+                         newOption.textContent = newFactoryName;
+                         select.insertBefore(newOption, addNewFactoryOption);
+                         // Seleziona la nuova factory
+                         select.value = newFactoryName;
+                     } else {
+                         // Se l'utente annulla, ripristina la selezione originale (se esisteva)
+                         select.value = originalFactoryValue || '';
+                     }
+                 }
+             });
+
+             cells[i].appendChild(select);
+         } else {
+             // Gestione standard per altri input
             const input = document.createElement('input');
             input.type = (i === 8 || i === 9) ? 'date' : 'text'; // Indici per startDate e endDate
             // Usa Object.keys per ottenere il nome del campo corrispondente all'indice i
