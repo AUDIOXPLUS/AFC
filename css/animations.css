@@ -17,15 +17,15 @@
 @keyframes highlight-pulse {
     0% { 
         background-color: transparent;
-        transform: scale(1);
+        /* transform: scale(1); Rimosso */
     }
     50% { 
         background-color: rgba(255, 140, 0, 0.9); /* Arancione più intenso */
-        transform: scale(1.15); /* Effetto pulsazione */
+        /* transform: scale(1.15); Rimosso */
     }
     100% { 
         background-color: transparent;
-        transform: scale(1);
+        /* transform: scale(1); Rimosso */
     }
 }
 

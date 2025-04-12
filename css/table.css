@@ -64,8 +64,8 @@ table {
     table-layout: fixed;
 }
 
-/* Stile base per tutte le celle della tabella */
-th, td {
+/* Stile base per le celle di dati della tabella */
+td {
     border: 1px solid #e0e0e0;
     padding: 8px;
     text-align: left;
@@ -77,6 +77,25 @@ th, td {
     min-width: 50px; /* Larghezza minima per tutte le colonne */
     transition: width 0.1s ease; /* Transizione fluida per il ridimensionamento */
 }
+
+/* Stile base per le intestazioni della tabella */
+th {
+    border: 1px solid #e0e0e0;
+    padding: 8px;
+    text-align: left;
+    font-size: 12px;
+    white-space: nowrap;
+    /* overflow: hidden; <-- Rimosso per permettere la visibilità del resizer */
+    text-overflow: ellipsis;
+    position: relative; /* Necessario per il resizer */
+    min-width: 50px; /* Larghezza minima per tutte le colonne */
+    transition: width 0.1s ease; /* Transizione fluida per il ridimensionamento */
+    background-color: #f5f5f5;
+    font-weight: bold;
+    color: #333;
+    cursor: pointer;
+}
+
 
 /* Stile per la colonna Actions */
 th:last-child, td:last-child {
@@ -164,8 +183,7 @@ th {
     background-color: #f5f5f5;
     font-weight: bold;
     color: #333;
-    cursor: pointer;
-}
+} /* <-- Aggiunta parentesi graffa mancante */
 
 th i {
     margin-left: 5px;
