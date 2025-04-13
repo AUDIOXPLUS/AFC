@@ -117,11 +117,13 @@
         });
     </script>
 
-    <!-- Tooltip personalizzato per la descrizione della cronologia -->
-    <div id="history-custom-tooltip" class="custom-tooltip" style="display: none; position: absolute; border: 1px solid #ccc; background-color: white; padding: 10px; z-index: 1000; max-width: 400px; word-wrap: break-word; box-shadow: 2px 2px 5px rgba(0,0,0,0.2); border-radius: 4px;">
+    <!-- Tooltip personalizzato per la descrizione della cronologia, ora ridimensionabile -->
+    <div id="history-custom-tooltip" class="custom-tooltip" style="display: none; position: absolute; border: 1px solid #ccc; background-color: white; padding: 10px; z-index: 1000; min-width: 200px; min-height: 100px; width: 400px; word-wrap: break-word; box-shadow: 2px 2px 5px rgba(0,0,0,0.2); border-radius: 4px; resize: both; overflow: auto;">
         <div id="tooltip-content" style="margin-bottom: 8px;"></div>
-        <button id="tooltip-translate-btn" style="margin-top: 5px; padding: 3px 8px; font-size: 11px; cursor: pointer; background-color: #eee; border: 1px solid #ccc; border-radius: 3px;">🌐 Translate</button>
-        <span id="tooltip-loading" style="display: none; margin-left: 8px; font-size: 11px; color: #555;">Translating...</span>
+        <div class="tooltip-footer" style="display: flex; align-items: center; margin-top: 5px;">
+            <button id="tooltip-translate-btn" style="padding: 3px 8px; font-size: 11px; cursor: pointer; background-color: #eee; border: 1px solid #ccc; border-radius: 3px;">🌐 Translate</button>
+            <span id="tooltip-loading" style="display: none; margin-left: 8px; font-size: 11px; color: #555;">Translating...</span>
+        </div>
         <div id="tooltip-error" style="color: red; font-size: 10px; margin-top: 5px;"></div>
     </div>
 

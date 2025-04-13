@@ -23,6 +23,21 @@ let showTooltipTimer = null; // Timer per mostrare il tooltip con ritardo
 let hideTooltipTimer = null; // Timer per nascondere il tooltip
 let currentTargetCell = null; // Memorizza la cella target corrente
 let isMouseOverTooltip = false; // Flag per tracciare se il mouse è sopra il tooltip
+let currentTooltipWidth = 0; // Larghezza corrente del tooltip
+let currentTooltipHeight = 0; // Altezza corrente del tooltip
+let userResizedTooltip = false; // Flag per rilevare se l'utente ha ridimensionato manualmente il tooltip
+let savedTooltipDimensions = { width: 400, height: 'auto' }; // Dimensioni salvate tra le sessioni
+
+// Carica le dimensioni del tooltip salvate, se esistono
+try {
+    const savedDimensions = localStorage.getItem('tooltipDimensions');
+    if (savedDimensions) {
+        savedTooltipDimensions = JSON.parse(savedDimensions);
+        console.log(`Dimensioni tooltip caricate: W=${savedTooltipDimensions.width}, H=${savedTooltipDimensions.height}`);
+    }
+} catch (error) {
+    console.error("Errore nel caricamento delle dimensioni del tooltip:", error);
+}
 
 // Funzione per mostrare il tooltip (ora chiamata dopo il ritardo)
 function showTooltip(cell) {
@@ -46,7 +61,9 @@ function showTooltip(cell) {
     // Aggiunto check per tooltipContent
     if (!fullDescription || !tooltipContent) return;
 
-    tooltipContent.textContent = fullDescription; // Imposta testo originale
+    // Mantiene la formattazione originale sostituendo \n con <br>
+    const formattedDescription = fullDescription.replace(/\n/g, '<br>');
+    tooltipContent.innerHTML = formattedDescription; // Usa innerHTML per mantenere i break line
     // Aggiunti check null per elementi opzionali
     if(tooltipError) tooltipError.textContent = ''; // Pulisci errori precedenti
     if(tooltipLoading) tooltipLoading.style.display = 'none'; // Nascondi loading
@@ -55,9 +72,17 @@ function showTooltip(cell) {
     // Posiziona il tooltip vicino alla cella
     const rect = cell.getBoundingClientRect();
     tooltipElement.style.left = `${rect.left + window.scrollX}px`;
-    // Modificato: Rimosso l'offset +5 per avvicinare il tooltip
     tooltipElement.style.top = `${rect.bottom + window.scrollY}px`;
+    
+    // Imposta dimensioni predefinite o salvate dall'utente
+    tooltipElement.style.width = `${savedTooltipDimensions.width}px`;
+    tooltipElement.style.height = savedTooltipDimensions.height === 'auto' ? 'auto' : `${savedTooltipDimensions.height}px`;
+    
+    // Mostra il tooltip
     tooltipElement.style.display = 'block';
+    
+    // Resetta il flag di ridimensionamento
+    userResizedTooltip = false;
 }
 
 // Funzione per avviare il timer per nascondere il tooltip
@@ -68,9 +93,16 @@ function startHideTooltipTimer() {
     }
     hideTooltipTimer = setTimeout(() => {
         // Nascondi solo se il mouse non è finito nel frattempo sul tooltip
+        // Nascondi solo se il mouse non è finito nel frattempo sul tooltip
         if (!isMouseOverTooltip && tooltipElement) {
             tooltipElement.style.display = 'none';
             currentTargetCell = null;
+            // Resetta le dimensioni registrate e lo stile
+            currentTooltipWidth = 0;
+            currentTooltipHeight = 0;
+            tooltipElement.style.width = 'auto';
+            tooltipElement.style.height = 'auto';
+            console.log("Tooltip hidden and dimensions reset.");
         }
         hideTooltipTimer = null;
     }, 300); // Ritardo prima di nascondere
@@ -85,11 +117,10 @@ async function handleTranslateClick() {
     }
 
     const originalText = currentTargetCell.dataset.fullDescription;
-    const currentTextInTooltip = tooltipContent.textContent;
-    // Rimuoviamo la dipendenza da uiLanguage per determinare targetLang
-    // const uiLanguage = typeof window !== 'undefined' && window.currentLanguage ? window.currentLanguage : 'en';
+    const currentTextInTooltip = tooltipContent.innerHTML; // Usa innerHTML per verificare lo stato attuale
     let targetLang;
-    let textToTranslate = originalText; // Traduci sempre l'originale
+    // Usa il testo originale pulito (senza a capo) per la traduzione
+    let textToTranslate = originalText.replace(/\n/g, ' '); // Sostituisce a capo con spazi
 
     // --- NUOVA LOGICA: Determina targetLang basandosi sul contenuto di originalText ---
     // Regex semplice per rilevare caratteri CJK (Cinese, Giapponese, Coreano)
@@ -117,14 +148,31 @@ async function handleTranslateClick() {
     // Se il testo mostrato è già quello tradotto, rimetti l'originale invece di ritradurre
     // Questo previene chiamate API multiple se l'utente clicca più volte
     // Confrontiamo il testo attuale con l'originale per decidere se mostrare l'originale o chiamare l'API
-    if (currentTextInTooltip !== originalText) {
+    if (currentTextInTooltip !== originalText.replace(/\n/g, '<br>')) {
         console.log("Mostro testo originale.");
-        tooltipContent.textContent = originalText;
+        tooltipContent.innerHTML = originalText.replace(/\n/g, '<br>');
         // Potremmo voler cambiare l'icona/testo del pulsante qui per indicare "Mostra originale"
         return; // Esce senza chiamare l'API
     }
+    
+    // Registra dimensioni attuali PRIMA di mostrare "Translating..."
+    // e solo se non sono già state registrate per questa apertura
+    if (currentTooltipWidth === 0 || currentTooltipHeight === 0) {
+        const initialRect = tooltipElement.getBoundingClientRect();
+        currentTooltipWidth = initialRect.width;
+        currentTooltipHeight = initialRect.height;
+        console.log(`Tooltip dimensions recorded: W=${currentTooltipWidth}, H=${currentTooltipHeight}`);
+    }
 
-    // Altrimenti, procedi con la chiamata API per tradurre
+    // Salva le dimensioni attuali prima della traduzione
+    const currentWidth = tooltipElement.style.width;
+    const currentHeight = tooltipElement.style.height;
+
+    // Mostra messaggio di caricamento MANTENENDO le dimensioni esatte
+    tooltipContent.innerHTML = 'Translating...<br>Please wait';
+    // Non modificare le dimensioni qui
+
+    // Procedi con la chiamata API per tradurre
     tooltipLoading.style.display = 'inline';
     tooltipError.textContent = '';
     tooltipTranslateBtn.disabled = true;
@@ -135,14 +183,21 @@ async function handleTranslateClick() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 text: textToTranslate,
-                // fromLang: 'auto', // Lasciamo che Baidu rilevi l'origine (se supportato e utile)
-                targetLang: targetLang // Usa il targetLang calcolato correttamente
+                targetLang: targetLang
             }),
         });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || `HTTP error ${response.status}`);
         if (result.translatedText) {
-            tooltipContent.textContent = result.translatedText;
+            // Mantieni la formattazione originale sostituendo a capo con <br>
+            const formattedTranslation = result.translatedText.replace(/\n/g, '<br>');
+            
+            // Aggiorna il contenuto mantenendo esattamente le dimensioni correnti
+            tooltipContent.innerHTML = formattedTranslation;
+            
+            // Assicurati che le dimensioni non cambino
+            tooltipElement.style.width = currentWidth;
+            tooltipElement.style.height = currentHeight;
         } else {
             throw new Error('Traduzione non ricevuta.');
         }
@@ -153,6 +208,29 @@ async function handleTranslateClick() {
     } finally {
         tooltipLoading.style.display = 'none';
         tooltipTranslateBtn.disabled = false;
+    }
+}
+
+// Funzione per salvare le dimensioni personalizzate del tooltip
+function saveTooltipDimensions() {
+    if (!tooltipElement || !userResizedTooltip) return;
+    
+    const rect = tooltipElement.getBoundingClientRect();
+    // Salviamo solo se le dimensioni sono effettivamente cambiate
+    if (rect.width <= 0 || rect.height <= 0) return;
+    
+    // Aggiorna le dimensioni correnti
+    savedTooltipDimensions = {
+        width: rect.width,
+        height: rect.height
+    };
+    
+    // Salva nel localStorage
+    try {
+        localStorage.setItem('tooltipDimensions', JSON.stringify(savedTooltipDimensions));
+        console.log(`Dimensioni tooltip salvate: W=${savedTooltipDimensions.width}, H=${savedTooltipDimensions.height}`);
+    } catch (error) {
+        console.error("Errore nel salvataggio delle dimensioni del tooltip:", error);
     }
 }
 
@@ -177,12 +255,12 @@ function setupTooltipListeners() {
             if (showTooltipTimer) {
                 clearTimeout(showTooltipTimer);
             }
-            // Avvia il timer per mostrare il tooltip dopo 1.5 secondi
+            // Avvia il timer per mostrare il tooltip dopo 1 secondo
             showTooltipTimer = setTimeout(() => {
                 // Passa la cella target alla funzione showTooltip
                 showTooltip(cell);
                 showTooltipTimer = null; // Resetta il timer dopo l'esecuzione
-            }, 1500); // Ritardo di 1.5 secondi
+            }, 1000); // Ritardo impostato a 1 secondo
         }
     };
     tableBody._tooltipMouseoutListener = (event) => {
@@ -193,9 +271,27 @@ function setupTooltipListeners() {
                 clearTimeout(showTooltipTimer);
                 showTooltipTimer = null;
             }
-            // NON avviare il timer per nascondere qui,
-            // viene gestito solo quando si esce dal tooltip stesso.
-            // startHideTooltipTimer(); // Rimosso da qui
+            
+            // Imposta un piccolo ritardo prima di nascondere il tooltip
+            // per permettere al mouse di passare dalla cella al tooltip
+            setTimeout(() => {
+                // Verifica se il mouse è ora sopra il tooltip
+                if (!isMouseOverTooltip && tooltipElement && tooltipElement.style.display === 'block') {
+                    // Salva le dimensioni prima di nascondere il tooltip (se l'utente l'ha ridimensionato)
+                    if (userResizedTooltip) {
+                        saveTooltipDimensions();
+                    }
+                    
+                    // Nascondi il tooltip
+                    tooltipElement.style.display = 'none';
+                    currentTargetCell = null;
+                    // Resetta le dimensioni registrate e lo stile
+                    currentTooltipWidth = 0;
+                    currentTooltipHeight = 0;
+                    userResizedTooltip = false;
+                    console.log("Tooltip hidden as mouse left the cell without entering tooltip.");
+                }
+            }, 100); // Piccolo ritardo di 100ms
         }
     };
 
@@ -209,6 +305,7 @@ function setupTooltipListeners() {
         if (tooltipElement._tooltipMouseoverListener) tooltipElement.removeEventListener('mouseover', tooltipElement._tooltipMouseoverListener);
         if (tooltipElement._tooltipMouseoutListener) tooltipElement.removeEventListener('mouseout', tooltipElement._tooltipMouseoutListener);
         if (tooltipElement._translateClickListener && tooltipTranslateBtn) tooltipTranslateBtn.removeEventListener('click', tooltipElement._translateClickListener);
+        if (tooltipElement._resizeListener) tooltipElement.removeEventListener('mouseup', tooltipElement._resizeListener);
 
         // Definisci i nuovi listener per il tooltip
         tooltipElement._tooltipMouseoverListener = () => {
@@ -220,14 +317,35 @@ function setupTooltipListeners() {
         };
         tooltipElement._tooltipMouseoutListener = () => {
             isMouseOverTooltip = false;
+            // Salva le dimensioni se l'utente ha ridimensionato il tooltip
+            if (userResizedTooltip) {
+                saveTooltipDimensions();
+            }
             // Avvia il timer solo quando si esce dal tooltip
             startHideTooltipTimer();
         };
         tooltipElement._translateClickListener = handleTranslateClick;
+        
+        // Listener per rilevare il ridimensionamento manuale del tooltip
+        tooltipElement._resizeListener = () => {
+            if (tooltipElement.style.display === 'block') {
+                // Ottieni le dimensioni attuali
+                const rect = tooltipElement.getBoundingClientRect();
+                
+                // Verifica se le dimensioni sono cambiate rispetto alle dimensioni iniziali
+                if (rect.width !== savedTooltipDimensions.width || 
+                    (savedTooltipDimensions.height !== 'auto' && rect.height !== savedTooltipDimensions.height)) {
+                    userResizedTooltip = true;
+                    console.log(`Tooltip ridimensionato dall'utente: W=${rect.width}, H=${rect.height}`);
+                }
+            }
+        };
 
         // Aggiungi i nuovi listener al tooltip
         tooltipElement.addEventListener('mouseover', tooltipElement._tooltipMouseoverListener);
         tooltipElement.addEventListener('mouseout', tooltipElement._tooltipMouseoutListener);
+        tooltipElement.addEventListener('mouseup', tooltipElement._resizeListener);
+        
         if(tooltipTranslateBtn) {
             tooltipTranslateBtn.addEventListener('click', tooltipElement._translateClickListener);
         }
