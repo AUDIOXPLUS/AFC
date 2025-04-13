@@ -1,5 +1,11 @@
 // Dati del version log (ristrutturati per leggibilità)
 const versionLogData = [
+    // 13/04/25 - V3.8
+    { 
+        date: '13/04/25', 
+        version: 'V3.8', 
+        description: 'Implemented Chinese language support and translation system'
+    },
     // 09/04/25 - V3.7
     { 
         date: '09/04/25', 
