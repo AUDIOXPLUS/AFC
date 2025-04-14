@@ -147,6 +147,7 @@ td:last-child {
     background: transparent;
     cursor: col-resize;
     user-select: none;
+    -ms-user-select: none; /* Per Edge */
     touch-action: none;
     z-index: 1;
 }
@@ -155,9 +156,40 @@ td:last-child {
     background: #2196f3;
 }
 
+/* Stile per il body durante il ridimensionamento */
+body.column-resizing {
+    cursor: col-resize !important;
+    user-select: none !important;
+    -ms-user-select: none !important; /* Per Edge */
+    overflow-x: hidden !important; /* Previene lo scrolling orizzontale durante il ridimensionamento */
+}
+
+/* Disabilita la selezione del testo durante il ridimensionamento */
+body.column-resizing * {
+    user-select: none !important;
+    -ms-user-select: none !important; /* Per Edge */
+}
+
 /* Disabilita la transizione durante il ridimensionamento */
 .resizing th, .resizing td {
-    transition: none;
+    transition: none !important;
+}
+
+/* Regole specifiche per Edge */
+@supports (-ms-ime-align:auto) {
+    .resizer {
+        width: 8px; /* Larghezza maggiore per facilitare la selezione in Edge */
+        right: -4px;
+    }
+    
+    th {
+        position: relative !important; /* Forza position relative in Edge */
+    }
+    
+    /* Assicura che il ridimensionamento funzioni correttamente in Edge */
+    body.column-resizing .table-wrapper {
+        overflow-x: hidden !important;
+    }
 }
 
 /* Mostra il testo completo al passaggio del mouse per tutte le colonne tranne Status e Actions */

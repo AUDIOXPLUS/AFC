@@ -1569,24 +1569,47 @@ function enableColumnResizing() {
         headerCells[i].appendChild(resizer);
 
         let startX, startWidth, totalWidth;
+        let isResizing = false; // Flag per tracciare lo stato di ridimensionamento
 
-        resizer.addEventListener('mousedown', function(e) {
-            startX = e.pageX;
+        // Funzione per gestire l'inizio del ridimensionamento
+        function startResize(e) {
+            // Previene la selezione del testo durante il ridimensionamento
+            e.preventDefault();
+            
+            // Usa clientX invece di pageX per maggiore compatibilità cross-browser
+            startX = e.clientX || (e.touches && e.touches[0].clientX);
             startWidth = headerCells[i].offsetWidth;
             totalWidth = Array.from(headerCells).reduce((sum, cell) => sum + cell.offsetWidth, 0);
-
-            document.addEventListener('mousemove', resizeColumn);
-            document.addEventListener('mouseup', stopResize);
+            
+            isResizing = true;
             resizer.classList.add('resizing');
-        });
+            
+            // Aggiungi gli event listener al document per catturare il movimento anche fuori dall'elemento
+            document.addEventListener('mousemove', resizeColumn);
+            document.addEventListener('touchmove', resizeColumn, { passive: false });
+            document.addEventListener('mouseup', stopResize);
+            document.addEventListener('touchend', stopResize);
+            
+            // Aggiungi una classe al body per indicare che è in corso un ridimensionamento
+            document.body.classList.add('column-resizing');
+        }
 
+        // Funzione per gestire il ridimensionamento
         function resizeColumn(e) {
-            const widthChange = e.pageX - startX;
+            if (!isResizing) return;
+            
+            // Previene lo scroll durante il ridimensionamento su touch device
+            e.preventDefault();
+            
+            // Usa clientX invece di pageX per maggiore compatibilità cross-browser
+            const currentX = e.clientX || (e.touches && e.touches[0].clientX);
+            const widthChange = currentX - startX;
             const newWidth = Math.max(50, startWidth + widthChange); // Minimo 50px
             const newTotalWidth = totalWidth + (newWidth - startWidth);
 
             // Verifica che la nuova larghezza totale non superi la larghezza del wrapper
             if (newTotalWidth <= maxTableWidth) {
+                // Usa style.width con 'px' per massima compatibilità
                 headerCells[i].style.width = newWidth + 'px';
 
                 // Aggiorna anche le celle del corpo della tabella
@@ -1602,11 +1625,26 @@ function enableColumnResizing() {
             }
         }
 
+        // Funzione per terminare il ridimensionamento
         function stopResize() {
-            document.removeEventListener('mousemove', resizeColumn);
-            document.removeEventListener('mouseup', stopResize);
+            if (!isResizing) return;
+            
+            isResizing = false;
             resizer.classList.remove('resizing');
+            
+            // Rimuovi gli event listener
+            document.removeEventListener('mousemove', resizeColumn);
+            document.removeEventListener('touchmove', resizeColumn);
+            document.removeEventListener('mouseup', stopResize);
+            document.removeEventListener('touchend', stopResize);
+            
+            // Rimuovi la classe dal body
+            document.body.classList.remove('column-resizing');
         }
+
+        // Aggiungi event listener per mouse e touch
+        resizer.addEventListener('mousedown', startResize);
+        resizer.addEventListener('touchstart', startResize, { passive: false });
     }
 }
 
