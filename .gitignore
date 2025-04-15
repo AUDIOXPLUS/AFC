@@ -8,3 +8,7 @@ database/*.sqbpro
 database/backups/
 logs/onlyoffice/
 database/.public-ip-cache
+
+# Script di sincronizzazione e backup
+sync_remote_server.sh
+sync_cron_job

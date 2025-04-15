@@ -227,14 +227,31 @@ async function initializeI18n() {
         select.id = 'language-selector';
         select.className = 'language-selector';
 
+        // Funzione per verificare il supporto delle emoji (non è perfetta, ma aiuta)
+        function isBrowserSupportingEmoji() {
+            // Alcuni browser più vecchi hanno problemi con le emoji delle bandiere
+            const userAgent = navigator.userAgent.toLowerCase();
+            if (userAgent.indexOf('msie') !== -1 || userAgent.indexOf('trident') !== -1) {
+                // Internet Explorer ha problemi con molte emoji
+                return false;
+            }
+            // Potrebbe essere esteso con altri controlli se necessario
+            return true;
+        }
+
+        const useEmoji = isBrowserSupportingEmoji();
+        console.log("Browser supporta emoji: " + useEmoji); // Log in italiano
+
         const optionEn = document.createElement('option');
         optionEn.value = 'en';
-        optionEn.textContent = '🇬🇧 EN';
+        // Usa emoji solo se supportate, altrimenti testo semplice
+        optionEn.textContent = useEmoji ? '🇬🇧 EN' : 'EN';
         select.appendChild(optionEn);
 
         const optionZh = document.createElement('option');
         optionZh.value = 'zh';
-        optionZh.textContent = '🇨🇳 CN'; // Cinese semplificato
+        // Usa emoji solo se supportate, altrimenti testo semplice
+        optionZh.textContent = useEmoji ? '🇨🇳 CN' : 'CN'; // Cinese semplificato
         select.appendChild(optionZh);
 
         select.value = currentLanguage; // Imposta la lingua corrente
