@@ -19,6 +19,158 @@ document.addEventListener('DOMContentLoaded', async function() {
     await initializeDashboard();
 });
 
+// Variabile globale per tenere traccia della fase attualmente selezionata
+let currentHighlightedPhase = null;
+
+// Funzione per inizializzare la taskbar esplicativa delle fasi
+async function initializePhaseTaskbar() {
+    console.log('Inizializzazione taskbar esplicativa delle fasi...');
+    
+    // Verifica se le fasi sono già state caricate
+    if (!window.projectPhases) {
+        try {
+            const phasesResponse = await fetch('/api/phases');
+            if (phasesResponse.ok) {
+                window.projectPhases = await phasesResponse.json();
+                console.log('Fasi caricate per la taskbar:', window.projectPhases);
+            } else {
+                console.error('Errore nel caricamento delle fasi per la taskbar:', phasesResponse.status);
+                return;
+            }
+        } catch (error) {
+            console.error('Errore nel caricamento delle fasi per la taskbar:', error);
+            return;
+        }
+    }
+    
+    // Ordina le fasi per order_num
+    const sortedPhases = [...window.projectPhases].sort((a, b) => a.order_num - b.order_num);
+    
+    // Riferimento alla taskbar
+    const phaseTaskbar = document.getElementById('phase-taskbar');
+    if (!phaseTaskbar) {
+        console.error('Elemento taskbar non trovato nel DOM');
+        return;
+    }
+    
+    // Pulisci la taskbar
+    phaseTaskbar.innerHTML = '';
+    
+    // Popola la taskbar con i mattoncini delle fasi
+    sortedPhases.forEach(phase => {
+        const phaseItem = document.createElement('div');
+        phaseItem.className = 'phase-taskbar-item';
+        phaseItem.textContent = phase.name;
+        phaseItem.dataset.phaseId = phase.id;
+        phaseItem.title = phase.name; // Tooltip con il nome completo
+        
+        // Event listener per il click sul mattoncino
+        phaseItem.addEventListener('click', () => {
+            // Se questa fase è già selezionata, deseleziona
+            if (currentHighlightedPhase === phase.id) {
+                removePhaseColumnHighlight();
+                currentHighlightedPhase = null;
+                
+                // Rimuovi la classe active da tutti i mattoncini
+                document.querySelectorAll('.phase-taskbar-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+            } else {
+                // Altrimenti, seleziona questa fase
+                highlightPhaseColumn(phase.id);
+                currentHighlightedPhase = phase.id;
+                
+                // Rimuovi la classe active da tutti i mattoncini
+                document.querySelectorAll('.phase-taskbar-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+                
+                // Aggiungi la classe active solo al mattoncino corrente
+                phaseItem.classList.add('active');
+            }
+        });
+        
+        phaseTaskbar.appendChild(phaseItem);
+    });
+    
+    console.log('Taskbar esplicativa inizializzata con successo');
+}
+
+// Funzione per evidenziare la colonna corrispondente a una fase
+function highlightPhaseColumn(phaseId) {
+    // Rimuovi l'evidenziazione precedente
+    removePhaseColumnHighlight();
+    
+    // Ottieni tutte le celle nella tabella
+    const table = document.getElementById('projects-table');
+    const rows = table.getElementsByTagName('tr');
+    if (!rows.length) {
+        console.warn('Nessuna riga trovata nella tabella');
+        return;
+    }
+    
+    // Per ogni riga, trova i mattoncini della phase-progress-bar che corrispondono alla fase selezionata
+    // La colonna dello status è la 10 (indice)
+    const statusColumnIndex = 10;
+    
+    // Crea l'elemento di evidenziazione
+    const highlightElement = document.createElement('div');
+    highlightElement.className = 'phase-column-highlight';
+    highlightElement.id = 'phase-column-highlight';
+    
+    // Aggiungi l'elemento al contenitore della tabella
+    const tableWrapper = document.querySelector('.table-wrapper');
+    if (!tableWrapper) {
+        console.error('Table wrapper non trovato');
+        return;
+    }
+    
+    // Calcola la posizione dell'evidenziazione
+    const firstRow = rows[0];
+    const headerCell = firstRow.cells[statusColumnIndex];
+    if (!headerCell) {
+        console.error('Cella header non trovata');
+        return;
+    }
+    
+    // Posizione basata sul target clickato (ogni quadratino nella phase-progress-bar)
+    const phaseIndex = window.projectPhases.findIndex(phase => String(phase.id) === String(phaseId));
+    if (phaseIndex === -1) {
+        console.error('Fase non trovata:', phaseId);
+        return;
+    }
+    
+    // Misure totali per il calcolo
+    const tableRect = table.getBoundingClientRect();
+    const headerCellRect = headerCell.getBoundingClientRect();
+    const cellWidth = headerCellRect.width;
+    const phaseItemWidth = cellWidth / window.projectPhases.length;
+    
+    // Calcola la posizione X all'interno della cella di status
+    const offsetX = headerCellRect.left - tableRect.left + (phaseItemWidth * phaseIndex);
+    
+    // Imposta posizione e dimensioni dell'evidenziazione
+    highlightElement.style.left = `${offsetX}px`;
+    highlightElement.style.width = `${phaseItemWidth}px`;
+    highlightElement.style.top = '0';
+    highlightElement.style.height = `${tableRect.height}px`;
+    
+    // Aggiungi l'elemento al wrapper
+    tableWrapper.appendChild(highlightElement);
+    tableWrapper.style.position = 'relative';
+    
+    console.log(`Evidenziazione colonna per fase ID ${phaseId} (indice ${phaseIndex}) applicata`);
+}
+
+// Funzione per rimuovere l'evidenziazione della colonna
+function removePhaseColumnHighlight() {
+    const highlight = document.getElementById('phase-column-highlight');
+    if (highlight) {
+        highlight.remove();
+        console.log('Evidenziazione colonna rimossa');
+    }
+}
+
 // Variabili globali per memorizzare factory e client
 window.factories = []; // Verrà popolato dopo il fetch dei progetti
 window.clients = [];
@@ -28,6 +180,9 @@ async function initializeDashboard() {
     document.getElementById('logout').addEventListener('click', function() {
         window.location.href = 'login.html';
     });
+    
+    // Inizializza la taskbar esplicativa delle fasi
+    await initializePhaseTaskbar();
 
     // NOTA: Il caricamento delle factory è stato spostato dopo fetchProjects
     // per derivarle dai progetti accessibili dall'utente.

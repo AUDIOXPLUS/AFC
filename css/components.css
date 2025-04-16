@@ -134,6 +134,60 @@
     background-color: #E0E0E0; /* Grigio */
 }
 
+/* Stili per la taskbar esplicativa delle fasi */
+.phase-taskbar-container {
+    margin: 10px 0;
+    width: 100%;
+    overflow-x: hidden;
+}
+
+.phase-taskbar {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    height: 30px;
+    border-radius: 4px;
+    background-color: #f9f9f9;
+    border: 1px solid #ddd;
+}
+
+.phase-taskbar-item {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 5px;
+    margin: 0 1px;
+    font-size: 11px;
+    font-weight: bold;
+    cursor: pointer;
+    border-radius: 2px;
+    color: #333;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.phase-taskbar-item:hover {
+    opacity: 0.8;
+}
+
+.phase-taskbar-item.active {
+    border-bottom: 2px solid #3498db;
+    color: #3498db;
+    font-weight: bold;
+}
+
+/* Stili per il selettore di fase nella tabella */
+.phase-column-highlight {
+    position: absolute;
+    background-color: rgba(52, 152, 219, 0.1);
+    border-left: 2px solid #3498db;
+    border-right: 2px solid #3498db;
+    z-index: 1;
+    pointer-events: none;
+}
+
 /* Stile per evidenziare i quadratini aggiornati nella progress bar */
 .new-project-item {
     animation: highlight-pulse 0.8s infinite ease-in-out; /* Animazione più veloce */

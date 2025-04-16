@@ -1533,7 +1533,7 @@ export function editHistoryEntry(entryId, projectId) {
          fileInputContainer.appendChild(fileInput); // Aggiungi input se non esiste
     }
     fileInput.disabled = false; // Abilita l'input
-    fileInput.style.display = 'block'; // Assicura sia visibile
+    // Non mostriamo l'input di file poiché c'è già l'icona della cartella per questo
     fileInput.addEventListener('change', async (e) => {
          // Logica di upload immediato (o al salvataggio)
          const filesToUpload = e.target.files;
