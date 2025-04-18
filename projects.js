@@ -62,7 +62,24 @@ async function initializePhaseTaskbar() {
         phaseItem.className = 'phase-taskbar-item';
         phaseItem.textContent = phase.name;
         phaseItem.dataset.phaseId = phase.id;
+        phaseItem.dataset.translate = phase.name; // Aggiungi data-translate per supportare la traduzione
         phaseItem.title = phase.name; // Tooltip con il nome completo
+        phaseItem.dataset.translateTitle = phase.name; // Aggiungi data-translate-title per il tooltip
+        
+        // Aggiungi stili per separare visivamente i pulsanti e adattarli alla lunghezza del testo
+        phaseItem.style.margin = '0 1px'; // Riduco ulteriormente i margini laterali
+        phaseItem.style.padding = '0 3px'; // Riduco il padding orizzontale
+        phaseItem.style.borderRadius = '2px'; // Angoli ancora meno arrotondati
+        phaseItem.style.border = '0.5px solid #ccc'; // Bordo ancora più sottile
+        phaseItem.style.display = 'inline-flex'; // Manteniamo flex per allineamento
+        phaseItem.style.alignItems = 'center'; // Centra verticalmente il contenuto
+        phaseItem.style.justifyContent = 'center'; // Centra orizzontalmente il contenuto
+        phaseItem.style.whiteSpace = 'nowrap'; // Impedisce che il testo vada a capo
+        phaseItem.style.height = '10px'; // Riduco ulteriormente l'altezza
+        phaseItem.style.minWidth = 'fit-content'; // Assicura che il pulsante sia largo quanto il testo
+        phaseItem.style.fontSize = '0.55rem'; // Dimensione testo ancora più piccola
+        phaseItem.style.lineHeight = '0.6'; // Riduco ulteriormente l'altezza di riga
+        phaseItem.style.fontWeight = 'normal'; // Mantieni il testo senza grassetto
         
         // Event listener per il click sul mattoncino
         phaseItem.addEventListener('click', () => {
@@ -1708,100 +1725,311 @@ function restoreColumnWidths() {
     }
 }
 
+// Rendere la funzione enableColumnResizing disponibile globalmente
+window.enableColumnResizing = enableColumnResizing;
+window.restoreColumnWidths = restoreColumnWidths;
+
+// Esponiamo i riferimenti alle celle e ai resizer per poterli manipolare quando necessario
+window.tableColumnState = {
+    headerCells: null,
+    resizerInstances: []
+};
+
+// Funzione per inizializzare il ridimensionamento delle colonne
 function enableColumnResizing() {
     const table = document.getElementById('projects-table');
+    if (!table) {
+        console.error('ERRORE CRITICO: Tabella projects-table non trovata nel DOM!');
+        return;
+    }
+    
     const headerCells = table.getElementsByTagName('th');
+    if (!headerCells || headerCells.length === 0) {
+        console.error('ERRORE CRITICO: Nessuna cella di intestazione (th) trovata nella tabella!');
+        return;
+    }
+    
     const tableWrapper = table.closest('.table-wrapper');
+    if (!tableWrapper) {
+        console.error('ERRORE CRITICO: Table-wrapper non trovato!');
+        return;
+    }
+    
     const maxTableWidth = tableWrapper.offsetWidth;
+    console.log(`Inizializzazione ridimensionamento colonne: ${headerCells.length} celle header trovate`);
 
-    // Ripristina le larghezze salvate
-    restoreColumnWidths();
+    // Memorizza il riferimento alle celle header per uso futuro
+    window.tableColumnState.headerCells = headerCells;
+    window.tableColumnState.resizerInstances = [];
 
+    try {
+        // Prima rimuoviamo tutti i resizer esistenti per evitare duplicati
+        const existingResizers = table.querySelectorAll('.resizer');
+        let removedCount = 0;
+        
+        existingResizers.forEach(resizer => {
+            try {
+                if (resizer._startResize) {
+                    resizer.removeEventListener('mousedown', resizer._startResize);
+                    resizer.removeEventListener('touchstart', resizer._startResize);
+                }
+                resizer.remove();
+                removedCount++;
+            } catch(e) {
+                console.warn(`Errore nella rimozione di un resizer: ${e.message}`);
+            }
+        });
+        
+        console.log(`Rimossi ${removedCount} resizer esistenti di ${existingResizers.length} trovati`);
+    } catch(e) {
+        console.error(`Errore durante la pulizia dei resizer: ${e.message}`);
+    }
+
+    // Applica le larghezze salvate prima di aggiungere i nuovi resizer
+    try {
+        restoreColumnWidths();
+    } catch(e) {
+        console.warn(`Impossibile ripristinare larghezze colonne: ${e.message}`);
+    }
+
+    // NUOVA STRUTTURA: Ristruttura le celle di intestazione per separare il testo dai resizer
     for (let i = 0; i < headerCells.length; i++) {
-        const resizer = document.createElement('div');
-        resizer.className = 'resizer';
-        headerCells[i].style.position = 'relative';
-        headerCells[i].appendChild(resizer);
+        try {
+            const headerCell = headerCells[i];
+            
+            // Verifica che la cella esista ancora nel DOM
+            if (!headerCell || !headerCell.parentNode) {
+                console.warn(`Cella header ${i} non trovata o già rimossa dal DOM`);
+                continue;
+            }
+            
+            // Salva il contenuto testuale originale
+            const originalContent = headerCell.innerHTML;
+            const originalTextContent = headerCell.textContent.trim();
+            
+            // Verifica se la cella ha già la struttura ottimizzata
+            if (!headerCell.querySelector('.header-text-container')) {
+                // Svuota la cella
+                headerCell.innerHTML = '';
+                
+                // Crea un contenitore per il testo che può essere tradotto
+                const textContainer = document.createElement('span');
+                textContainer.className = 'header-text-container';
+                textContainer.innerHTML = originalContent;
+                
+                // Se la cella ha un attributo data-translate, aggiungilo al container di testo
+                if (headerCell.hasAttribute('data-translate')) {
+                    textContainer.setAttribute('data-translate', headerCell.getAttribute('data-translate'));
+                }
+                
+                // Aggiungi il contenitore di testo alla cella
+                headerCell.appendChild(textContainer);
+                
+                console.log(`Ristrutturata cella header ${i}: "${originalTextContent}"`);
+            }
+            
+            // Verifica che la posizione sia impostata correttamente
+            headerCell.style.position = 'relative';
+            
+            // Crea un nuovo resizer come elemento indipendente
+            const resizer = document.createElement('div');
+            resizer.className = 'resizer';
+            resizer.style.cssText = 'position: absolute; right: -3px; top: 0; height: 100%; width: 6px; background: transparent; cursor: col-resize; z-index: 10;';
+            
+            // Aggiungi attributi data per debug e manutenzione
+            resizer.setAttribute('data-column-index', i);
+            resizer.setAttribute('data-column-title', originalTextContent);
+            
+            // Stato specifico per questo resizer
+            let startX, startWidth, totalWidth;
+            let isResizing = false;
 
-        let startX, startWidth, totalWidth;
-        let isResizing = false; // Flag per tracciare lo stato di ridimensionamento
+            // Funzione per gestire l'inizio del ridimensionamento
+            function startResize(e) {
+                // Previene la selezione del testo e altri comportamenti default
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // Usa clientX invece di pageX per maggiore compatibilità
+                startX = e.clientX || (e.touches && e.touches[0].clientX);
+                startWidth = headerCell.offsetWidth;
+                totalWidth = Array.from(headerCells).reduce((sum, cell) => sum + cell.offsetWidth, 0);
+                
+                isResizing = true;
+                resizer.classList.add('resizing');
+                
+                // Aggiungi gli event listener al document
+                document.addEventListener('mousemove', resizeColumn);
+                document.addEventListener('touchmove', resizeColumn, { passive: false });
+                document.addEventListener('mouseup', stopResize);
+                document.addEventListener('touchend', stopResize);
+                
+                // Aggiungi classe al body
+                document.body.classList.add('column-resizing');
+                
+                console.log(`Iniziato ridimensionamento colonna ${i}: "${originalTextContent}" - Larghezza iniziale: ${startWidth}px`);
+            }
 
-        // Funzione per gestire l'inizio del ridimensionamento
-        function startResize(e) {
-            // Previene la selezione del testo durante il ridimensionamento
-            e.preventDefault();
-            
-            // Usa clientX invece di pageX per maggiore compatibilità cross-browser
-            startX = e.clientX || (e.touches && e.touches[0].clientX);
-            startWidth = headerCells[i].offsetWidth;
-            totalWidth = Array.from(headerCells).reduce((sum, cell) => sum + cell.offsetWidth, 0);
-            
-            isResizing = true;
-            resizer.classList.add('resizing');
-            
-            // Aggiungi gli event listener al document per catturare il movimento anche fuori dall'elemento
-            document.addEventListener('mousemove', resizeColumn);
-            document.addEventListener('touchmove', resizeColumn, { passive: false });
-            document.addEventListener('mouseup', stopResize);
-            document.addEventListener('touchend', stopResize);
-            
-            // Aggiungi una classe al body per indicare che è in corso un ridimensionamento
-            document.body.classList.add('column-resizing');
-        }
+            // Funzione per gestire il ridimensionamento
+            function resizeColumn(e) {
+                if (!isResizing) return;
+                
+                // Previene lo scroll durante il ridimensionamento
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // Calcola la nuova larghezza
+                const currentX = e.clientX || (e.touches && e.touches[0].clientX);
+                const widthChange = currentX - startX;
+                const newWidth = Math.max(50, startWidth + widthChange); // Minimo 50px
+                
+                // Applica la nuova larghezza
+                headerCell.style.width = `${newWidth}px`;
 
-        // Funzione per gestire il ridimensionamento
-        function resizeColumn(e) {
-            if (!isResizing) return;
-            
-            // Previene lo scroll durante il ridimensionamento su touch device
-            e.preventDefault();
-            
-            // Usa clientX invece di pageX per maggiore compatibilità cross-browser
-            const currentX = e.clientX || (e.touches && e.touches[0].clientX);
-            const widthChange = currentX - startX;
-            const newWidth = Math.max(50, startWidth + widthChange); // Minimo 50px
-            const newTotalWidth = totalWidth + (newWidth - startWidth);
-
-            // Verifica che la nuova larghezza totale non superi la larghezza del wrapper
-            if (newTotalWidth <= maxTableWidth) {
-                // Usa style.width con 'px' per massima compatibilità
-                headerCells[i].style.width = newWidth + 'px';
-
-                // Aggiorna anche le celle del corpo della tabella
+                // Aggiorna anche le celle del corpo
                 const tableRows = table.getElementsByTagName('tr');
                 for (let row of tableRows) {
                     if (row.cells[i]) {
-                        row.cells[i].style.width = newWidth + 'px';
+                        row.cells[i].style.width = `${newWidth}px`;
                     }
                 }
 
                 // Salva le nuove larghezze
                 saveColumnWidths();
             }
-        }
 
-        // Funzione per terminare il ridimensionamento
-        function stopResize() {
-            if (!isResizing) return;
-            
-            isResizing = false;
-            resizer.classList.remove('resizing');
-            
-            // Rimuovi gli event listener
-            document.removeEventListener('mousemove', resizeColumn);
-            document.removeEventListener('touchmove', resizeColumn);
-            document.removeEventListener('mouseup', stopResize);
-            document.removeEventListener('touchend', stopResize);
-            
-            // Rimuovi la classe dal body
-            document.body.classList.remove('column-resizing');
-        }
+            // Funzione per terminare il ridimensionamento
+            function stopResize(e) {
+                if (!isResizing) return;
+                
+                isResizing = false;
+                resizer.classList.remove('resizing');
+                
+                // Rimuovi gli event listener
+                document.removeEventListener('mousemove', resizeColumn);
+                document.removeEventListener('touchmove', resizeColumn);
+                document.removeEventListener('mouseup', stopResize);
+                document.removeEventListener('touchend', stopResize);
+                
+                // Rimuovi la classe dal body
+                document.body.classList.remove('column-resizing');
+                
+                // Salva nuovamente le larghezze per sicurezza
+                saveColumnWidths();
+                
+                console.log(`Terminato ridimensionamento colonna ${i}: "${originalTextContent}" - Nuova larghezza: ${headerCell.offsetWidth}px`);
+            }
 
-        // Aggiungi event listener per mouse e touch
-        resizer.addEventListener('mousedown', startResize);
-        resizer.addEventListener('touchstart', startResize, { passive: false });
+            // Salva riferimento alla funzione startResize
+            resizer._startResize = startResize;
+            
+            // Salva riferimenti per gestione futura
+            window.tableColumnState.resizerInstances.push({
+                index: i,
+                resizer: resizer,
+                startResizeFn: startResize
+            });
+
+            // Aggiungi event listener
+            resizer.addEventListener('mousedown', startResize);
+            resizer.addEventListener('touchstart', startResize, { passive: false });
+            
+            // Aggiungi il resizer alla cella header (sempre alla fine)
+            headerCell.appendChild(resizer);
+        } catch(e) {
+            console.error(`Errore nella ristrutturazione/inizializzazione per la colonna ${i}: ${e.message}`);
+        }
     }
+    
+    console.log('Ridimensionamento colonne inizializzato con successo con struttura ottimizzata');
 }
+
+// Aggiungi alcuni stili CSS necessari direttamente tramite JavaScript
+function addColumnResizingStyles() {
+    // Verifica se lo stile è già stato aggiunto
+    if (document.getElementById('column-resizing-styles')) {
+        return;
+    }
+    
+    // Crea elemento style
+    const style = document.createElement('style');
+    style.id = 'column-resizing-styles';
+    style.textContent = `
+        .header-text-container {
+            display: inline-block;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: calc(100% - 10px);
+        }
+        
+        .resizer {
+            position: absolute !important;
+            right: -3px !important;
+            top: 0 !important;
+            height: 100% !important;
+            width: 6px !important;
+            background: transparent;
+            cursor: col-resize !important;
+            user-select: none !important;
+            touch-action: none !important;
+            z-index: 10 !important;
+            display: block !important;
+            opacity: 1 !important;
+        }
+        
+        .resizer:hover, .resizer.resizing {
+            background: #2196f3 !important;
+        }
+        
+        .resizer.resizing {
+            width: 8px !important;
+        }
+    `;
+    
+    // Aggiungi lo stile al documento
+    document.head.appendChild(style);
+    console.log('Stili di ridimensionamento colonne aggiunti dinamicamente');
+}
+
+// Chiama la funzione per aggiungere stili quando lo script viene caricato
+document.addEventListener('DOMContentLoaded', addColumnResizingStyles);
+
+// Funzione per verificare e riparare i resizer danneggiati dopo un cambio lingua
+window.checkAndRepairResizers = function() {
+    console.log('Verifica e riparazione resizer...');
+    
+    const table = document.getElementById('projects-table');
+    if (!table) {
+        console.error('ERRORE CRITICO: Tabella projects-table non trovata durante la riparazione!');
+        return false;
+    }
+    
+    // Verifica che tutti gli header abbiano resizer funzionanti
+    const headerCells = table.getElementsByTagName('th');
+    let repairCount = 0;
+    
+    for (let i = 0; i < headerCells.length; i++) {
+        const headerCell = headerCells[i];
+        const resizer = headerCell.querySelector('.resizer');
+        
+        // Se la cella non ha un resizer, è danneggiata
+        if (!resizer) {
+            console.log(`Riparazione: cella ${i} (${headerCell.textContent.trim()}) senza resizer`);
+            repairCount++;
+        }
+    }
+    
+    // Se ci sono celle danneggiate, reinizializza completamente
+    if (repairCount > 0) {
+        console.log(`Trovati ${repairCount} resizer danneggiati. Reinizializzazione completa...`);
+        enableColumnResizing();
+        return true;
+    }
+    
+    console.log('Nessun resizer danneggiato trovato');
+    return false;
+};
 
 // Function to enable column sorting
 function enableColumnSorting() {

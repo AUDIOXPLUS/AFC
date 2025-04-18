@@ -1,5 +1,21 @@
 // Dati del version log (ristrutturati per leggibilità)
 const versionLogData = [
+    // 18/04/25 - V3.9
+    { 
+        date: '18/04/25', 
+        version: 'V3.9', 
+        description: 'Implemented phase highlight feature'
+    },
+    { 
+        date: '18/04/25', 
+        version: 'V3.9', 
+        description: 'Fixed page resizing issues'
+    },
+    { 
+        date: '18/04/25', 
+        version: 'V3.9', 
+        description: 'Fixed various translation bugs'
+    },
     // 13/04/25 - V3.8
     { 
         date: '13/04/25', 

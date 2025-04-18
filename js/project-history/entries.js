@@ -638,7 +638,9 @@ export function displayProjectHistory(history, projectId) {
         assignedToCell.textContent = memberName;
 
         // --- Cella Stato ---
-        row.insertCell(4).textContent = entry.status || '-';
+        const statusCell = row.insertCell(4);
+        statusCell.textContent = entry.status || '-';
+        statusCell.setAttribute('data-status', entry.status || '-'); // Salva il valore originale in inglese
 
     // --- Cella File ---
     const filesCell = row.insertCell(5);

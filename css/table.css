@@ -149,10 +149,25 @@ td:last-child {
     user-select: none;
     -ms-user-select: none; /* Per Edge */
     touch-action: none;
-    z-index: 1;
+    z-index: 5; /* Aumentato z-index per assicurarsi che sia sopra altri elementi */
+    display: block !important; /* Forzato a essere sempre visibile */
+    opacity: 1 !important; /* Forzato a essere sempre visibile */
+    pointer-events: auto !important; /* Assicura che possa sempre ricevere eventi del mouse */
 }
 
 .resizer:hover, .resizer.resizing {
+    background: #2196f3;
+    width: 8px; /* Aumentato per facilitare l'uso */
+}
+
+/* Un segno visibile sul resizer quando attivo o al passaggio del mouse */
+.resizer:hover:after, .resizer.resizing:after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 2px;
+    height: 100%;
+    width: 2px;
     background: #2196f3;
 }
 

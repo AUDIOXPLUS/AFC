@@ -74,7 +74,7 @@ function applyTranslations() {
                 element.placeholder = translatedText;
             }
             // Potremmo voler tradurre anche 'value' per alcuni input, ma va gestito con cautela
-        } else if (element.tagName === 'BUTTON' || element.tagName === 'A' || element.tagName === 'SPAN' || element.tagName === 'LABEL' || element.tagName === 'TH' || element.tagName === 'H1' || element.tagName === 'H2' || element.tagName === 'H3' || element.tagName === 'P' || element.tagName === 'LI' || element.tagName === 'DIV' || element.tagName === 'OPTION' || element.tagName === 'TITLE') {
+        } else if (element.tagName === 'BUTTON' || element.tagName === 'A' || element.tagName === 'SPAN' || element.tagName === 'LABEL' || element.tagName === 'H1' || element.tagName === 'H2' || element.tagName === 'H3' || element.tagName === 'P' || element.tagName === 'LI' || element.tagName === 'DIV' || element.tagName === 'OPTION' || element.tagName === 'TITLE') {
              // Traduce il contenuto testuale, preservando eventuali nodi figli (es. icone <i>)
              // Itera sui nodi figli di tipo testo e aggiornali
              Array.from(element.childNodes).forEach(node => {
@@ -86,6 +86,47 @@ function applyTranslations() {
              if (element.textContent.trim() === key) {
                  element.textContent = translatedText;
              }
+        } else if (element.tagName === 'TH') {
+             // Gestione speciale per le intestazioni della tabella con resizer
+             // Salva tutti i nodi figli non testuali (come i resizer e le icone di ordinamento)
+             const nonTextChildren = Array.from(element.childNodes).filter(node => 
+                 node.nodeType !== Node.TEXT_NODE
+             );
+             
+             // Trova e aggiorna solo i nodi di testo
+             Array.from(element.childNodes).forEach(node => {
+                 if (node.nodeType === Node.TEXT_NODE && node.textContent.trim() === key) {
+                     node.textContent = translatedText;
+                 }
+             });
+             
+             // Assicura che il testo sia stato aggiornato in almeno un nodo
+             let foundTextNode = false;
+             Array.from(element.childNodes).forEach(node => {
+                 if (node.nodeType === Node.TEXT_NODE) {
+                     foundTextNode = true;
+                 }
+             });
+             
+             // Se non trova nodi testo esistenti da aggiornare, aggiungi il testo tradotto
+             // preservando i nodi non testuali (come i resizer)
+             if (!foundTextNode) {
+                 // Salva tutti i nodi figli esistenti
+                 const children = Array.from(element.childNodes);
+                 
+                 // Pulisci il contenuto
+                 element.textContent = '';
+                 
+                 // Aggiungi il testo tradotto come primo nodo
+                 element.appendChild(document.createTextNode(translatedText + ' '));
+                 
+                 // Ripristina tutti i nodi non testuali
+                 nonTextChildren.forEach(child => {
+                     element.appendChild(child);
+                 });
+                 
+                 console.log(`Traduzione header con resizer preservato: "${key}" -> "${translatedText}"`); // Log in italiano
+             }
         } else {
             // Per altri elementi, traduci il textContent se corrisponde alla chiave
             if (element.textContent.trim() === key) {
@@ -96,6 +137,13 @@ function applyTranslations() {
         // Traduce anche l'attributo 'title' se presente e corrisponde alla chiave
         if (element.title && element.title === key) {
             element.title = translatedText;
+        }
+        
+        // Gestisce l'attributo data-translateTitle specifico per tradurre i tooltip
+        if (element.dataset.translateTitle) {
+            const titleKey = element.dataset.translateTitle;
+            const translatedTitle = translate(titleKey);
+            element.title = translatedTitle;
         }
     });
     
@@ -141,13 +189,42 @@ function applyTranslations() {
         }
     }
 
-    // Traduci le opzioni delle dropdown
+    // Traduci le opzioni delle dropdown, preservando le checkbox e i loro valori
     const dropdownOptions = document.querySelectorAll('.dropdown-content label');
     dropdownOptions.forEach(option => {
-        const key = option.textContent.trim();
-        const translatedText = translate(key);
-        if (translatedText !== key) {
-            option.textContent = option.textContent.replace(key, translatedText);
+        // Ottieni il testo escludendo eventuali elementi figli (come le checkbox)
+        const textNodes = Array.from(option.childNodes)
+            .filter(node => node.nodeType === Node.TEXT_NODE)
+            .map(node => node.textContent.trim())
+            .join(' ');
+        
+        const key = textNodes.trim();
+        if (key) {
+            const translatedText = translate(key);
+            if (translatedText !== key) {
+                // Sostituisci solo il testo, preservando la checkbox
+                Array.from(option.childNodes)
+                    .filter(node => node.nodeType === Node.TEXT_NODE)
+                    .forEach(node => {
+                        if (node.textContent.trim()) {
+                            node.textContent = node.textContent.replace(node.textContent.trim(), translatedText);
+                        }
+                    });
+            }
+        }
+        
+        // Assicurati che l'attributo data-translate sulla checkbox venga gestito
+        const checkbox = option.querySelector('input[type="checkbox"]');
+        if (checkbox && checkbox.hasAttribute('data-translate')) {
+            const checkboxKey = checkbox.getAttribute('data-translate');
+            if (checkboxKey) {
+                const translatedValue = translate(checkboxKey);
+                // Il valore della checkbox rimane in inglese per compatibilità con il filtraggio
+                // Ma assicuriamoci che l'attributo data-translate sia gestito correttamente
+                if (translatedValue !== checkboxKey) {
+                    checkbox.setAttribute('data-translated', translatedValue);
+                }
+            }
         }
     });
 
@@ -199,6 +276,10 @@ async function setLanguage(lang) {
         console.warn(`Lingua non supportata: ${lang}`); // Log in italiano
         return;
     }
+    
+    // Salva lo stato corrente delle larghezze delle colonne prima di cambiare lingua
+    const savedColumnWidths = localStorage.getItem('projectsColumnWidths');
+    
     currentLanguage = lang;
     localStorage.setItem('preferredLanguage', lang); // Salva la preferenza
     // Ricarica le traduzioni se necessario (potrebbero essere cambiate)
@@ -210,6 +291,41 @@ async function setLanguage(lang) {
     if (languageSelector) {
         languageSelector.value = lang;
     }
+    
+    // Verifica e ripara i resizer danneggiati dopo il cambio lingua
+    setTimeout(() => {
+        console.log('Controllo integrità resizer dopo cambio lingua...'); // Log in italiano
+        
+        try {
+            // Verifica e ripara i resizer danneggiati
+            if (typeof window.checkAndRepairResizers === 'function') {
+                const needed = window.checkAndRepairResizers();
+                if (needed) {
+                    console.log('Riparazione resizer completata con successo.'); // Log in italiano
+                }
+            } else if (typeof window.enableColumnResizing === 'function') {
+                // Fallback alla reinizializzazione completa se la funzione di riparazione non è disponibile
+                console.log('Funzione di riparazione non disponibile, reinizializzazione completa...'); // Log in italiano
+                window.enableColumnResizing();
+            }
+            
+            // Ripristina comunque le larghezze salvate
+            if (typeof window.restoreColumnWidths === 'function') {
+                window.restoreColumnWidths();
+            }
+        } catch (e) {
+            console.error('Errore durante la riparazione dei resizer:', e); // Log in italiano
+            
+            // Tentativo ultimo di reinizializzazione completa
+            try {
+                if (typeof window.enableColumnResizing === 'function') {
+                    window.enableColumnResizing();
+                }
+            } catch (e2) {
+                console.error('Errore critico nella reinizializzazione:', e2); // Log in italiano
+            }
+        }
+    }, 300); // Timeout più lungo per assicurarsi che il DOM sia stabilizzato dopo le traduzioni
 }
 
 // Funzione per inizializzare il sistema di traduzione

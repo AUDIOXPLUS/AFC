@@ -32,7 +32,7 @@ export function enableFiltering() {
         const textFilterValues = Array.from(textFilterInputs).map(input => input.value.toLowerCase().trim());
         const selectedStatuses = Array.from(statusCheckboxes)
             .filter(cb => cb.checked)
-            .map(cb => cb.value);
+            .map(cb => cb.getAttribute('data-status-value') || cb.value);
 
         // Aggiorna lo stile dei filtri attivi
         textFilterInputs.forEach(input => {
@@ -57,7 +57,9 @@ export function enableFiltering() {
             // Filtra per status
             if (selectedStatuses.length > 0) {
                 const statusCell = row.cells[4];
-                const statusText = statusCell.textContent.trim();
+                // Usa il valore originale in inglese salvato nell'attributo data-status
+                // invece del testo tradotto visibile nell'interfaccia
+                const statusText = statusCell.getAttribute('data-status') || statusCell.textContent.trim();
                 if (!selectedStatuses.includes(statusText)) {
                     isMatch = false;
                 }

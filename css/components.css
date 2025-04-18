@@ -145,8 +145,8 @@
     display: flex;
     flex-direction: row;
     width: 100%;
-    height: 30px;
-    border-radius: 4px;
+    height: 20px;
+    border-radius: 3px;
     background-color: #f9f9f9;
     border: 1px solid #ddd;
 }
@@ -156,16 +156,18 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0 5px;
+    padding: 0 3px;
     margin: 0 1px;
-    font-size: 11px;
-    font-weight: bold;
+    font-size: 9px;
+    font-weight: normal;
     cursor: pointer;
     border-radius: 2px;
     color: #333;
     text-overflow: ellipsis;
     white-space: nowrap;
     overflow: hidden;
+    height: 14px;
+    line-height: 1;
 }
 
 .phase-taskbar-item:hover {

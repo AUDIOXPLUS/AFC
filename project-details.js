@@ -116,12 +116,24 @@ document.addEventListener('DOMContentLoaded', async function() {
             // Introduce a small delay to mitigate race condition with database update
             await new Promise(resolve => setTimeout(resolve, 300)); // 300ms delay
 
-                // Aggiorna il titolo del progetto usando il riferimento salvato
-                if (modelNumberSpan) { // Usa il riferimento ottenuto all'inizio
-                    modelNumberSpan.textContent = project.modelNumber;
+                // Aggiorna il titolo del progetto
+                // Otteniamo un riferimento fresco all'elemento perché potrebbe essere stato creato dopo l'inizio
+                const currentModelNumberSpan = document.getElementById('project-model-number');
+                if (currentModelNumberSpan) {
+                    currentModelNumberSpan.textContent = project.modelNumber;
                 } else {
-                    // Questo log ora indica che l'elemento non era presente nemmeno all'inizio
-                    console.error("Elemento 'project-model-number' non trovato (verificato all'inizio di DOMContentLoaded).");
+                    console.error("Elemento 'project-model-number' non trovato. Ricreazione forzata...");
+                    // Tentativo di ricreare lo span se non esiste
+                    const titleElement = document.querySelector('h1');
+                    if (titleElement) {
+                        // Crea un nuovo span
+                        const newSpan = document.createElement('span');
+                        newSpan.id = 'project-model-number';
+                        newSpan.textContent = project.modelNumber;
+                        // Aggiungi lo span al titolo
+                        titleElement.appendChild(newSpan);
+                        console.log("Span 'project-model-number' ricreato con successo");
+                    }
                 }
                 document.title = `Project Details: ${project.modelNumber}`;
 
