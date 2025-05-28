@@ -4,6 +4,11 @@ const versionLogData = [
     { 
         date: '18/04/25', 
         version: 'V3.9', 
+        description: 'Implemented step file integrated preview/measurement'
+    },
+    { 
+        date: '18/04/25', 
+        version: 'V3.9', 
         description: 'Implemented phase highlight feature'
     },
     { 
