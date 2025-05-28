@@ -1,11 +1,12 @@
 // Dati del version log (ristrutturati per leggibilità)
 const versionLogData = [
-    // 18/04/25 - V3.9
+    // 28/05/25 - V4.0
     { 
-        date: '18/04/25', 
-        version: 'V3.9', 
-        description: 'Implemented step file integrated preview/measurement'
+        date: '28/05/25', 
+        version: 'V4.0', 
+        description: 'Implemented 3D step file integrated preview/measurement'
     },
+    // 18/04/25 - V3.9
     { 
         date: '18/04/25', 
         version: 'V3.9', 
@@ -124,6 +125,17 @@ function createVersionLogPopup() {
     // Aggiungi stili CSS per le sottoliste e i dettagli
     const styleElement = document.createElement('style');
     styleElement.textContent = `
+        @keyframes blink {
+            0% { background-color: #ff0000; color: white; }
+            50% { background-color: #0000ff; color: white; }
+            100% { background-color: #ff0000; color: white; }
+        }
+        .blink-version {
+            animation: blink 1s infinite !important;
+            font-weight: bold !important;
+            padding: 5px 10px;
+            border-radius: 4px;
+        }
         .version-details {
             margin-left: 0;
             margin-top: 5px;
@@ -171,14 +183,26 @@ function createVersionLogPopup() {
     });
     
     // Costruisci il contenuto HTML
-    let contentHTML = `<h2>Version History</h2>`;
+    let contentHTML = `<h2>Change Log</h2>`;
     contentHTML += `<span class="version-close-btn">&times;</span>`;
+    
+    const today = new Date();
+    const twoDaysLater = new Date();
+    twoDaysLater.setDate(today.getDate() + 2);
     
     sortedVersions.forEach(group => {
         const dateFormatted = group.date;  // In futuro si potrebbe formattare meglio
+        const [day, month, year] = group.date.split('/');
+        const versionDate = new Date(Date.UTC(2000 + parseInt(year), 
+                                            parseInt(month) - 1, 
+                                            parseInt(day)));
+        
+        const shouldBlink = group.version === 'V4.0';
+        
+        console.log(`Version: ${group.version}, Should blink: ${shouldBlink}, Today: ${today}, VersionDate: ${versionDate}, TwoDaysLater: ${twoDaysLater}`);
         
         contentHTML += `
-            <div class="version-header">[${group.version}] - ${dateFormatted}</div>
+            <div class="version-header${shouldBlink ? ' blink-version' : ''}" style="${shouldBlink ? 'color: red;' : ''}">[${group.version}] - ${dateFormatted}</div>
             <ul>
                 ${group.items.map(item => `<li class="feature-item">${item}</li>`).join('')}
             </ul>
@@ -249,9 +273,14 @@ function initializeVersionLog() {
         return; 
     }
 
-    updateVersionText(); 
+    updateVersionText();
+    // Apply blinking to version text in menu
+    const versionTextElement = document.getElementById('version-text');
+    if (versionTextElement) {
+        versionTextElement.classList.add('blink-version');
+    }
+    
     createVersionLogPopup();
-
     const overlay = document.getElementById('version-overlay');
     const popup = document.getElementById('version-log');
 
