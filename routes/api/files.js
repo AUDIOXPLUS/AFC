@@ -54,6 +54,34 @@ const upload = multer({
 });
 
 // Endpoint per visualizzare un file
+// Endpoint per ottenere le informazioni di un file
+router.get('/:fileId', checkAuthentication, (req, res) => {
+    const { fileId } = req.params;
+    
+    req.db.get('SELECT * FROM project_files WHERE id = ?', [fileId], (err, file) => {
+        if (err) {
+            console.error('Error fetching file info:', err);
+            return res.status(500).json({ error: 'Failed to fetch file information' });
+        }
+        if (!file) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+        
+        // Rimuovi il percorso completo per sicurezza
+        const fileInfo = {
+            id: file.id,
+            filename: file.filename,
+            project_id: file.project_id,
+            history_id: file.history_id,
+            upload_date: file.upload_date,
+            locked_by: file.locked_by,
+            lock_date: file.lock_date
+        };
+        
+        res.json(fileInfo);
+    });
+});
+
 router.get('/:fileId/view', checkAuthentication, (req, res) => {
     const { fileId } = req.params;
     
@@ -66,30 +94,55 @@ router.get('/:fileId/view', checkAuthentication, (req, res) => {
             return res.status(404).json({ error: 'File not found' });
         }
         
-        // Prima prova il percorso in OnlyOffice Data
-        let filePath = path.join('/var/www/onlyoffice/Data', path.basename(file.filepath));
-        console.log('Original filepath:', file.filepath);
-        console.log('Provo percorso OnlyOffice:', filePath);
+        // Informazioni di debug migliorate
+        console.log('========== RICHIESTA FILE STEP ==========');
+        console.log(`File richiesto: ID=${fileId}, Nome=${file.filename}, Percorso DB=${file.filepath}`);
         
-        // Se il file non esiste in OnlyOffice Data, prova il percorso originale
-        if (!fs.existsSync(filePath)) {
-            console.log('File non trovato in OnlyOffice Data, provo percorso originale');
-            // Se il filepath inizia con 'uploads/', lo cerco nella root dell'app
+        let filePath;
+        
+        // NUOVO APPROCCIO: verifichiamo PRIMA il percorso originale del file
+        // 1. Primo tentativo: percorso originale dal database
+        if (file.filepath) {
+            // Se è un percorso relativo alle uploads, lo trasformo in assoluto
             if (file.filepath.startsWith('uploads/')) {
-                filePath = path.join(__dirname, file.filepath);
+                filePath = path.join(__dirname, '../../', file.filepath);
             } else {
-                // Altrimenti uso il filepath così com'è (potrebbe essere un percorso assoluto)
+                // Se è già un percorso assoluto, lo uso così com'è
                 filePath = file.filepath;
             }
-            console.log('Provo percorso alternativo:', filePath);
             
-            if (!fs.existsSync(filePath)) {
-                console.error('File non trovato in nessun percorso');
-                return res.status(404).json({ error: 'File not found' });
+            console.log('1. Tentativo primario (percorso originale):', filePath);
+            if (fs.existsSync(filePath)) {
+                console.log(`✓ Successo! File trovato al percorso originale: ${filePath}`);
+                return res.sendFile(filePath);
+            } else {
+                console.log(`✗ File non trovato al percorso originale: ${filePath}`);
             }
         }
-
-        res.sendFile(filePath);
+        
+        // 2. Secondo tentativo: in OnlyOffice con ID nel nome
+        const onlyOfficePath1 = path.join('/var/www/onlyoffice/Data', `${fileId}-${path.basename(file.filepath)}`);
+        console.log('2. Tentativo in OnlyOffice con ID:', onlyOfficePath1);
+        if (fs.existsSync(onlyOfficePath1)) {
+            console.log(`✓ Successo! File trovato in OnlyOffice con ID: ${onlyOfficePath1}`);
+            return res.sendFile(onlyOfficePath1);
+        } else {
+            console.log(`✗ File non trovato in OnlyOffice con ID: ${onlyOfficePath1}`);
+        }
+        
+        // 3. Terzo tentativo: in OnlyOffice senza ID
+        const onlyOfficePath2 = path.join('/var/www/onlyoffice/Data', path.basename(file.filepath));
+        console.log('3. Tentativo in OnlyOffice senza ID:', onlyOfficePath2);
+        if (fs.existsSync(onlyOfficePath2)) {
+            console.log(`✓ Successo! File trovato in OnlyOffice senza ID: ${onlyOfficePath2}`);
+            return res.sendFile(onlyOfficePath2);
+        } else {
+            console.log(`✗ File non trovato in OnlyOffice senza ID: ${onlyOfficePath2}`);
+        }
+        
+        // Se non si trova in nessun percorso, restituiamo un errore 404
+        console.error('File non trovato in nessun percorso');
+        return res.status(404).json({ error: 'File not found' });
     });
 });
 
@@ -106,26 +159,79 @@ router.get('/:fileId/download', checkAuthentication, (req, res) => {
             return res.status(404).json({ error: 'File not found' });
         }
         
-        // Usa il percorso corretto per OnlyOffice
-        const filePath = path.join('/var/www/onlyoffice/Data', path.basename(file.filepath));
-        console.log('Original filepath:', file.filepath);
-        console.log('File path per OnlyOffice:', filePath);
+        // Informazioni di debug migliorate
+        console.log('========== DOWNLOAD FILE ==========');
+        console.log(`File richiesto: ID=${fileId}, Nome=${file.filename}, Percorso DB=${file.filepath}`);
         
-        // Verifica che il file esista
-        if (!fs.existsSync(filePath)) {
-            console.error('File non trovato:', filePath);
-            return res.status(404).json({ error: 'File not found' });
+        let filePath;
+        
+        // Utilizziamo la stessa logica migliorata dell'endpoint view
+        // 1. Primo tentativo: percorso originale dal database
+        if (file.filepath) {
+            // Se è un percorso relativo alle uploads, lo trasformo in assoluto
+            if (file.filepath.startsWith('uploads/')) {
+                filePath = path.join(__dirname, '../../', file.filepath);
+            } else {
+                // Se è già un percorso assoluto, lo uso così com'è
+                filePath = file.filepath;
+            }
+            
+            console.log('1. Tentativo primario (percorso originale):', filePath);
+            if (fs.existsSync(filePath)) {
+                console.log(`✓ Successo! File trovato al percorso originale: ${filePath}`);
+                
+                // Forza il download del file invece di aprirlo nel browser
+                res.setHeader('Content-Type', 'application/octet-stream');
+                
+                // Gestione corretta dei caratteri non ASCII nel nome del file
+                const encodedFilename = encodeURIComponent(file.filename).replace(/['()]/g, escape);
+                res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedFilename}`);
+                
+                return res.sendFile(filePath);
+            } else {
+                console.log(`✗ File non trovato al percorso originale: ${filePath}`);
+            }
         }
-
-        // Forza il download del file invece di aprirlo nel browser
-        res.setHeader('Content-Type', 'application/octet-stream');
         
-        // Gestione corretta dei caratteri non ASCII nel nome del file
-        // Utilizziamo la codifica RFC 5987 per supportare caratteri Unicode
-        const encodedFilename = encodeURIComponent(file.filename).replace(/['()]/g, escape);
-        res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedFilename}`);
+        // 2. Secondo tentativo: in OnlyOffice con ID nel nome
+        const onlyOfficePath1 = path.join('/var/www/onlyoffice/Data', `${fileId}-${path.basename(file.filepath)}`);
+        console.log('2. Tentativo in OnlyOffice con ID:', onlyOfficePath1);
+        if (fs.existsSync(onlyOfficePath1)) {
+            console.log(`✓ Successo! File trovato in OnlyOffice con ID: ${onlyOfficePath1}`);
+            
+            // Forza il download del file invece di aprirlo nel browser
+            res.setHeader('Content-Type', 'application/octet-stream');
+            
+            // Gestione corretta dei caratteri non ASCII nel nome del file
+            const encodedFilename = encodeURIComponent(file.filename).replace(/['()]/g, escape);
+            res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedFilename}`);
+            
+            return res.sendFile(onlyOfficePath1);
+        } else {
+            console.log(`✗ File non trovato in OnlyOffice con ID: ${onlyOfficePath1}`);
+        }
         
-        res.sendFile(filePath);
+        // 3. Terzo tentativo: in OnlyOffice senza ID
+        const onlyOfficePath2 = path.join('/var/www/onlyoffice/Data', path.basename(file.filepath));
+        console.log('3. Tentativo in OnlyOffice senza ID:', onlyOfficePath2);
+        if (fs.existsSync(onlyOfficePath2)) {
+            console.log(`✓ Successo! File trovato in OnlyOffice senza ID: ${onlyOfficePath2}`);
+            
+            // Forza il download del file invece di aprirlo nel browser
+            res.setHeader('Content-Type', 'application/octet-stream');
+            
+            // Gestione corretta dei caratteri non ASCII nel nome del file
+            const encodedFilename = encodeURIComponent(file.filename).replace(/['()]/g, escape);
+            res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedFilename}`);
+            
+            return res.sendFile(onlyOfficePath2);
+        } else {
+            console.log(`✗ File non trovato in OnlyOffice senza ID: ${onlyOfficePath2}`);
+        }
+        
+        // Se non si trova in nessun percorso, restituiamo un errore 404
+        console.error('File non trovato in nessun percorso');
+        return res.status(404).json({ error: 'File not found' });
     });
 });
 

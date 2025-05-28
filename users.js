@@ -125,11 +125,31 @@ function displayTeamMembers(teamMembers) {
 
         const actionsCell = row.insertCell(7);
         
-        // Pulsante Edit
+        // Pulsante Edit con verifica permessi
         const editBtn = document.createElement('button');
         editBtn.textContent = 'Edit';
         editBtn.className = 'edit-btn';
-        editBtn.addEventListener('click', () => editTeamMember(row, member.id));
+        editBtn.addEventListener('click', async () => {
+            try {
+                // Verifica i permessi dell'utente corrente
+                const response = await fetch('/api/session-user');
+                const currentUser = await response.json();
+                
+                // Verifica se l'utente corrente ha il permesso CRUD (ID 17)
+                const permResponse = await fetch(`/api/team-members/${currentUser.id}/crud-permissions`);
+                const permissions = await permResponse.json();
+                
+                // Verifica il permesso CRUD come per il pulsante CRUD
+                if (permissions.CRUD && permissions.CRUD.read && permissions.CRUD.read.enabled) {
+                    editTeamMember(row, member.id);
+                } else {
+                    alert('You do not have permission to access the CRUD page');
+                }
+            } catch (error) {
+                console.error('Error checking permissions:', error);
+                alert('Error checking permissions');
+            }
+        });
         actionsCell.appendChild(editBtn);
 
         // Pulsante CRUD con verifica diretta del permesso 17
@@ -159,11 +179,31 @@ function displayTeamMembers(teamMembers) {
         });
         actionsCell.appendChild(crudBtn);
 
-        // Pulsante Delete
+        // Pulsante Delete con verifica permessi
         const deleteBtn = document.createElement('button');
         deleteBtn.textContent = 'Delete';
         deleteBtn.className = 'delete-btn';
-        deleteBtn.addEventListener('click', () => deleteTeamMember(member.id));
+        deleteBtn.addEventListener('click', async () => {
+            try {
+                // Verifica i permessi dell'utente corrente
+                const response = await fetch('/api/session-user');
+                const currentUser = await response.json();
+                
+                // Verifica se l'utente corrente ha il permesso CRUD (ID 17)
+                const permResponse = await fetch(`/api/team-members/${currentUser.id}/crud-permissions`);
+                const permissions = await permResponse.json();
+                
+                // Verifica il permesso CRUD come per il pulsante CRUD
+                if (permissions.CRUD && permissions.CRUD.read && permissions.CRUD.read.enabled) {
+                    deleteTeamMember(member.id);
+                } else {
+                    alert('You do not have permission to access the CRUD page');
+                }
+            } catch (error) {
+                console.error('Error checking permissions:', error);
+                alert('Error checking permissions');
+            }
+        });
         actionsCell.appendChild(deleteBtn);
 
         // Aggiungi spazio tra i pulsanti

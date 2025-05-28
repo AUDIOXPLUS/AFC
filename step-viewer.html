@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STEP File Viewer</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net/ https://unpkg.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net/; connect-src 'self' blob: https://cdn.jsdelivr.net/ https://unpkg.com">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        header {
+            background-color: #f0f0f0;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .file-info {
+            display: flex;
+            align-items: center;
+        }
+        
+        .file-name {
+            font-weight: bold;
+            margin-right: 15px;
+        }
+        
+        .file-size {
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+        
+        button {
+            padding: 8px 12px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+        
+        button:hover {
+            background-color: #0069d9;
+        }
+        
+        button.secondary {
+            background-color: #6c757d;
+        }
+        
+        button.secondary:hover {
+            background-color: #5a6268;
+        }
+        
+        #viewer-container {
+            flex-grow: 1;
+            position: relative;
+            background-color: #f5f5f5;
+            overflow: hidden;
+        }
+        
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        
+        .loading-spinner {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #007bff;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 2s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        .progress-container {
+            width: 80%;
+            max-width: 300px;
+            background-color: #f1f1f1;
+            border-radius: 4px;
+            margin-top: 15px;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 20px;
+            background-color: #007bff;
+            width: 0%;
+            transition: width 0.3s ease;
+            text-align: center;
+            line-height: 20px;
+            color: white;
+            font-size: 0.8em;
+        }
+        
+        .loading-steps {
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #666;
+            text-align: center;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error-message {
+            color: #dc3545;
+            text-align: center;
+            padding: 20px;
+            max-width: 80%;
+        }
+        
+        .controls-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            z-index: 10;
+        }
+        
+        .controls-panel button {
+            margin: 2px;
+            padding: 5px 10px;
+            font-size: 0.8em;
+        }
+        
+        .model-tree {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 250px;
+            height: 100%;
+            background-color: white;
+            border-right: 1px solid #ddd;
+            overflow: auto;
+            z-index: 5;
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+        }
+        
+        .model-tree.visible {
+            transform: translateX(0);
+        }
+        
+        .tree-node {
+            padding: 5px 10px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+        }
+        
+        .tree-node:hover {
+            background-color: #f0f0f0;
+        }
+        
+        .tree-node.selected {
+            background-color: #e0f0ff;
+        }
+        
+        #status-bar {
+            background-color: #f0f0f0;
+            padding: 5px 10px;
+            font-size: 0.8em;
+            border-top: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .file-uploader {
+            text-align: center;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            margin: 20px auto;
+            max-width: 80%;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .file-uploader-button {
+            margin-top: 15px;
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #28a745;
+        }
+        
+        .step-info-panel {
+            padding: 10px;
+            margin: 10px 0;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="file-info">
+            <span class="file-name" id="file-name">Loading file...</span>
+            <span class="file-size" id="file-size"></span>
+        </div>
+        <div class="controls">
+            <button id="upload-btn">Carica file STEP</button>
+            <button id="download-btn">Download</button>
+            <button id="sketchfab-btn" class="secondary">Visualizza su Sketchfab</button>
+            <button id="sharecad-btn" class="secondary">Visualizza su ShareCAD</button>
+            <button id="cadexchanger-btn" class="secondary">Visualizza su CAD Exchanger</button>
+            <button id="toggle-tree-btn" class="secondary">Toggle Model Tree</button>
+        </div>
+    </header>
+    
+    <div id="viewer-container">
+        <div class="loading-overlay" id="loading-overlay">
+            <div class="loading-spinner"></div>
+            <div id="loading-text">Loading STEP file...</div>
+            <div class="progress-container">
+                <div class="progress-bar" id="loading-progress">0%</div>
+            </div>
+            <div class="loading-steps" id="loading-steps">Inizializzazione...</div>
+        </div>
+        
+        <div class="model-tree" id="model-tree"></div>
+        
+        <div class="controls-panel">
+            <button id="reset-view-btn">Reset View</button>
+            <button id="wireframe-btn">Toggle Wireframe</button>
+            <button id="ortho-btn">Toggle Orthographic</button>
+        </div>
+        
+        <canvas id="viewer-canvas"></canvas>
+    </div>
+    
+    <div id="status-bar">
+        <span id="status-message">Ready</span>
+        <span id="coordinates"></span>
+    </div>
+
+    <!-- Librerie THREE.js e altre dipendenze -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.137.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.137.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.137.0/examples/js/loaders/STLLoader.js"></script>
+    <script src="https://unpkg.com/three@0.137.0/examples/js/loaders/OBJLoader.js"></script>
+    
+    <!-- Variabili globali e script di supporto -->
+    <script src="step-viewer-globals.js"></script>
+    <script src="step-viewer-functions.js"></script>
+    <script src="step-viewer-more-functions.js"></script>
+    <script src="step-viewer-sketchfab.js"></script>
+    <script src="step-viewer-sharecad.js"></script>
+    <script src="step-viewer-cadexchanger.js"></script>
+    
+    <script>
+        // Utility per il parsing STEP
+        class STEPParser {
+            static parseSTEPGeometry(stepContent) {
+                // Implementazione semplificata che crea una geometria base
+                // per rappresentare il modello STEP quando non è possibile utilizzare OCC
+                
+                console.log("Generazione geometria di fallback per il file STEP");
+                
+                // Un cubo semplice come fallback
+                const geometry = new THREE.BoxGeometry(5, 5, 5);
+                const edges = new THREE.EdgesGeometry(geometry);
+                
+                // Per il display
+                const entities = this.countEntities(stepContent);
+                
+                return {
+                    geometry: geometry,
+                    edges: edges,
+                    entityCount: entities.total,
+                    entities: entities.types
+                };
+            }
+            
+            static countEntities(content) {
+                const result = {
+                    types: {},
+                    total: 0
+                };
+                
+                // Lista di entità comuni nei file STEP
+                const entityTypes = [
+                    'ADVANCED_FACE', 'CIRCLE', 'LINE', 'PLANE', 
+                    'CYLINDRICAL_SURFACE', 'EDGE_CURVE', 'VERTEX_POINT',
+                    'CARTESIAN_POINT', 'DIRECTION', 'FACE_OUTER_BOUND',
+                    'SHAPE_DEFINITION_REPRESENTATION', 'PRODUCT'
+                ];
+                
+                try {
+                    // Conteggio molto semplificato delle entità
+                    entityTypes.forEach(type => {
+                        const regex = new RegExp(type + '\\s*\\(', 'g');
+                        const matches = content.match(regex);
+                        if (matches) {
+                            result.types[type] = matches.length;
+                            result.total += matches.length;
+                        }
+                    });
+                    
+                    // Conteggio totale approssimativo
+                    const allEntitiesMatches = content.match(/#\d+\s*=/g);
+                    if (allEntitiesMatches) {
+                        result.total = allEntitiesMatches.length;
+                    }
+                } catch (e) {
+                    console.error("Errore nel conteggio delle entità:", e);
+                }
+                
+                return result;
+            }
+            
+            static getHeaderInfo(content) {
+                const info = {
+                    fileName: 'Sconosciuto',
+                    schema: 'Sconosciuto',
+                    description: 'Nessuna descrizione'
+                };
+                
+                try {
+                    // Estrazione dell'intestazione
+                    const headerMatch = content.match(/HEADER;([\s\S]*?)ENDSEC;/);
+                    if (headerMatch) {
+                        const headerContent = headerMatch[1];
+                        
+                        // Estrazione delle informazioni di base
+                        const fileNameMatch = headerContent.match(/FILE_NAME\s*\(\s*['"](.*)['"].*?\)/);
+                        if (fileNameMatch) {
+                            info.fileName = fileNameMatch[1];
+                        }
+                        
+                        const fileSchemaMatch = headerContent.match(/FILE_SCHEMA\s*\(\s*\(\s*['"](.*)['"].*?\)\s*\)/);
+                        if (fileSchemaMatch) {
+                            info.schema = fileSchemaMatch[1];
+                        }
+                        
+                        const fileDescriptionMatch = headerContent.match(/FILE_DESCRIPTION\s*\(\s*\(([\s\S]*?)\)\s*,\s*['"](.*)['"].*?\)/);
+                        if (fileDescriptionMatch) {
+                            info.description = fileDescriptionMatch[1].split("'").join('').trim();
+                        }
+                    }
+                } catch (e) {
+                    console.error("Errore nell'estrazione delle informazioni dell'header:", e);
+                }
+                
+                return info;
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // Recupera l'ID del file dall'URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const fileId = urlParams.get('fileId');
+            
+            // Elementi UI
+            const fileNameElement = document.getElementById('file-name');
+            const fileSizeElement = document.getElementById('file-size');
+            const uploadBtn = document.getElementById('upload-btn');
+            const downloadBtn = document.getElementById('download-btn');
+            const toggleTreeBtn = document.getElementById('toggle-tree-btn');
+            const modelTree = document.getElementById('model-tree');
+            const resetViewBtn = document.getElementById('reset-view-btn');
+            const wireframeBtn = document.getElementById('wireframe-btn');
+            const orthoBtn = document.getElementById('ortho-btn');
+            const loadingOverlay = document.getElementById('loading-overlay');
+            const loadingText = document.getElementById('loading-text');
+            const loadingProgress = document.getElementById('loading-progress');
+            const loadingSteps = document.getElementById('loading-steps');
+            const statusMessage = document.getElementById('status-message');
+            const coordinatesDisplay = document.getElementById('coordinates');
+            
+            // Utilizziamo le variabili globali già definite in step-viewer-globals.js
+            
+            // Inizializza la visualizzazione 3D
+            initViewer();
+            
+            // Setup dell'input file nascosto
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = '.step,.stp';
+            fileInput.style.display = 'none';
+            document.body.appendChild(fileInput);
+            
+            // Event listener per il caricamento del file
+            fileInput.addEventListener('change', handleFileSelect);
+            
+            // Click handler per il pulsante di upload
+            uploadBtn.addEventListener('click', function() {
+                fileInput.click();
+            });
+            
+            // Download button - se fileId è disponibile
+            if (fileId) {
+                downloadBtn.addEventListener('click', function() {
+                    window.location.href = `/api/files/${fileId}/download`;
+                });
+            } else {
+                downloadBtn.style.display = 'none';
+            }
+            
+            // Setup degli altri controlli UI
+            toggleTreeBtn.addEventListener('click', toggleModelTree);
+            resetViewBtn.addEventListener('click', resetView);
+            wireframeBtn.addEventListener('click', toggleWireframe);
+            orthoBtn.addEventListener('click', toggleOrthographic);
+            
+            // Pulsante Sketchfab
+            const sketchfabBtn = document.getElementById('sketchfab-btn');
+            sketchfabBtn.addEventListener('click', function() {
+                // Verifica che ci sia un file caricato
+                if (!fileNameElement.textContent || fileNameElement.textContent === 'Nessun file caricato' || fileNameElement.textContent === 'Loading file...') {
+                    alert('Carica prima un file STEP');
+                    return;
+                }
+                
+                // Se abbiamo un fileId, crea un URL per il download
+                let fileContent;
+                let fileName = fileNameElement.textContent;
+                
+                if (fileId) {
+                    // URL per il download diretto
+                    fileContent = `/api/files/${fileId}/download`;
+                } else if (window.currentStepContent) {
+                    // Usa il contenuto del file se disponibile in memoria
+                    fileContent = window.currentStepContent;
+                } else {
+                    alert('Nessun contenuto di file disponibile.');
+                    return;
+                }
+                
+                // Avvia l'integrazione con Sketchfab
+                window.SketchfabIntegration.viewOnSketchfab(
+                    fileContent, 
+                    fileName,
+                    function(success) {
+                        console.log('Upload su Sketchfab completato:', success);
+                    },
+                    function(error) {
+                        console.error('Errore nell\'upload su Sketchfab:', error);
+                        alert('Si è verificato un errore: ' + error);
+                    }
+                );
+            });
+            
+            // Pulsante ShareCAD
+            const sharecadBtn = document.getElementById('sharecad-btn');
+            sharecadBtn.addEventListener('click', function() {
+                // Verifica che ci sia un file caricato
+                if (!fileNameElement.textContent || fileNameElement.textContent === 'Nessun file caricato' || fileNameElement.textContent === 'Loading file...') {
+                    alert('Carica prima un file STEP');
+                    return;
+                }
+                
+                // Se abbiamo un fileId, crea un URL per il download
+                let fileContent;
+                let fileName = fileNameElement.textContent;
+                
+                if (fileId) {
+                    // URL per il download diretto - deve essere un URL accessibile pubblicamente
+                    // ShareCAD richiede che il file sia accessibile da internet o caricato manualmente
+                    fileContent = window.location.origin + `/api/files/${fileId}/download`;
+                } else if (window.currentStepContent) {
+                    // Per i file locali, ShareCAD richiede un upload manuale
+                    fileContent = window.currentStepContent;
+                } else {
+                    alert('Nessun contenuto di file disponibile.');
+                    return;
+                }
+                
+                // Avvia l'integrazione con ShareCAD
+                window.ShareCADIntegration.viewOnShareCAD(fileContent, fileName);
+            });
+            
+            // Pulsante CAD Exchanger
+            const cadexchangerBtn = document.getElementById('cadexchanger-btn');
+            cadexchangerBtn.addEventListener('click', function() {
+                // Verifica che ci sia un file caricato
+                if (!fileNameElement.textContent || fileNameElement.textContent === 'Nessun file caricato' || fileNameElement.textContent === 'Loading file...') {
+                    alert('Carica prima un file STEP');
+                    return;
+                }
+                
+                // Se abbiamo un fileId, crea un URL per il download
+                let fileContent;
+                let fileName = fileNameElement.textContent;
+                
+                if (fileId) {
+                    // URL per il download diretto
+                    fileContent = `/api/files/${fileId}/download`;
+                } else if (window.currentStepContent) {
+                    // Usa il contenuto del file se disponibile in memoria
+                    fileContent = window.currentStepContent;
+                } else {
+                    alert('Nessun contenuto di file disponibile.');
+                    return;
+                }
+                
+                // Avvia l'integrazione con CAD Exchanger
+                window.CADExchangerIntegration.viewOnCADExchanger(fileContent, fileName);
+            });
+            
+            // Se c'è un ID file, prova a caricarlo
+            if (fileId) {
+                loadFileById(fileId);
+            } else {
+                // Altrimenti mostra l'opzione di caricamento file
+                showFileUploadInterface();
+            }
+            
+            function showFileUploadInterface() {
+                // Nascondi l'overlay di caricamento
+                loadingOverlay.style.display = 'none';
+                
+                // Crea interfaccia per upload
+                const uploadInterface = document.createElement('div');
+                uploadInterface.className = 'file-uploader';
+                uploadInterface.innerHTML = `
+                    <h3>Carica un file STEP per la visualizzazione</h3>
+                    <p>Seleziona un file STEP (.step o .stp) dal tuo computer per visualizzarlo in 3D.</p>
+                    <button class="file-uploader-button">Seleziona file STEP</button>
+                `;
+                
+                // Aggiungi al container
+                const viewerContainer = document.getElementById('viewer-container');
+                viewerContainer.appendChild(uploadInterface);
+                
+                // Click handler
+                uploadInterface.querySelector('button').addEventListener('click', function() {
+                    fileInput.click();
+                });
+                
+                // Aggiorna UI
+                fileNameElement.textContent = 'Nessun file caricato';
+                statusMessage.textContent = 'In attesa del caricamento file';
+            }
+            
+            function handleFileSelect(event) {
+                if (event.target.files && event.target.files[0]) {
+                    const file = event.target.files[0];
+                    
+                    // Rimuovi eventuali interfacce di upload
+                    const uploadInterface = document.querySelector('.file-uploader');
+                    if (uploadInterface) {
+                        uploadInterface.remove();
+                    }
+                    
+                    // Mostra overlay di caricamento
+                    loadingOverlay.style.display = 'flex';
+                    loadingText.textContent = 'Elaborazione file STEP...';
+                    loadingProgress.style.width = '0%';
+                    loadingProgress.textContent = '0%';
+                    loadingSteps.textContent = 'Lettura del file...';
+                    
+                    // Aggiorna UI
+                    fileNameElement.textContent = file.name;
+                    fileSizeElement.textContent = formatFileSize(file.size);
+                    statusMessage.textContent = 'Lettura file...';
+                    
+                    // Leggi il file
+                    const reader = new FileReader();
+                    
+                    reader.onload = function(e) {
+                        const content = e.target.result;
+                        processSTEPFile(content, file.name);
+                    };
+                    
+                    reader.onerror = function() {
+                        showError('Errore nella lettura del file.');
+                    };
+                    
+                    reader.readAsText(file);
+                }
+            }
+            
+            async function loadFileById(fileId) {
+                try {
+                    // Aggiorna UI
+                    loadingOverlay.style.display = 'flex';
+                    loadingText.textContent = 'Caricamento file dal server...';
+                    statusMessage.textContent = 'Richiesta file...';
+                    
+                    // Parametri per evitare la cache
+                    const timestamp = new Date().getTime();
+                    const cacheBust = Math.random().toString(36).substring(7);
+                    
+                    // Prima prova a ottenere i metadati
+                    try {
+                        const metadataResponse = await fetch(`/api/files/${fileId}?t=${timestamp}&cb=${cacheBust}`);
+                        if (metadataResponse.ok) {
+                            try {
+                                const responseText = await metadataResponse.text();
+                                const metadata = JSON.parse(responseText);
+                                
+                                if (metadata && metadata.filename) {
+                                    fileNameElement.textContent = metadata.filename;
+                                }
+                            } catch (jsonError) {
+                                console.warn('Impossibile parsare i metadati come JSON. Provo comunque a caricare il file.');
+                            }
+                        }
+                    } catch (metadataError) {
+                        console.warn('Errore nel caricamento dei metadati. Provo comunque a caricare il file.');
+                    }
+                    
+                    // Prova a scaricare il file direttamente
+                    loadingSteps.textContent = 'Download del file...';
+                    const fileUrl = `/api/files/${fileId}/view?t=${timestamp}&cb=${cacheBust}`;
+                    
+                    const fileResponse = await fetch(fileUrl, {
+                        headers: {
+                            'Cache-Control': 'no-cache, no-store, must-revalidate',
+                            'Pragma': 'no-cache',
+                            'Expires': '0',
+                            'Accept': 'application/octet-stream'
+                        }
+                    });
+                    
+                    if (!fileResponse.ok) {
+                        throw new Error(`Errore nel caricamento del file: ${fileResponse.status} ${fileResponse.statusText}`);
+                    }
+                    
+                    // Ottieni size
+                    const contentLength = fileResponse.headers.get('content-length');
+                    if (contentLength) {
+                        fileSizeElement.textContent = formatFileSize(parseInt(contentLength));
+                    }
+                    
+                    // Leggi file come testo
+                    const content = await fileResponse.text();
+                    
+                    // Verifica che non sia HTML
+                    if (content.trim().toLowerCase().startsWith('<!doctype html') || 
+                        content.trim().toLowerCase().startsWith('<html')) {
+                        throw new Error('Il server ha restituito HTML invece del file STEP. Probabilmente un errore.');
+                    }
+                    
+                    // Verifica che sia un file STEP
+                    if (!content.includes('ISO-10303-21') && 
+                        !content.includes('HEADER;') && 
+                        !content.includes('FILE_SCHEMA')) {
+                        throw new Error('Il contenuto non sembra essere un file STEP valido.');
+                    }
+                    
+                    // Elabora il file
+                    processSTEPFile(content, fileNameElement.textContent);
+                    
+                } catch (error) {
+                    console.error('Errore:', error);
+                    showFileUploadOption(fileId, error.message);
+                }
+            }
+            
+            function showFileUploadOption(originalFileId, errorMessage) {
+                // Rimuovi la barra di progresso
+                loadingProgress.style.display = 'none';
+                
+                // Crea container per il messaggio
+                const messageContainer = document.createElement('div');
+                messageContainer.style.textAlign = 'center';
+                messageContainer.style.marginTop = '20px';
+                
+                // Mostra messaggio di errore
+                const errorTitle = document.createElement('h4');
+                errorTitle.textContent = 'Errore di visualizzazione del file STEP';
+                errorTitle.style.color = '#dc3545';
+                messageContainer.appendChild(errorTitle);
+                
+                // Dettagli errore
+                const errorDetails = document.createElement('p');
+                errorDetails.innerHTML = `<strong>${errorMessage}</strong>`;
+                messageContainer.appendChild(errorDetails);
+                
+                // Messaggio
+                const message = document.createElement('p');
+                message.innerHTML = 'Per visualizzare un file STEP, caricate direttamente un file dal vostro computer:';
+                messageContainer.appendChild(message);
+                
+                // Crea pulsante per caricare file
+                const uploadButton = document.createElement('button');
+                uploadButton.textContent = 'Carica file STEP locale';
+                uploadButton.style.marginTop = '10px';
+                uploadButton.style.padding = '10px 20px';
+                uploadButton.style.fontSize = '16px';
+                uploadButton.addEventListener('click', function() {
+                    fileInput.click();
+                });
+                messageContainer.appendChild(uploadButton);
+                
+                // Messaggio per il download diretto (se possibile)
+                if (originalFileId) {
+                    const downloadMessage = document.createElement('p');
+                    downloadMessage.innerHTML = '<small>Oppure <a href="/api/files/' + originalFileId + '/download" target="_blank">scarica il file</a> e caricalo manualmente.</small>';
+                    messageContainer.appendChild(downloadMessage);
+                }
+                
+                // Aggiungi al container
+                loadingText.innerHTML = '';
+                loadingText.appendChild(messageContainer);
+                
+                // Nascondi lo spinner
+                loadingOverlay.querySelector('.loading-spinner').style.display = 'none';
+                
+                // Aggiorna UI
+                statusMessage.textContent = 'Errore nel caricamento del file';
+                statusMessage.style.color = '#dc3545';
+            }
+            
+            function processSTEPFile(content, fileName) {
+                try {
+                    // Salva il contenuto STEP nella variabile globale per l'integrazione con Sketchfab
+                    window.currentStepContent = content;
+                    
+                    // Aggiorna UI
+                    loadingSteps.textContent = 'Analisi del file STEP...';
+                    loadingProgress.style.width = '30%';
+                    loadingProgress.textContent = '30%';
+                    
+                    // Estrai info dall'header
+                    const headerInfo = STEPParser.getHeaderInfo(content);
+                    
+                    // Aggiorna UI con il nome del file originale se disponibile
+                    if (headerInfo.fileName !== 'Sconosciuto') {
+                        fileNameElement.textContent = headerInfo.fileName;
+                    } else if (fileName) {
+                        fileNameElement.textContent = fileName;
+                    }
+                    
+                    // Procedi con l'elaborazione
+                    loadingProgress.style.width = '50%';
+                    loadingProgress.textContent = '50%';
+                    loadingSteps.textContent = 'Preparazione visualizzazione 3D...';
+                    
+                    // Visualizza le info STEP
+                    displaySTEPInfo(headerInfo, content);
+                    
+                    // Crea una rappresentazione 3D semplificata
+                    createSimplifiedModel(content);
+                    
+                    // Completato
+                    loadingProgress.style.width = '100%';
+                    loadingProgress.textContent = '100%';
+                    loadingSteps.textContent = 'Visualizzazione completata';
+                    
+                    // Nascondi overlay dopo breve delay
+                    setTimeout(function() {
+                        loadingOverlay.style.display = 'none';
+                    }, 500);
+                    
+                    // Aggiorna status
+                    statusMessage.textContent = 'File STEP caricato con successo';
+                    statusMessage.style.color = '';
+                    
+                } catch (error) {
+                    console.error('Errore nell\'elaborazione del file STEP:', error);
+                    showError('Errore nell\'elaborazione del file STEP: ' + error.message);
+                }
+            }
+            
+            function displaySTEPInfo(headerInfo, content) {
+                // Rimuovi eventuali pannelli info esistenti
+                const existingPanel = document.querySelector('.step-info-panel');
+                if (existingPanel) {
+                    existingPanel.remove();
+                }
+                
+                // Crea pannello info
+                const infoPanel = document.createElement('div');
+                infoPanel.className = 'step-info-panel';
+                
+                // Intestazione
+                let infoHTML = '<h4>Informazioni sul file STEP</h4>';
+                
+                // Dettagli header
+                infoHTML += `<p><strong>Nome file:</strong> ${headerInfo.fileName}</p>`;
+                infoHTML += `<p><strong>Schema STEP:</strong> ${headerInfo.schema}</p>`;
+                
+                if (headerInfo.description && headerInfo.description !== 'Nessuna descrizione') {
+                    infoHTML += `<p><strong>Descrizione:</strong> ${headerInfo.description}</p>`;
+                }
+                
+                // Conteggio entità
+                const entities = STEPParser.countEntities(content);
+                infoHTML += `<p><strong>Entità totali:</strong> ${entities.total}</p>`;
+                
+                // Lista di entità per tipo
+                if (Object.keys(entities.types).length > 0) {
+                    infoHTML += '<details><summary><strong>Tipi di entità</strong></summary><ul>';
+                    Object.entries(entities.types).forEach(([type, count]) => {
+                        infoHTML += `<li>${type}: ${count}</li>`;
+                    });
+                    infoHTML += '</ul></details>';
+                }
+                
+                // Imposta contenuto
+                infoPanel.innerHTML = infoHTML;
+                
+                // Inserisci nel DOM
+                const viewerContainer = document.getElementById('viewer-container');
+                viewerContainer.insertBefore(infoPanel, document.getElementById('viewer-canvas'));
+            }
+            
+            function createSimplifiedModel(content) {
+                // Pulisci scena
+                if (model) {
+                    scene.remove(model);
+                }
+                
+                // Crea nuovo gruppo
+                model = new THREE.Group();
+                model.name = "STEP Model";
+                
+                // Ottieni una geometria semplificata basata sul file STEP
+                const stepData = STEPParser.parseSTEPGeometry(content);
+                
+                // Crea mesh principale
+                const material = new THREE.MeshPhongMaterial({
+                    color: 0x4080c0,
+                    specular: 0x404040,
+                    shininess: 100,
+                    side: THREE.DoubleSide,
+                    wireframe: wireframeMode
+                });
+                
+                const mainMesh = new THREE.Mesh(stepData.geometry, material);
+                mainMesh.name = "Main Shape";
+                model.add(mainMesh);
+                
+                // Aggiungi bordi per maggiore visibilità
+                const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x000000 });
+                const edges = new THREE.LineSegments(stepData.edges, edgeMaterial);
+                edges.name = "Edges";
+                model.add(edges);
+                
+                // Aggiungi modello alla scena
+                scene.add(model);
+                
+                // Popola albero con il modello
+                populateModelTree();
+                
+                // Centra vista
+                fitCameraToModel();
+            }
+            
+            // fitCameraToModel() è ora definita nel file esterno step-viewer-functions.js
+        }); // Chiusura del document.addEventListener('DOMContentLoaded', function() { ... })
+    </script>

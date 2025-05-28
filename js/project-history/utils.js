@@ -70,6 +70,16 @@ export function isOnlyOfficeCompatible(filename) {
 }
 
 /**
+ * Verifica se un file è in formato STEP
+ * @param {string} filename - Nome del file da verificare
+ * @returns {boolean} - true se il file è in formato STEP, false altrimenti
+ */
+export function isStepFile(filename) {
+    const extension = filename.toLowerCase().substring(filename.lastIndexOf('.'));
+    return extension === '.step' || extension === '.stp';
+}
+
+/**
  * Normalizza il percorso del file per l'URL di OnlyOffice
  * @param {string} filepath - Percorso completo del file
  * @returns {string} - Percorso normalizzato

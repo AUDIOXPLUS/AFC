@@ -3,7 +3,7 @@
  * Contiene funzioni per caricare, scaricare, visualizzare e eliminare file
  */
 
-import { handleNetworkError, handleResponse, isOnlyOfficeCompatible, normalizeFilePath } from './utils.js';
+import { handleNetworkError, handleResponse, isOnlyOfficeCompatible, isStepFile, normalizeFilePath } from './utils.js';
 
 /**
  * Recupera i file associati a una voce della cronologia.
@@ -393,6 +393,28 @@ function createFileItem(file, projectId, entryId, canDelete) {
         if (isOnlyOfficeCompatible(file.filename)) {
             const normalizedPath = normalizeFilePath(file.filepath);
             window.open(`http://185.250.144.219:3000/onlyoffice/editor?filePath=${normalizedPath}`, '_blank');
+        } else if (isStepFile(file.filename)) {
+        // Per i file STEP, chiedi conferma e apri 3dviewer.net direttamente
+        const confirmed = confirm(
+            `STEP File Viewer Instructions:\n\n` +
+            `The download and page opening will happen automatically:\n` +
+            `1. This STEP file will be downloaded to your Downloads folder\n` +
+            `2. 3D Viewer Online will open in a new window\n` +
+            `3. Drag and drop the downloaded file onto the 3D Viewer page\n` +
+            `4. TIP: On some browsers you can drag files directly from the download bar\n` +
+            `5. Use the "Measure" tools for advanced measurements\n\n` +
+            `Do you want to proceed?`
+        );
+        
+        if (confirmed) {
+            // Avvia il download del file
+            window.location.href = `/api/files/${file.id}/download`;
+            
+            // Apri 3dviewer.net in una nuova finestra dopo un breve delay
+            setTimeout(() => {
+                window.open('https://3dviewer.net/', '_blank');
+            }, 500);
+        }
         } else {
             window.open(`/api/files/${file.id}/view`, '_blank');
         }
