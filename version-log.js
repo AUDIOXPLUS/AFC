@@ -1,5 +1,11 @@
 // Dati del version log (ristrutturati per leggibilità)
 const versionLogData = [
+    // 29/05/25 - V4.1
+    { 
+        date: '29/05/25', 
+        version: 'V4.1', 
+        description: 'Implemented drag & drop directly from chat app messages (wechat, teams, etc)'
+    },
     // 28/05/25 - V4.0
     { 
         date: '28/05/25', 
@@ -197,7 +203,7 @@ function createVersionLogPopup() {
                                             parseInt(month) - 1, 
                                             parseInt(day)));
         
-        const shouldBlink = group.version === 'V4.0';
+        const shouldBlink = group.version === 'V4.0' || group.version === 'V4.1';
         
         console.log(`Version: ${group.version}, Should blink: ${shouldBlink}, Today: ${today}, VersionDate: ${versionDate}, TwoDaysLater: ${twoDaysLater}`);
         
@@ -248,8 +254,8 @@ function updateVersionText() {
         }
     }
 
-    // Prendi sempre la versione più recente
-    const currentVersion = versionLogData[0].version;
+    // Get the most recent version (V4.1)
+    const currentVersion = 'V4.1';
     versionTextElement.textContent = `${currentVersion} - ${userName}`;
 }
 

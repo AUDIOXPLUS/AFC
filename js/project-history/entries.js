@@ -725,14 +725,22 @@ export function displayProjectHistory(history, projectId) {
     // Aggiungi tutte le righe al DOM in una sola operazione
     tableBody.appendChild(fragment);
 
-    // --- Event Delegation per Drag & Drop sul tbody (SOLO DROP) ---
-    // Rimuovi listener 'drop' precedente se esiste per evitare duplicati
-    if (tableBody._tableDropHandler) {
-        tableBody.removeEventListener('drop', tableBody._tableDropHandler);
-    }
-    // Rimosso dragover da qui
+    // --- Event Delegation per Drag & Drop sul tbody ---
+    // Rimuovi listener precedenti se esistono per evitare duplicati
+    if (tableBody._tableDropHandler) tableBody.removeEventListener('drop', tableBody._tableDropHandler);
+    if (tableBody._tableDragOverHandler) tableBody.removeEventListener('dragover', tableBody._tableDragOverHandler);
+    if (tableBody._tableDragEnterHandler) tableBody.removeEventListener('dragenter', tableBody._tableDragEnterHandler);
 
-    // Definisci l'handler per il drop una sola volta
+    // Handler per dragover/dragenter - necessario per permettere il drop
+    const tableDragHandler = (e) => {
+        const targetCell = e.target.closest('td');
+        if (targetCell && targetCell.cellIndex === 5) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    };
+
+    // Handler per il drop
     const tableDropHandler = (e) => {
         const targetCell = e.target.closest('td');
 
@@ -767,13 +775,15 @@ export function displayProjectHistory(history, projectId) {
         }
     };
 
-    // Aggiungi SOLO il listener 'drop' al tbody
-    // Rimosso: tableBody.addEventListener('dragover', tableDragOverHandler, false);
+    // Aggiungi tutti i listener necessari
+    tableBody.addEventListener('dragover', tableDragHandler, false);
+    tableBody.addEventListener('dragenter', tableDragHandler, false);
     tableBody.addEventListener('drop', tableDropHandler, false);
 
-    // Memorizza SOLO il riferimento a drop per poterlo rimuovere dopo
+    // Memorizza i riferimenti agli handler per poterli rimuovere dopo
     tableBody._tableDropHandler = tableDropHandler;
-    // Rimosso: tableBody._tableDragOverHandler = tableDragOverHandler;
+    tableBody._tableDragOverHandler = tableDragHandler;
+    tableBody._tableDragEnterHandler = tableDragHandler;
     // --- Fine Event Delegation ---
 
 
