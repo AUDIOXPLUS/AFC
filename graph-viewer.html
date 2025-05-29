@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Graph Viewer</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #1e2a3a;
+            color: #ffffff;
+        }
+        .container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: #1e2a3a;
+        }
+        h1 {
+            color: #ffffff;
+            text-align: center;
+            margin: 10px 0;
+            font-size: 18px;
+        }
+        .toolbar {
+            background-color: #2a3a4a;
+            padding: 8px;
+            border-bottom: 1px solid #3a4a5a;
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .toolbar button {
+            padding: 6px 12px;
+            background-color: #4a5a6a;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            min-width: 30px;
+        }
+        .toolbar button:hover {
+            background-color: #5a6a7a;
+        }
+        .toolbar .separator {
+            width: 1px;
+            height: 20px;
+            background-color: #3a4a5a;
+            margin: 0 5px;
+        }
+        .chart-container {
+            flex: 1;
+            position: relative;
+            padding: 20px;
+            background-color: #1e2a3a;
+        }
+        .controls {
+            display: none; /* Nascondiamo i controlli originali */
+        }
+        .dataset-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(42, 58, 74, 0.9);
+            padding: 10px;
+            border-radius: 5px;
+            max-width: 200px;
+        }
+        .dataset-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+        .dataset-color {
+            width: 12px;
+            height: 12px;
+            margin-right: 8px;
+            border: 1px solid #ddd;
+        }
+
+        
+        /* Stili per i controlli della toolbar */
+        .toolbar label {
+            color: #ffffff;
+            font-size: 12px;
+            margin-right: 3px;
+        }
+        
+        .toolbar input, .toolbar select {
+            padding: 4px 6px;
+            background-color: #1e2a3a;
+            border: 1px solid #3a4a5a;
+            border-radius: 3px;
+            color: #ffffff;
+            font-size: 12px;
+        }
+        
+        .color-picker {
+            width: 20px;
+            height: 20px;
+            padding: 0;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            cursor: pointer;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Frequency Response Analyzer</h1>
+        
+        <div class="toolbar">
+            <!-- Controlli Frequenze -->
+            <label>Freq Min:</label>
+            <input type="number" id="freq-min" value="20" min="1" max="100000" style="width: 80px;">
+            <label>Max:</label>
+            <input type="number" id="freq-max" value="20000" min="1" max="100000" style="width: 80px;">
+            
+            <div class="separator"></div>
+            
+            <!-- Controlli dB -->
+            <label>dB Min:</label>
+            <input type="number" id="db-min" value="20" min="-100" max="200" style="width: 60px;">
+            <label>Max:</label>
+            <input type="number" id="db-max" value="120" min="-100" max="200" style="width: 60px;">
+            <label>Scala:</label>
+            <select id="db-scale" style="width: 60px;">
+                <option value="1">1dB</option>
+                <option value="3">3dB</option>
+                <option value="5" selected>5dB</option>
+                <option value="10">10dB</option>
+            </select>
+            
+            <div class="separator"></div>
+            
+            <label><input type="checkbox" id="grid-toggle" checked> Grid</label>
+            
+            <div class="separator"></div>
+            
+            <button id="export-btn" title="Export">💾</button>
+            <button id="clear-btn" title="Clear">🗑️</button>
+        </div>
+
+        <div class="chart-container">
+            <canvas id="graph-canvas"></canvas>
+            
+            <div class="dataset-controls">
+                <h4 style="margin: 0 0 10px 0; font-size: 14px;">Datasets</h4>
+                <div id="dataset-list"></div>
+            </div>
+            
+
+        </div>
+    </div>
+
+
+
+    <script>
+        // Array per memorizzare i dataset
+        let datasets = [];
+        let chart = null;
+        let nextColorIndex = 0;
+        const colors = [
+            'rgb(75, 192, 192)',
+            'rgb(255, 99, 132)',
+            'rgb(54, 162, 235)',
+            'rgb(255, 159, 64)',
+            'rgb(153, 102, 255)',
+            'rgb(201, 203, 207)',
+            'rgb(255, 205, 86)'
+        ];
+
+        // Inizializza il grafico
+        function initChart() {
+            const ctx = document.getElementById('graph-canvas').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    backgroundColor: '#1e2a3a',
+                    scales: {
+                        x: {
+                            type: 'logarithmic',
+                            position: 'bottom',
+                            title: {
+                                display: true,
+                                text: 'Frequency (Hz)',
+                                color: '#ffffff'
+                            },
+                            ticks: {
+                                color: '#ffffff',
+                                callback: function(value) {
+                                    if (value >= 1000) {
+                                        return (value / 1000) + 'k';
+                                    }
+                                    return value;
+                                }
+                            },
+                            grid: {
+                                color: '#3a4a5a',
+                                lineWidth: 1
+                            },
+                            min: 20,
+                            max: 20000
+                        },
+                        y: {
+                            type: 'linear',
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'dBSPL',
+                                color: '#ffffff'
+                            },
+                            ticks: {
+                                color: '#ffffff'
+                            },
+                            grid: {
+                                color: '#3a4a5a',
+                                lineWidth: 1
+                            },
+                            min: 20,
+                            max: 120
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(42, 58, 74, 0.9)',
+                            titleColor: '#ffffff',
+                            bodyColor: '#ffffff',
+                            borderColor: '#ffffff',
+                            borderWidth: 1,
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.dataset.label}: ${context.parsed.x.toFixed(1)} Hz, ${context.parsed.y.toFixed(1)} dB`;
+                                }
+                            }
+                        }
+                    },
+                    elements: {
+                        point: {
+                            radius: 0,
+                            hoverRadius: 4
+                        },
+                        line: {
+                            tension: 0.1
+                        }
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    }
+                }
+            });
+        }
+
+        // Aggiungi un nuovo dataset al grafico
+        function addDataset(points, filename) {
+            const color = colors[nextColorIndex % colors.length];
+            nextColorIndex++;
+            
+            const newDataset = {
+                label: filename,
+                data: points,
+                backgroundColor: 'transparent',
+                borderColor: color,
+                borderWidth: 2,
+                pointRadius: 0,
+                pointHoverRadius: 4,
+                fill: false,
+                tension: 0.1
+            };
+            
+            datasets.push(newDataset);
+            
+            if (chart) {
+                chart.data.datasets = datasets;
+                chart.update();
+            } else {
+                initChart();
+            }
+            
+            updateDatasetList();
+        }
+
+        // Aggiorna la lista dei dataset nel pannello di controllo
+        function updateDatasetList() {
+            const list = document.getElementById('dataset-list');
+            list.innerHTML = '';
+            
+            datasets.forEach((dataset, index) => {
+                const item = document.createElement('div');
+                item.className = 'dataset-item';
+                item.style.marginBottom = '8px';
+                
+                // Color picker per cambiare il colore
+                const colorInput = document.createElement('input');
+                colorInput.type = 'color';
+                colorInput.className = 'color-picker';
+                colorInput.value = rgbToHex(dataset.borderColor);
+                colorInput.addEventListener('change', function() {
+                    datasets[index].borderColor = this.value;
+                    if (chart) {
+                        chart.update();
+                    }
+                });
+                
+                const label = document.createElement('span');
+                label.textContent = dataset.label;
+                label.style.flex = '1';
+                label.style.marginLeft = '5px';
+                
+                const toggleBtn = document.createElement('button');
+                toggleBtn.textContent = 'Toggle';
+                toggleBtn.style.fontSize = '10px';
+                toggleBtn.style.padding = '2px 6px';
+                toggleBtn.style.marginLeft = '5px';
+                toggleBtn.onclick = () => toggleDataset(index);
+                
+                const removeBtn = document.createElement('button');
+                removeBtn.textContent = 'Remove';
+                removeBtn.style.fontSize = '10px';
+                removeBtn.style.padding = '2px 6px';
+                removeBtn.style.marginLeft = '3px';
+                removeBtn.onclick = () => removeDataset(index);
+                
+                item.appendChild(colorInput);
+                item.appendChild(label);
+                item.appendChild(toggleBtn);
+                item.appendChild(removeBtn);
+                
+                list.appendChild(item);
+            });
+        }
+
+        // Mostra/nascondi un dataset
+        function toggleDataset(index) {
+            const meta = chart.getDatasetMeta(index);
+            meta.hidden = !meta.hidden;
+            chart.update();
+        }
+
+        // Rimuovi un dataset
+        function removeDataset(index) {
+            datasets.splice(index, 1);
+            chart.data.datasets = datasets;
+            chart.update();
+            updateDatasetList();
+        }
+
+        // Esporta il grafico come immagine
+        document.getElementById('export-btn').addEventListener('click', function() {
+            // Salva le opzioni originali
+            const originalXTicksColor = chart.options.scales.x.ticks.color;
+            const originalYTicksColor = chart.options.scales.y.ticks.color;
+            const originalXTitleColor = chart.options.scales.x.title.color;
+            const originalYTitleColor = chart.options.scales.y.title.color;
+            
+            // Imposta i colori a nero per l'esportazione
+            chart.options.scales.x.ticks.color = '#000000';
+            chart.options.scales.y.ticks.color = '#000000';
+            chart.options.scales.x.title.color = '#000000';
+            chart.options.scales.y.title.color = '#000000';
+            chart.update();
+            
+            // Crea il link di download
+            const link = document.createElement('a');
+            link.download = 'graph.png';
+            link.href = document.getElementById('graph-canvas').toDataURL('image/png');
+            
+            // Ripristina i colori originali dopo un breve delay
+            setTimeout(() => {
+                chart.options.scales.x.ticks.color = originalXTicksColor;
+                chart.options.scales.y.ticks.color = originalYTicksColor;
+                chart.options.scales.x.title.color = originalXTitleColor;
+                chart.options.scales.y.title.color = originalYTitleColor;
+                chart.update();
+            }, 100);
+            
+            link.click();
+        });
+
+        // Pulisci tutti i grafici
+        document.getElementById('clear-btn').addEventListener('click', function() {
+            datasets = [];
+            if (chart) {
+                chart.data.datasets = [];
+                chart.update();
+            }
+            updateDatasetList();
+        });
+
+        // Converte RGB in formato esadecimale
+        function rgbToHex(rgb) {
+            // Estrae i valori RGB dalla stringa
+            const match = rgb.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+            if (match) {
+                const r = parseInt(match[1]);
+                const g = parseInt(match[2]);
+                const b = parseInt(match[3]);
+                return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+            }
+            return rgb; // Se è già in formato hex
+        }
+
+        // Funzione per applicare le impostazioni istantaneamente
+        function applySettings() {
+            if (!chart) return;
+            
+            // Applica le impostazioni degli assi
+            const freqMin = parseFloat(document.getElementById('freq-min').value);
+            const freqMax = parseFloat(document.getElementById('freq-max').value);
+            const dbMin = parseFloat(document.getElementById('db-min').value);
+            const dbMax = parseFloat(document.getElementById('db-max').value);
+            const dbScale = parseFloat(document.getElementById('db-scale').value);
+            
+            // Valida i valori
+            if (freqMin >= freqMax || dbMin >= dbMax) {
+                return; // Non applicare se i valori non sono validi
+            }
+            
+            // Aggiorna le scale del grafico
+            chart.options.scales.x.min = freqMin;
+            chart.options.scales.x.max = freqMax;
+            chart.options.scales.y.min = dbMin;
+            chart.options.scales.y.max = dbMax;
+            
+            // Configura la scala dB
+            chart.options.scales.y.ticks.stepSize = dbScale;
+            
+            // Aggiorna il grafico
+            chart.update();
+        }
+
+        // Event listeners per applicare i cambiamenti istantaneamente
+        document.getElementById('freq-min').addEventListener('input', applySettings);
+        document.getElementById('freq-max').addEventListener('input', applySettings);
+        document.getElementById('db-min').addEventListener('input', applySettings);
+        document.getElementById('db-max').addEventListener('input', applySettings);
+        document.getElementById('db-scale').addEventListener('change', applySettings);
+
+        // Controlli checkbox
+        document.getElementById('grid-toggle').addEventListener('change', function() {
+            if (chart) {
+                const showGrid = this.checked;
+                chart.options.scales.x.grid.display = showGrid;
+                chart.options.scales.y.grid.display = showGrid;
+                chart.update();
+            }
+        });
+
+
+
+
+
+        // Gestione dei messaggi dalla finestra principale
+        window.addEventListener('message', function(event) {
+            if (event.data.type === 'addGraph') {
+                addDataset(event.data.points, event.data.filename);
+            }
+        });
+
+        // Inizializza il grafico al caricamento della pagina
+        window.addEventListener('DOMContentLoaded', initChart);
+    </script>
+</body>
+</html>

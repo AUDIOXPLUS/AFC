@@ -389,33 +389,257 @@ function createFileItem(file, projectId, entryId, canDelete) {
     fileNameSpan.title = file.filename; // Aggiungo il tooltip con il nome del file
     fileNameSpan.style.cursor = 'pointer';
     fileNameSpan.style.textDecoration = 'underline';
-    fileNameSpan.addEventListener('click', () => {
+    
+    fileNameSpan.addEventListener('click', async () => {
+        // Prima verifica se è un file di testo
+        if (file.filename.toLowerCase().endsWith('.txt')) {
+            // Per file txt, chiedi direttamente come aprirlo
+            const choice = confirm(`Open "${file.filename}" as graph?\n\nClick OK for graph view\nClick Cancel for text view`);
+            
+            if (choice) { // L'utente ha scelto di aprire come grafico
+                try {
+                    const response = await fetch(`/api/files/${file.id}/content`);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const content = await response.text();
+                    
+                    // Estrai i punti per il grafico con parsing migliorato
+                    const lines = content.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+                    
+                    // Rileva automaticamente se c'è un header
+                    let startIndex = 0;
+                    for (let i = 0; i < Math.min(3, lines.length); i++) {
+                        const line = lines[i];
+                        
+                        // Rileva header se contiene caratteri tipici di intestazione
+                        if (line.includes('[') || line.includes(']') || 
+                            line.toLowerCase().includes('freq') || 
+                            line.toLowerCase().includes('phase') || 
+                            line.toLowerCase().includes('db') ||
+                            line.toLowerCase().includes('hz') ||
+                            /^[a-zA-Z]/.test(line)) {
+                            
+                            startIndex = i + 1;
+                            break;
+                        }
+                        
+                        // Se la riga contiene solo numeri, probabilmente non c'è header
+                        const parts = line.split(/[\s,;\t]+/).filter(p => p.length > 0);
+                        const numericParts = parts.filter(p => !isNaN(parseFloat(p)) && isFinite(parseFloat(p)));
+                        
+                        if (numericParts.length >= 2 && numericParts.length === parts.length) {
+                            startIndex = i;
+                            break;
+                        }
+                    }
+                    
+                    const points = [];
+                    for (let i = startIndex; i < lines.length; i++) {
+                        const line = lines[i];
+                        
+                        // Salta righe vuote o commenti
+                        if (!line || line.startsWith('#') || line.startsWith('//')) {
+                            continue;
+                        }
+                        
+                        // Dividi usando diversi separatori possibili (spazi, tab, virgole, punto e virgola)
+                        const parts = line.split(/[\s,;\t]+/).filter(p => p.length > 0);
+                        
+                        if (parts.length >= 2) {
+                            const x = parseFloat(parts[0]);
+                            const y = parseFloat(parts[1]);
+                            
+                            // Considera il punto valido solo se entrambe le coordinate sono numeri finiti
+                            if (!isNaN(x) && isFinite(x) && !isNaN(y) && isFinite(y)) {
+                                points.push({ x, y });
+                            }
+                        }
+                    }
+                    
+                    if (points.length === 0) {
+                        alert(`Could not extract valid numerical data points (X, Y) from "${file.filename}". Opening as text.`);
+                        window.open(`/api/files/${file.id}/view`, '_blank');
+                        return;
+                    }
+
+                    // Apri o riutilizza il visualizzatore di grafici esistente
+                    let graphWindow = window.open('', 'graphViewer');
+                    
+                    // Funzione per inviare i dati del grafico
+                    const sendGraphData = () => {
+                        graphWindow.postMessage({
+                            type: 'addGraph',
+                            points: points,
+                            filename: file.filename
+                        }, '*');
+                    };
+                    
+                    // Verifica se la finestra esiste già e ha il contenuto corretto
+                    if (!graphWindow || graphWindow.closed || !graphWindow.location.href.includes('graph-viewer.html')) {
+                        // La finestra non esiste o è stata chiusa, aprila
+                        graphWindow = window.open('graph-viewer.html', 'graphViewer');
+                        // Aspetta che la finestra si carichi prima di inviare i dati
+                        graphWindow.onload = sendGraphData;
+                    } else {
+                        // La finestra esiste già, invia i dati direttamente
+                        setTimeout(sendGraphData, 100); // Piccolo delay per sicurezza
+                    }
+                } catch (error) {
+                    console.error(`Error opening "${file.filename}" as graph:`, error);
+                    alert(`Error opening "${file.filename}" as graph. Opening as text instead.`);
+                    window.open(`/api/files/${file.id}/view`, '_blank');
+                }
+            } else { // L'utente ha scelto di aprire come testo normale
+                window.open(`/api/files/${file.id}/view`, '_blank');
+            }
+            return;
+        }
+        
+        // Comportamento speciale per OnlyOffice (solo per file non txt)
         if (isOnlyOfficeCompatible(file.filename)) {
             const normalizedPath = normalizeFilePath(file.filepath);
             window.open(`http://185.250.144.219:3000/onlyoffice/editor?filePath=${normalizedPath}`, '_blank');
-        } else if (isStepFile(file.filename)) {
-        // Per i file STEP, chiedi conferma e apri 3dviewer.net direttamente
-        const confirmed = confirm(
-            `STEP File Viewer Instructions:\n\n` +
-            `The download and page opening will happen automatically:\n` +
-            `1. This STEP file will be downloaded to your Downloads folder\n` +
-            `2. 3D Viewer Online will open in a new window\n` +
-            `3. Drag and drop the downloaded file onto the 3D Viewer page\n` +
-            `4. TIP: On some browsers you can drag files directly from the download bar\n` +
-            `5. Use the "Measure" tools for advanced measurements\n\n` +
-            `Do you want to proceed?`
-        );
-        
-        if (confirmed) {
-            // Avvia il download del file
-            window.location.href = `/api/files/${file.id}/download`;
-            
-            // Apri 3dviewer.net in una nuova finestra dopo un breve delay
-            setTimeout(() => {
-                window.open('https://3dviewer.net/', '_blank');
-            }, 500);
+            return;
         }
-        } else {
+        
+        // Comportamento speciale per STEP files
+        if (isStepFile(file.filename)) {
+            const confirmed = confirm(
+                `STEP File Viewer Instructions:\n\n` +
+                `The download and page opening will happen automatically:\n` +
+                `1. This STEP file will be downloaded to your Downloads folder\n` +
+                `2. 3D Viewer Online will open in a new window\n` +
+                `3. Drag and drop the downloaded file onto the 3D Viewer page\n` +
+                `4. TIP: On some browsers you can drag files directly from the download bar\n` +
+                `5. Use the "Measure" tools for advanced measurements\n\n` +
+                `Do you want to proceed?`
+            );
+            
+            if (confirmed) {
+                window.location.href = `/api/files/${file.id}/download`;
+                setTimeout(() => {
+                    window.open('https://3dviewer.net/', '_blank');
+                }, 500);
+            }
+            return;
+        }
+
+        // Per altri file, chiedi all'utente come aprirlo
+        const choice = confirm(`Open "${file.filename}" as graph?\n\nClick OK for graph view\nClick Cancel for text view`);
+        
+        if (choice) { // L'utente ha scelto di aprire come grafico
+            try {
+                const response = await fetch(`/api/files/${file.id}/content`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const content = await response.text();
+                
+                // Estrai i punti per il grafico con parsing migliorato (anche per file non-txt)
+                const lines = content.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+                
+                // Rileva automaticamente se c'è un header
+                let startIndex = 0;
+                for (let i = 0; i < Math.min(3, lines.length); i++) {
+                    const line = lines[i];
+                    
+                    // Rileva header se contiene caratteri tipici di intestazione
+                    if (line.includes('[') || line.includes(']') || 
+                        line.toLowerCase().includes('freq') || 
+                        line.toLowerCase().includes('phase') || 
+                        line.toLowerCase().includes('db') ||
+                        line.toLowerCase().includes('hz') ||
+                        /^[a-zA-Z]/.test(line)) {
+                        
+                        console.log(`Header detected: "${line}"`);
+                        startIndex = i + 1;
+                        break;
+                    }
+                    
+                    // Se la riga contiene solo numeri, probabilmente non c'è header
+                    const parts = line.split(/[\s,;\t]+/).filter(p => p.length > 0);
+                    const numericParts = parts.filter(p => !isNaN(parseFloat(p)) && isFinite(parseFloat(p)));
+                    
+                    if (numericParts.length >= 2 && numericParts.length === parts.length) {
+                        console.log('No header detected, data starts immediately');
+                        startIndex = i;
+                        break;
+                    }
+                }
+                
+                const points = [];
+                for (let i = startIndex; i < lines.length; i++) {
+                    const line = lines[i];
+                    
+                    // Salta righe vuote o commenti
+                    if (!line || line.startsWith('#') || line.startsWith('//')) {
+                        continue;
+                    }
+                    
+                    // Dividi usando diversi separatori possibili (spazi, tab, virgole, punto e virgola)
+                    const parts = line.split(/[\s,;\t]+/).filter(p => p.length > 0);
+                    
+                    if (parts.length >= 2) {
+                        const x = parseFloat(parts[0]);
+                        const y = parseFloat(parts[1]);
+                        
+                        // Considera il punto valido solo se entrambe le coordinate sono numeri finiti
+                        if (!isNaN(x) && isFinite(x) && !isNaN(y) && isFinite(y)) {
+                            points.push({ x, y });
+                        }
+                    }
+                }
+                
+                if (points.length === 0) {
+                    alert(`Could not extract valid numerical data points (X, Y) from "${file.filename}". Opening as text.`);
+                    window.open(`/api/files/${file.id}/view`, '_blank');
+                    return;
+                }
+
+                // Prova a riutilizzare la finestra esistente
+                let graphWindow = window.open('', 'graphViewer');
+                
+                // Funzione per inviare i dati del grafico
+                const sendGraphData = () => {
+                    try {
+                        graphWindow.postMessage({
+                            type: 'addGraph',
+                            points: points,
+                            filename: file.filename
+                        }, '*');
+                    } catch (e) {
+                        console.error('Errore nell\'invio dei dati:', e);
+                        // Se fallisce, riapri la finestra
+                        graphWindow = window.open('graph-viewer.html', 'graphViewer');
+                        graphWindow.onload = sendGraphData;
+                    }
+                };
+                
+                if (graphWindow && !graphWindow.closed) {
+                    try {
+                        // Verifica se la finestra è ancora valida
+                        if (graphWindow.location.href.includes('graph-viewer.html')) {
+                            // Porta in primo piano e invia dati
+                            graphWindow.focus();
+                            setTimeout(sendGraphData, 100);
+                        } else {
+                            // Finestra esiste ma non è quella giusta, riapri
+                            graphWindow = window.open('graph-viewer.html', 'graphViewer');
+                            graphWindow.onload = sendGraphData;
+                        }
+                    } catch (e) {
+                        // Se c'è un errore di sicurezza (cross-origin), riapri la finestra
+                        graphWindow = window.open('graph-viewer.html', 'graphViewer');
+                        graphWindow.onload = sendGraphData;
+                    }
+                } else {
+                    // Finestra non esiste, aprila
+                    graphWindow = window.open('graph-viewer.html', 'graphViewer');
+                    graphWindow.onload = sendGraphData;
+                }
+            } catch (error) {
+                console.error(`Error opening "${file.filename}" as graph:`, error);
+                alert(`Error opening "${file.filename}" as graph. Opening as text instead.`);
+                window.open(`/api/files/${file.id}/view`, '_blank');
+            }
+        } else { // L'utente ha scelto di aprire come testo normale
             window.open(`/api/files/${file.id}/view`, '_blank');
         }
     });

@@ -4,6 +4,11 @@ const versionLogData = [
     { 
         date: '29/05/25', 
         version: 'V4.1', 
+        description: 'Implemented curves viewer for txt curves (no need anymore Clio for comparing curves)'
+    },
+    { 
+        date: '29/05/25', 
+        version: 'V4.1', 
         description: 'Implemented drag & drop directly from chat app messages (wechat, teams, etc)'
     },
     // 28/05/25 - V4.0

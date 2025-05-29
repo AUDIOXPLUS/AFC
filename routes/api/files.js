@@ -373,6 +373,88 @@ router.delete('/:fileId', checkAuthentication, (req, res) => {
     });
 });
 
+// Endpoint per ottenere il contenuto testuale di un file
+router.get('/:fileId/content', checkAuthentication, (req, res) => {
+    const { fileId } = req.params;
+    
+    req.db.get('SELECT * FROM project_files WHERE id = ?', [fileId], (err, file) => {
+        if (err) {
+            console.error('Error fetching file:', err);
+            return res.status(500).json({ error: 'Failed to fetch file' });
+        }
+        if (!file) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+
+        // Verifica che il file sia di tipo testo
+        if (!file.filename.toLowerCase().endsWith('.txt')) {
+            return res.status(400).json({ error: 'File is not a text file' });
+        }
+
+        // Informazioni di debug per content endpoint
+        console.log('========== RICHIESTA FILE CONTENT ==========');
+        console.log(`File richiesto: ID=${fileId}, Nome=${file.filename}, Percorso DB=${file.filepath}`);
+        
+        let filePath;
+        
+        // Usa la stessa logica robusta degli altri endpoint
+        // 1. Primo tentativo: percorso originale dal database
+        if (file.filepath) {
+            // Se è un percorso relativo alle uploads, lo trasformo in assoluto
+            if (file.filepath.startsWith('uploads/')) {
+                filePath = path.join(__dirname, '../../', file.filepath);
+            } else {
+                // Se è già un percorso assoluto, lo uso così com'è
+                filePath = file.filepath;
+            }
+            
+            console.log('1. Tentativo primario (percorso originale):', filePath);
+            if (fs.existsSync(filePath)) {
+                console.log(`✓ Successo! File trovato al percorso originale: ${filePath}`);
+                return readAndSendFileContent(filePath, res);
+            } else {
+                console.log(`✗ File non trovato al percorso originale: ${filePath}`);
+            }
+        }
+        
+        // 2. Secondo tentativo: in OnlyOffice con ID nel nome
+        const onlyOfficePath1 = path.join('/var/www/onlyoffice/Data', `${fileId}-${path.basename(file.filepath)}`);
+        console.log('2. Tentativo in OnlyOffice con ID:', onlyOfficePath1);
+        if (fs.existsSync(onlyOfficePath1)) {
+            console.log(`✓ Successo! File trovato in OnlyOffice con ID: ${onlyOfficePath1}`);
+            return readAndSendFileContent(onlyOfficePath1, res);
+        } else {
+            console.log(`✗ File non trovato in OnlyOffice con ID: ${onlyOfficePath1}`);
+        }
+        
+        // 3. Terzo tentativo: in OnlyOffice senza ID
+        const onlyOfficePath2 = path.join('/var/www/onlyoffice/Data', path.basename(file.filepath));
+        console.log('3. Tentativo in OnlyOffice senza ID:', onlyOfficePath2);
+        if (fs.existsSync(onlyOfficePath2)) {
+            console.log(`✓ Successo! File trovato in OnlyOffice senza ID: ${onlyOfficePath2}`);
+            return readAndSendFileContent(onlyOfficePath2, res);
+        } else {
+            console.log(`✗ File non trovato in OnlyOffice senza ID: ${onlyOfficePath2}`);
+        }
+        
+        // Se non si trova in nessun percorso, restituiamo un errore 404
+        console.error('File non trovato in nessun percorso per content endpoint');
+        return res.status(404).json({ error: 'File not found on disk' });
+    });
+});
+
+// Funzione helper per leggere e inviare il contenuto del file
+function readAndSendFileContent(filePath, res) {
+    fs.readFile(filePath, 'utf8', (err, content) => {
+        if (err) {
+            console.error('Error reading file content:', err);
+            return res.status(500).json({ error: 'Failed to read file content' });
+        }
+        console.log(`File content read successfully, length: ${content.length} characters`);
+        res.type('text/plain').send(content);
+    });
+}
+
 module.exports = {
     router,
     upload
