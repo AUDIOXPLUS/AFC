@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Graph Viewer</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="js/vendor/chart.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -168,6 +168,7 @@
         let datasets = [];
         let chart = null;
         let nextColorIndex = 0;
+        let chartReady = false; // Flag per indicare se initChart è stato completato
         const colors = [
             'rgb(75, 192, 192)',
             'rgb(255, 99, 132)',
@@ -180,11 +181,13 @@
 
         // Inizializza il grafico
         function initChart() {
+            if (chartReady) return; // Esegui solo una volta
+
             const ctx = document.getElementById('graph-canvas').getContext('2d');
             chart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    datasets: datasets
+                    datasets: datasets // Chart.js userà i dati presenti in questo array al momento della creazione
                 },
                 options: {
                     responsive: true,
@@ -266,6 +269,14 @@
                     }
                 }
             });
+            chartReady = true; // Il grafico è ora inizializzato
+
+            // Se dei dati sono stati aggiunti a 'datasets' prima che initChart completasse,
+            // assicurati che il grafico li mostri e la lista sia aggiornata.
+            if (datasets.length > 0) {
+                chart.update(); // Assicura che i dati pre-esistenti siano renderizzati
+                updateDatasetList();
+            }
         }
 
         // Aggiungi un nuovo dataset al grafico
@@ -285,16 +296,15 @@
                 tension: 0.1
             };
             
-            datasets.push(newDataset);
+            datasets.push(newDataset); // Aggiungi sempre i dati all'array globale
             
-            if (chart) {
-                chart.data.datasets = datasets;
-                chart.update();
-            } else {
-                initChart();
+            if (chartReady) { // Se il grafico è già inizializzato e pronto
+                chart.data.datasets = datasets; // Assegna l'array aggiornato
+                chart.update(); // Aggiorna il grafico
+                updateDatasetList(); // Aggiorna la UI della lista dataset
             }
-            
-            updateDatasetList();
+            // Se chartReady è false, initChart() (chiamato da DOMContentLoaded)
+            // prenderà i dati da 'datasets' e gestirà l'aggiornamento.
         }
 
         // Aggiorna la lista dei dataset nel pannello di controllo
