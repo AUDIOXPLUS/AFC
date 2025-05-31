@@ -631,9 +631,9 @@ function updateLoadingProgress(percentage) {
 
 // Function to fetch project data from the backend
 async function fetchProjects() {
-    console.log(`fetchProjects called. Timestamp: ${Date.now()}`); // Add timestamp log
-    console.log('Fetching projects...');
+    console.log(`[PROGRESS] Inizio fetchProjects - Timestamp: ${Date.now()}`);
     const loadingPopup = document.getElementById('loading-popup');
+    console.log('[PROGRESS] Mostro loading popup');
 
     // Mostra il popup e imposta progresso a 0%
     if (loadingPopup) {
@@ -648,7 +648,9 @@ async function fetchProjects() {
         // Fase 1: Fetch elenco progetti
         const showArchived = document.getElementById('show-archived').checked;
         const showOnHold = document.getElementById('show-on-hold').checked;
+        console.log(`[PROGRESS] Fetch progetti con parametri: showArchived=${showArchived}, showOnHold=${showOnHold}`);
         const response = await fetch(`/api/projects?showArchived=${showArchived}&showOnHold=${showOnHold}`);
+        console.log('[PROGRESS] Ricevuta risposta API progetti');
         if (!response.ok) {
             // Nascondi popup in caso di errore fetch iniziale
             if (loadingPopup) loadingPopup.style.display = 'none';
@@ -850,8 +852,9 @@ function createPhaseProgressBar(projectHistory, phases, projectId) {
 // Function to display projects in the table
 // Modificata per usare la cronologia inclusa nell'oggetto project
 async function displayProjects(projects) {
-    // Aggiorna progresso a 100% prima di iniziare il rendering pesante
-    updateLoadingProgress(100);
+        // Aggiorna progresso a 100% prima di iniziare il rendering pesante
+        console.log('[PROGRESS] Aggiorno progresso al 100%');
+        updateLoadingProgress(100);
 
     console.log(`displayProjects called with ${projects.length} projects. Timestamp: ${Date.now()}`);
     
