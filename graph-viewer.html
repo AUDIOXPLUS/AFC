@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Graph Viewer</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="js/vendor/chart.min.js"></script>
     <style>
         body {
@@ -65,12 +66,12 @@
         }
         .dataset-controls {
             position: absolute;
-            top: 10px;
-            left: 35px; /* Spostato a sinistra */
+            top: 35px;
+            left: calc(80px); /* Spostato a destra del 10% */
             background-color: rgba(42, 58, 74, 0.9);
             padding: 10px;
             border-radius: 5px;
-            max-width: 200px;
+            max-width: 400px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Aggiunta ombra per effetto flottante */
         }
         .dataset-item {
@@ -79,12 +80,7 @@
             margin-bottom: 5px;
             font-size: 12px;
         }
-        .dataset-color {
-            width: 12px;
-            height: 12px;
-            margin-right: 8px;
-            border: 1px solid #ddd;
-        }
+        /* Classe .dataset-color rimossa perché non utilizzata nel codice JavaScript */
 
         
         /* Stili per i controlli della toolbar */
@@ -104,18 +100,37 @@
         }
         
         .color-picker {
-            width: 20px;
-            height: 20px;
-            padding: 0;
-            border: 1px solid #ddd;
-            border-radius: 3px;
+            width: 10px;
+            height: 10px;
+            padding: 0 !important;
+            margin: 0 !important;
+            border: none !important;
+            outline: none !important;
+            -webkit-appearance: none !important;
+            -moz-appearance: none !important;
+            appearance: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            background-clip: padding-box !important;
             cursor: pointer;
             margin-right: 5px;
+            /* Elimina ogni possibile bordo o contorno */
+            -webkit-border-radius: 0 !important;
+            -moz-border-radius: 0 !important;
+            -webkit-box-shadow: none !important;
+            -moz-box-shadow: none !important;
+            /* Il backgroundColor viene già impostato da JavaScript */
         }
     </style>
 </head>
 <body>
     <div class="container">
+        <div id="loader" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(30,42,58,0.8); display: flex; justify-content: center; align-items: center; z-index: 1000;">
+            <div style="color: white; text-align: center;">
+                <i class="fas fa-spinner fa-spin" style="font-size: 24px;"></i>
+                <p>Caricamento curva in corso...</p>
+            </div>
+        </div>
         <h1>Frequency Response Analyzer</h1>
         
         <div class="toolbar">
@@ -146,6 +161,14 @@
             
             <div class="separator"></div>
             
+            <!-- Controlli Ohm -->
+            <label>Ohm Min:</label>
+            <input type="number" id="ohm-min" value="0" min="0" max="1000" style="width: 60px;">
+            <label>Max:</label>
+            <input type="number" id="ohm-max" value="100" min="0" max="1000" style="width: 60px;">
+            
+            <div class="separator"></div>
+            
             <button id="export-btn" title="Export">💾</button>
             <button id="clear-btn" title="Clear">🗑️</button>
         </div>
@@ -170,6 +193,8 @@
         let chart = null;
         let nextColorIndex = 0;
         let chartReady = false; // Flag per indicare se initChart è stato completato
+        let selectedDatasetIndex = -1; // Indice del dataset selezionato
+        let frozenTooltip = null; // Tooltip congelato
         const colors = [
             'rgb(75, 192, 192)',
             'rgb(255, 99, 132)',
@@ -180,11 +205,131 @@
             'rgb(255, 205, 86)'
         ];
 
+        // Highlight della frequenza sull'asse x con colore della curva
+        function highlightFrequency(freq, color) {
+            if (!chart) return;
+            
+            // Rimuovi eventuali highlight precedenti
+            const xScale = chart.scales.x;
+            if (xScale._highlightLine) {
+                xScale.ctx.clearRect(
+                    xScale._highlightLine.x - 1, 
+                    xScale.top, 
+                    2, 
+                    xScale.bottom - xScale.top
+                );
+            }
+            
+            // Disegna la nuova linea di highlight
+            const xPos = xScale.getPixelForValue(freq);
+            xScale.ctx.strokeStyle = color || 'rgba(255, 255, 255, 0.7)';
+            xScale.ctx.lineWidth = 2;
+            xScale.ctx.beginPath();
+            xScale.ctx.moveTo(xPos, xScale.top);
+            xScale.ctx.lineTo(xPos, xScale.bottom);
+            xScale.ctx.stroke();
+            
+            // Salva la posizione per poterla rimuovere dopo
+            xScale._highlightLine = {x: xPos, color: color};
+        }
+
+        // Mostra il valore dB persistente della curva selezionata
+        function showFrozenValue(freq, value, color, yAxisID) {
+            const container = document.querySelector('.chart-container');
+            
+            // Rimuovi eventuali valori precedenti
+            const existing = document.getElementById('frozen-value');
+            if (existing) existing.remove();
+            
+            // Determina l'unità di misura
+            const unit = yAxisID === 'yOhm' ? 'Ω' : 'dB';
+            const yAxis = chart.scales[yAxisID]; // Ottieni l'asse Y corretto
+            
+            // Crea il nuovo elemento
+            const div = document.createElement('div');
+            div.id = 'frozen-value';
+            div.style.position = 'absolute';
+            div.style.left = chart.scales.x.getPixelForValue(freq) + 'px';
+            div.style.top = yAxis.getPixelForValue(value) + 'px'; // Usa l'asse Y corretto
+            div.style.transform = 'translate(-50%, -50%)';
+            div.style.backgroundColor = 'rgba(42, 58, 74, 0.9)';
+            div.style.color = color || '#ffffff';
+            div.style.padding = '2px 6px';
+            div.style.borderRadius = '3px';
+            div.style.border = `1px solid ${color || '#ffffff'}`;
+            div.style.fontSize = '12px';
+            div.textContent = `${value.toFixed(1)} ${unit}`;
+            
+            container.appendChild(div);
+        }
+
+        // Definizione del posizionatore personalizzato per il tooltip
+        // Questo posizionerà il tooltip in corrispondenza della posizione Y del mouse
+        Chart.Tooltip.positioners.mouseYPosition = function(elements, eventPosition) {
+            // elements: array degli elementi attivi del tooltip
+            // eventPosition: {x, y} coordinate dell'evento mouse relative al canvas
+            return {
+                x: eventPosition.x,
+                y: eventPosition.y
+            };
+        };
+
+        // Gestore ottimizzato per il click sul canvas
+        function handleCanvasClick(event) {
+            if (!chart || chart.data.datasets.length <= 1) return;
+            
+            const points = chart.getElementsAtEventForMode(
+                event, 
+                'nearest', 
+                {intersect: false}, 
+                true
+            );
+            
+            if (points.length > 0) {
+                const point = points[0];
+                selectedDatasetIndex = point.datasetIndex;
+                
+                // Aggiorna lo stile delle curve
+                chart.data.datasets.forEach((dataset, i) => {
+                    dataset.borderWidth = (i === selectedDatasetIndex) ? 4 : 2;
+                    dataset.borderDash = [];
+                });
+                
+                // Congela il tooltip e mostra valore persistente
+                const freq = point.element.$context.parsed.x;
+                const yValue = point.element.$context.parsed.y; // Questo è il valore sull'asse Y associato al dataset
+                const datasetIndex = point.datasetIndex;
+                const yAxisID = chart.data.datasets[datasetIndex].yAxisID;
+                const color = chart.data.datasets[datasetIndex].borderColor;
+
+                frozenTooltip = {
+                    freq: freq,
+                    value: yValue, // Usiamo un nome generico 'value'
+                    yAxisID: yAxisID, // Memorizziamo l'ID dell'asse
+                    color: color,
+                    datasetIndex: datasetIndex,
+                    clickedPointIndex: point.index
+                };
+                
+                // Highlight frequenza sull'asse x con colore della curva
+                highlightFrequency(freq, color);
+                // Mostra valore persistente
+                showFrozenValue(freq, yValue, color, yAxisID);
+                
+                requestAnimationFrame(() => chart.update());
+            }
+        }
+
         // Inizializza il grafico
         function initChart() {
             if (chartReady) return; // Esegui solo una volta
+            
+            // Aggiungi gestore eventi click sul canvas (ottimizzato)
+            const canvas = document.getElementById('graph-canvas');
+            canvas.addEventListener('click', handleCanvasClick);
+            canvas.style.willChange = 'contents'; // Ottimizza le animazioni
 
-            const ctx = document.getElementById('graph-canvas').getContext('2d');
+            const ctx = canvas.getContext('2d');
             chart = new Chart(ctx, {
                 type: 'line',
                 data: {
@@ -236,23 +381,112 @@
                             },
                             min: 20,
                             max: 120
+                        },
+                        yOhm: {
+                            type: 'linear',
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Ohm',
+                                color: '#ffffff'
+                            },
+                            ticks: {
+                                color: '#ffffff'
+                            },
+                            grid: {
+                                display: false
+                            },
+                            min: 0,
+                            max: 100
                         }
                     },
                     plugins: {
                         legend: {
                             display: false
                         },
-                        tooltip: {
-                            backgroundColor: 'rgba(42, 58, 74, 0.9)',
-                            titleColor: '#ffffff',
-                            bodyColor: '#ffffff',
-                            borderColor: '#ffffff',
-                            borderWidth: 1,
-                            callbacks: {
-                                label: function(context) {
-                                    return `${context.dataset.label}: ${context.parsed.x.toFixed(1)} Hz, ${context.parsed.y.toFixed(1)} dB`;
-                                }
+                    tooltip: {
+                        position: 'mouseYPosition', // Usa il posizionatore personalizzato
+                        // yAlign: 'top', // Non più necessario con il posizionatore custom
+                        // caretPadding: 100, // Non più necessario con il posizionatore custom
+                        backgroundColor: 'rgba(42, 58, 74, 0.9)',
+                        titleColor: '#ffffff',
+                        bodyColor: '#ffffff',
+                        borderColor: '#ffffff',
+                        borderWidth: 1,
+                        filter: function(tooltipItem) {
+                            // Escludi completamente la curva selezionata dal tooltip
+                            if (frozenTooltip && tooltipItem.datasetIndex === frozenTooltip.datasetIndex) {
+                                return false;
                             }
+                            return true;
+                        },
+                        callbacks: {
+                            title: function(context) {
+                                // Mostra sempre la frequenza
+                                return `${context[0].parsed.x.toFixed(1)} Hz`;
+                            },
+                            label: function(context) {
+                                const currentDataset = context.dataset;
+                                const currentYAxisID = currentDataset.yAxisID;
+                                const currentUnit = currentYAxisID === 'yOhm' ? 'Ω' : 'dB';
+                                
+                                // Se una curva è selezionata (frozenTooltip esiste)
+                                if (frozenTooltip) {
+                                    // Calcola il delta solo se l'unità di misura è la stessa
+                                    // Altrimenti, mostra il valore assoluto della curva corrente
+                                    if (currentYAxisID === frozenTooltip.yAxisID) {
+                                        const delta = context.parsed.y - frozenTooltip.value;
+                                        const sign = delta >= 0 ? '+' : '';
+                                        return `${sign}${delta.toFixed(1)} ${currentUnit}`;
+                                    } else {
+                                        return `${context.parsed.y.toFixed(1)} ${currentUnit}`;
+                                    }
+                                }
+                                // Altrimenti mostra il valore assoluto
+                                return `${context.parsed.y.toFixed(1)} ${currentUnit}`;
+                            },
+                            labelColor: function(context) {
+                                // Restituisce il colore per l'indicatore nel tooltip
+                                return {
+                                    borderColor: context.dataset.borderColor,
+                                    backgroundColor: context.dataset.borderColor,
+                                    borderWidth: 0,
+                                    borderRadius: 0,
+                                    boxWidth: 8,
+                                    boxHeight: 8
+                                };
+                            }
+                        },
+                        external: function(context) {
+                            // Resetta il tooltip congelato quando il mouse esce dal grafico
+                            if (context.tooltip.opacity === 0 && frozenTooltip) {
+                                frozenTooltip = null;
+                                selectedDatasetIndex = -1;
+                                
+                                // Ripristina lo stile delle curve
+                                chart.data.datasets.forEach(dataset => {
+                                    dataset.borderWidth = 2;
+                                });
+                                
+                                // Rimuovi highlight frequenza
+                                const xScale = chart.scales.x;
+                                if (xScale._highlightLine) {
+                                    xScale.ctx.clearRect(
+                                        xScale._highlightLine.x - 1, 
+                                        xScale.top, 
+                                        2, 
+                                        xScale.bottom - xScale.top
+                                    );
+                                    delete xScale._highlightLine;
+                                }
+                                
+                                // Rimuovi valore persistente
+                                const frozenValue = document.getElementById('frozen-value');
+                                if (frozenValue) frozenValue.remove();
+                                
+                                chart.update();
+                            }
+                        }
                         }
                     },
                     elements: {
@@ -278,6 +512,12 @@
                 chart.update(); // Assicura che i dati pre-esistenti siano renderizzati
                 updateDatasetList();
             }
+
+            // Invia messaggio che il viewer è pronto
+            if (window.opener && typeof window.opener.postMessage === 'function') {
+                console.log('Graph viewer sending graphViewerReady (initChart)');
+                window.opener.postMessage({ type: 'graphViewerReady', windowName: window.name || 'graphViewer' }, '*');
+            }
         }
 
         // Aggiungi un nuovo dataset al grafico
@@ -285,77 +525,131 @@
             const color = colors[nextColorIndex % colors.length];
             nextColorIndex++;
             
+            // Analizza il contenuto per determinare se è un file di impedenza
+            let isImpedance = false;
+            if (points.length > 0 && points[0].content) {
+                const content = points[0].content.toLowerCase();
+                isImpedance = content.includes('ohm');
+            }
+            
             const newDataset = {
                 label: filename,
                 data: points,
                 backgroundColor: 'transparent',
                 borderColor: color,
                 borderWidth: 2,
-                pointRadius: 0,
-                pointHoverRadius: 4,
                 fill: false,
-                tension: 0.1
+                tension: 0.1,
+                yAxisID: isImpedance ? 'yOhm' : 'y',
+                pointRadius: function(context) {
+                    // context contiene datasetIndex e dataIndex (l'indice del punto)
+                    // Mostra un pallino se questo è il punto cliccato e congelato
+                    if (frozenTooltip &&
+                        context.datasetIndex === frozenTooltip.datasetIndex &&
+                        context.dataIndex === frozenTooltip.clickedPointIndex) {
+                        return 5; // Raggio del punto cliccato e "congelato"
+                    }
+                    return 0; // Normalmente i punti non sono visibili
+                },
+                pointHoverRadius: function(context) {
+                    // Mantieni il raggio del punto cliccato o usa il raggio standard per l'hover
+                    if (frozenTooltip &&
+                        context.datasetIndex === frozenTooltip.datasetIndex &&
+                        context.dataIndex === frozenTooltip.clickedPointIndex) {
+                        return 5; // Mantiene lo stesso raggio se è il punto cliccato
+                    }
+                    return 4; // Raggio standard per l'hover sugli altri punti
+                }
             };
             
             datasets.push(newDataset); // Aggiungi sempre i dati all'array globale
             
             if (chartReady) { // Se il grafico è già inizializzato e pronto
                 chart.data.datasets = datasets; // Assegna l'array aggiornato
-                chart.update(); // Aggiorna il grafico
-                updateDatasetList(); // Aggiorna la UI della lista dataset
+                
+                // Ottimizzazione: aggiorna solo se necessario
+                requestAnimationFrame(() => {
+                    chart.update(); // Aggiorna il grafico
+                    updateDatasetList(); // Aggiorna la UI della lista dataset
+                });
             }
             // Se chartReady è false, initChart() (chiamato da DOMContentLoaded)
             // prenderà i dati da 'datasets' e gestirà l'aggiornamento.
         }
 
-        // Aggiorna la lista dei dataset nel pannello di controllo
+        // Aggiorna la lista dei dataset nel pannello di controllo (ottimizzata)
         function updateDatasetList() {
             const list = document.getElementById('dataset-list');
-            list.innerHTML = '';
+            
+            // Usa DocumentFragment per minimizzare i reflow
+            const fragment = document.createDocumentFragment();
+            
+            // Crea una mappa dei dataset esistenti per evitare ricostruzioni non necessarie
+            const existingItems = Array.from(list.children).reduce((acc, child) => {
+                const label = child.querySelector('span').textContent;
+                acc[label] = child;
+                return acc;
+            }, {});
             
             datasets.forEach((dataset, index) => {
-                const item = document.createElement('div');
-                item.className = 'dataset-item';
-                item.style.marginBottom = '8px';
+                let item = existingItems[dataset.label];
                 
-                // Color picker per cambiare il colore
-                const colorInput = document.createElement('input');
-                colorInput.type = 'color';
-                colorInput.className = 'color-picker';
-                colorInput.value = rgbToHex(dataset.borderColor);
-                colorInput.addEventListener('change', function() {
-                    datasets[index].borderColor = this.value;
-                    if (chart) {
-                        chart.update();
-                    }
-                });
+                if (!item) {
+                    // Crea nuovo elemento solo se non esiste già
+                    item = document.createElement('div');
+                    item.className = 'dataset-item';
+                    item.style.marginBottom = '8px';
+                    
+                    // Color picker
+                    const colorInput = document.createElement('input');
+                    colorInput.type = 'color';
+                    colorInput.className = 'color-picker';
+                    colorInput.value = rgbToHex(dataset.borderColor);
+                    colorInput.style.backgroundColor = colorInput.value;
+                    colorInput.addEventListener('change', function() {
+                        datasets[index].borderColor = this.value;
+                        this.style.backgroundColor = this.value;
+                        if (chart) chart.update();
+                    });
+                    
+                    const label = document.createElement('span');
+                    label.textContent = dataset.label;
+                    label.style.flex = '1';
+                    label.style.marginLeft = '5px';
+                    
+                    const toggleBtn = document.createElement('button');
+                    toggleBtn.innerHTML = '<i class="fas fa-eye-slash"></i>';
+                    toggleBtn.title = 'Toggle visibility';
+                    toggleBtn.style.fontSize = '10px';
+                    toggleBtn.style.padding = '2px 6px';
+                    toggleBtn.style.marginLeft = '5px';
+                    toggleBtn.onclick = () => toggleDataset(index);
+                    
+                    const removeBtn = document.createElement('button');
+                    removeBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
+                    removeBtn.title = 'Remove dataset';
+                    removeBtn.style.fontSize = '10px';
+                    removeBtn.style.padding = '2px 6px';
+                    removeBtn.style.marginLeft = '3px';
+                    removeBtn.onclick = () => removeDataset(index);
+                    
+                    item.appendChild(colorInput);
+                    item.appendChild(label);
+                    item.appendChild(toggleBtn);
+                    item.appendChild(removeBtn);
+                } else {
+                    // Aggiorna solo il color picker se l'elemento esiste già
+                    const colorInput = item.querySelector('input[type="color"]');
+                    colorInput.value = rgbToHex(dataset.borderColor);
+                    colorInput.style.backgroundColor = colorInput.value;
+                }
                 
-                const label = document.createElement('span');
-                label.textContent = dataset.label;
-                label.style.flex = '1';
-                label.style.marginLeft = '5px';
-                
-                const toggleBtn = document.createElement('button');
-                toggleBtn.textContent = 'Toggle';
-                toggleBtn.style.fontSize = '10px';
-                toggleBtn.style.padding = '2px 6px';
-                toggleBtn.style.marginLeft = '5px';
-                toggleBtn.onclick = () => toggleDataset(index);
-                
-                const removeBtn = document.createElement('button');
-                removeBtn.textContent = 'Remove';
-                removeBtn.style.fontSize = '10px';
-                removeBtn.style.padding = '2px 6px';
-                removeBtn.style.marginLeft = '3px';
-                removeBtn.onclick = () => removeDataset(index);
-                
-                item.appendChild(colorInput);
-                item.appendChild(label);
-                item.appendChild(toggleBtn);
-                item.appendChild(removeBtn);
-                
-                list.appendChild(item);
+                fragment.appendChild(item);
             });
+            
+            // Sostituisci tutto in un'unica operazione
+            list.innerHTML = '';
+            list.appendChild(fragment);
         }
 
         // Mostra/nascondi un dataset
@@ -453,6 +747,17 @@
             // Configura la scala dB
             chart.options.scales.y.ticks.stepSize = dbScale;
             
+            // Applica le impostazioni per l'asse Ohm
+            const ohmMin = parseFloat(document.getElementById('ohm-min').value);
+            const ohmMax = parseFloat(document.getElementById('ohm-max').value);
+            
+            if (chart.options.scales.yOhm) { // Controlla se l'asse yOhm esiste
+                if (!isNaN(ohmMin) && !isNaN(ohmMax) && ohmMin < ohmMax) {
+                    chart.options.scales.yOhm.min = ohmMin;
+                    chart.options.scales.yOhm.max = ohmMax;
+                }
+            }
+            
             // Aggiorna il grafico
             chart.update();
         }
@@ -463,6 +768,10 @@
         document.getElementById('db-min').addEventListener('input', applySettings);
         document.getElementById('db-max').addEventListener('input', applySettings);
         document.getElementById('db-scale').addEventListener('change', applySettings);
+        
+        // Aggiungi event listeners per i controlli Ohm
+        document.getElementById('ohm-min').addEventListener('input', applySettings);
+        document.getElementById('ohm-max').addEventListener('input', applySettings);
 
         // Controlli checkbox
         document.getElementById('grid-toggle').addEventListener('change', function() {
@@ -478,15 +787,53 @@
 
 
 
-        // Gestione dei messaggi dalla finestra principale
-        window.addEventListener('message', function(event) {
+        // Gestione ottimizzata dei messaggi dalla finestra principale
+        function handleAppMessages(event) {
+            if (!event.data) return;
+
             if (event.data.type === 'addGraph') {
-                addDataset(event.data.points, event.data.filename);
+                // Mostra il loader
+                document.getElementById('loader').style.display = 'flex';
+                
+                // Usa requestAnimationFrame per priorità alta
+                requestAnimationFrame(() => {
+                    try {
+                        addDataset(event.data.points, event.data.filename);
+                        // Nascondi il loader dopo un breve delay per evitare flickering
+                        setTimeout(() => {
+                            document.getElementById('loader').style.display = 'none';
+                        }, 300);
+                    } catch (error) {
+                        console.error('Error adding dataset:', error);
+                        document.getElementById('loader').style.display = 'none';
+                    }
+                });
+            } else if (event.data.type === 'areYouReady') {
+                // Rispondi se il grafico è pronto
+                // Assicurati che il messaggio sia per questa finestra specifica se targetWindowName è fornito
+                if (event.data.targetWindowName && (window.name !== event.data.targetWindowName)) {
+                    return; 
+                }
+                if (chartReady && window.opener && typeof window.opener.postMessage === 'function') {
+                    console.log('Graph viewer responding to areYouReady with graphViewerReady');
+                    window.opener.postMessage({ type: 'graphViewerReady', windowName: window.name || 'graphViewer' }, '*');
+                }
             }
-        });
+        }
+
+        // Aggiungi listener ottimizzato
+        window.addEventListener('message', handleAppMessages, { passive: true });
 
         // Inizializza il grafico al caricamento della pagina
-        window.addEventListener('DOMContentLoaded', initChart);
+        window.addEventListener('DOMContentLoaded', () => {
+            initChart();
+            // Nascondi il loader dopo l'inizializzazione, ma assicurati che sia visibile se i dati arrivano subito
+            // Il loader viene nascosto anche in addDataset dopo il caricamento dei dati.
+            // Se non ci sono dati iniziali, nascondilo qui.
+            if (datasets.length === 0) {
+                 document.getElementById('loader').style.display = 'none';
+            }
+        });
     </script>
 </body>
 </html>

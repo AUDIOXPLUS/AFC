@@ -461,28 +461,68 @@ function createFileItem(file, projectId, entryId, canDelete) {
                         return;
                     }
 
-                    // Apri o riutilizza il visualizzatore di grafici esistente
-                    let graphWindow = window.open('', 'graphViewer');
-                    
-                    // Funzione per inviare i dati del grafico
-                    const sendGraphData = () => {
-                        graphWindow.postMessage({
-                            type: 'addGraph',
-                            points: points,
-                            filename: file.filename
-                        }, '*');
+                    // Nome univoco per la finestra del grafico per gestire più istanze se necessario
+                    const graphWindowName = 'graphViewer'; // Potrebbe essere reso più dinamico se servono più viewer
+                    let graphWindow = window.open('', graphWindowName); // Tenta di ottenere un riferimento a una finestra esistente
+
+                    const sendDataToGraphWindow = (targetWindow) => {
+                        console.log(`Invio dati a ${targetWindow.name || 'finestra grafico'}: ${file.filename}`);
+                        try {
+                            targetWindow.postMessage({
+                                type: 'addGraph',
+                                points: points,
+                                filename: file.filename
+                            }, '*');
+                        } catch (e) {
+                            console.error(`Errore postMessage a ${targetWindow.name} (file .txt):`, e);
+                        }
                     };
-                    
-                    // Verifica se la finestra esiste già e ha il contenuto corretto
-                    if (!graphWindow || graphWindow.closed || !graphWindow.location.href.includes('graph-viewer.html')) {
-                        // La finestra non esiste o è stata chiusa, aprila
-                        graphWindow = window.open('graph-viewer.html', 'graphViewer');
-                        // Aspetta che la finestra si carichi prima di inviare i dati
-                        graphWindow.onload = sendGraphData;
+
+                    const handleGraphViewerReady = (event) => {
+                        // Assicurati che il messaggio provenga dalla finestra del grafico corretta
+                        if (event.source === graphWindow && event.data && event.data.type === 'graphViewerReady') {
+                            console.log(`Ricevuto graphViewerReady da ${graphWindow.name || 'finestra grafico'} per ${file.filename}`);
+                            window.removeEventListener('message', handleGraphViewerReady);
+                            clearTimeout(readyCheckTimeout);
+                            sendDataToGraphWindow(graphWindow);
+                        }
+                    };
+
+                    let readyCheckTimeout;
+
+                    if (!graphWindow || graphWindow.closed || !graphWindow.location || !graphWindow.location.href.includes('graph-viewer.html')) {
+                        // Finestra non esiste, è chiusa, o non è graph-viewer.html: aprila.
+                        console.log(`Apertura nuova finestra graph-viewer.html per ${file.filename}`);
+                        graphWindow = window.open('graph-viewer.html', graphWindowName);
+                        // Non impostare graphWindow.onload direttamente, affidati al messaggio 'graphViewerReady'
+                        // o al timeout.
                     } else {
-                        // La finestra esiste già, invia i dati direttamente
-                        setTimeout(sendGraphData, 100); // Piccolo delay per sicurezza
+                        // Finestra esiste ed è graph-viewer.html, portala in focus.
+                        console.log(`Finestra graph-viewer.html (${graphWindow.name}) già aperta, invio areYouReady per ${file.filename}`);
+                        graphWindow.focus();
+                        // Invia un messaggio per chiedere se è pronta, specificando il nome della finestra target
+                        try {
+                            graphWindow.postMessage({ type: 'areYouReady', targetWindowName: graphWindowName }, '*');
+                        } catch (e) {
+                             console.error(`Errore postMessage 'areYouReady' a ${graphWindow.name} (file .txt):`, e);
+                        }
                     }
+                    
+                    // Ascolta la risposta 'graphViewerReady'
+                    window.addEventListener('message', handleGraphViewerReady);
+
+                    // Timeout di fallback: se non riceviamo 'graphViewerReady' entro un tot, invia comunque i dati.
+                    // Questo gestisce casi in cui la finestra era già aperta e pronta ma il messaggio iniziale è andato perso,
+                    // o se la nuova finestra non invia il messaggio per qualche motivo.
+                    readyCheckTimeout = setTimeout(() => {
+                        console.warn(`Timeout attesa graphViewerReady per ${graphWindow.name || 'finestra grafico'}. Invio dati comunque per ${file.filename}.`);
+                        window.removeEventListener('message', handleGraphViewerReady);
+                        if (graphWindow && !graphWindow.closed) {
+                            sendDataToGraphWindow(graphWindow);
+                        } else {
+                            console.error("Finestra grafico chiusa o non disponibile dopo timeout.");
+                        }
+                    }, 2000); // Timeout di 2 secondi
                 } catch (error) {
                     console.error(`Error opening "${file.filename}" as graph:`, error);
                     alert(`Error opening "${file.filename}" as graph. Opening as text instead.`);
@@ -593,47 +633,58 @@ function createFileItem(file, projectId, entryId, canDelete) {
                     return;
                 }
 
-                // Prova a riutilizzare la finestra esistente
-                let graphWindow = window.open('', 'graphViewer');
-                
-                // Funzione per inviare i dati del grafico
-                const sendGraphData = () => {
+                // Nome univoco per la finestra del grafico
+                const graphWindowName = 'graphViewer';
+                let graphWindow = window.open('', graphWindowName);
+
+                const sendDataToGraphWindow = (targetWindow) => {
+                    console.log(`Invio dati a ${targetWindow.name || 'finestra grafico'}: ${file.filename}`);
                     try {
-                        graphWindow.postMessage({
+                        targetWindow.postMessage({
                             type: 'addGraph',
                             points: points,
                             filename: file.filename
                         }, '*');
                     } catch (e) {
-                        console.error('Errore nell\'invio dei dati:', e);
-                        // Se fallisce, riapri la finestra
-                        graphWindow = window.open('graph-viewer.html', 'graphViewer');
-                        graphWindow.onload = sendGraphData;
+                        console.error(`Errore postMessage a ${targetWindow.name} (altri file):`, e);
                     }
                 };
-                
-                if (graphWindow && !graphWindow.closed) {
-                    try {
-                        // Verifica se la finestra è ancora valida
-                        if (graphWindow.location.href.includes('graph-viewer.html')) {
-                            // Porta in primo piano e invia dati
-                            graphWindow.focus();
-                            setTimeout(sendGraphData, 100);
-                        } else {
-                            // Finestra esiste ma non è quella giusta, riapri
-                            graphWindow = window.open('graph-viewer.html', 'graphViewer');
-                            graphWindow.onload = sendGraphData;
-                        }
-                    } catch (e) {
-                        // Se c'è un errore di sicurezza (cross-origin), riapri la finestra
-                        graphWindow = window.open('graph-viewer.html', 'graphViewer');
-                        graphWindow.onload = sendGraphData;
+
+                const handleGraphViewerReady = (event) => {
+                    if (event.source === graphWindow && event.data && event.data.type === 'graphViewerReady') {
+                        console.log(`Ricevuto graphViewerReady da ${graphWindow.name || 'finestra grafico'} per ${file.filename}`);
+                        window.removeEventListener('message', handleGraphViewerReady);
+                        clearTimeout(readyCheckTimeout);
+                        sendDataToGraphWindow(graphWindow);
                     }
+                };
+
+                let readyCheckTimeout;
+
+                if (!graphWindow || graphWindow.closed || !graphWindow.location || !graphWindow.location.href.includes('graph-viewer.html')) {
+                    console.log(`Apertura nuova finestra graph-viewer.html per ${file.filename}`);
+                    graphWindow = window.open('graph-viewer.html', graphWindowName);
                 } else {
-                    // Finestra non esiste, aprila
-                    graphWindow = window.open('graph-viewer.html', 'graphViewer');
-                    graphWindow.onload = sendGraphData;
+                    console.log(`Finestra graph-viewer.html (${graphWindow.name}) già aperta, invio areYouReady per ${file.filename}`);
+                    graphWindow.focus();
+                    try {
+                        graphWindow.postMessage({ type: 'areYouReady', targetWindowName: graphWindowName }, '*');
+                    } catch (e) {
+                        console.error(`Errore postMessage 'areYouReady' a ${graphWindow.name} (altri file):`, e);
+                    }
                 }
+
+                window.addEventListener('message', handleGraphViewerReady);
+
+                readyCheckTimeout = setTimeout(() => {
+                    console.warn(`Timeout attesa graphViewerReady per ${graphWindow.name || 'finestra grafico'}. Invio dati comunque per ${file.filename}.`);
+                    window.removeEventListener('message', handleGraphViewerReady);
+                    if (graphWindow && !graphWindow.closed) {
+                        sendDataToGraphWindow(graphWindow);
+                    } else {
+                        console.error("Finestra grafico chiusa o non disponibile dopo timeout.");
+                    }
+                }, 2000); // Timeout di 2 secondi
             } catch (error) {
                 console.error(`Error opening "${file.filename}" as graph:`, error);
                 alert(`Error opening "${file.filename}" as graph. Opening as text instead.`);
