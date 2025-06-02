@@ -6,6 +6,92 @@
 import { handleNetworkError, handleResponse, isOnlyOfficeCompatible, isStepFile, normalizeFilePath } from './utils.js';
 
 /**
+ * Analizza il contenuto di un file per determinare il tipo di dati e l'indice di inizio dei dati numerici
+ * @param {string} content - Contenuto del file
+ * @returns {Object} - Oggetto con dataType ('db', 'ohm', 'unknown') e startIndex
+ */
+function analyzeFileContent(content) {
+    const lines = content.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+    
+    let dataType = 'unknown';
+    let startIndex = 0;
+
+    // Analizza le prime righe per determinare il tipo di dati e l'inizio dei dati numerici
+    for (let i = 0; i < Math.min(5, lines.length); i++) {
+        const originalLine = lines[i];
+        const lineForCheck = originalLine.toLowerCase();
+        
+        // Cerca "db" o "ohm" per determinare il tipo di dati
+        if (lineForCheck.includes('db')) {
+            dataType = 'db';
+        } else if (lineForCheck.includes('ohm') || lineForCheck.includes('impedance')) {
+            dataType = 'ohm';
+        }
+
+        // Logica per rilevare l'header e trovare startIndex
+        if (lineForCheck.includes('[') || lineForCheck.includes(']') || 
+            lineForCheck.includes('freq') || 
+            lineForCheck.includes('phase') || 
+            lineForCheck.includes('hz') ||
+            dataType !== 'unknown' ||
+            /^[a-zA-Z]/.test(originalLine)) {
+            
+            startIndex = i + 1;
+        } else {
+            // Controlla se la riga contiene dati numerici validi
+            const parts = originalLine.split(/[\s,;\t]+/).filter(p => p.length > 0);
+            const numericParts = parts.filter(p => !isNaN(parseFloat(p)) && isFinite(parseFloat(p)));
+            
+            if (numericParts.length >= 2 && numericParts.length === parts.length) {
+                if (startIndex <= i) {
+                   startIndex = i;
+                }
+                break;
+            } else {
+                startIndex = i + 1;
+            }
+        }
+    }
+    
+    console.log(`[File Analysis] Tipo di dati rilevato: ${dataType}, Inizio dati alla riga: ${startIndex} (0-indexed)`);
+    return { dataType, startIndex };
+}
+
+/**
+ * Estrae i punti dati da un contenuto di file
+ * @param {string} content - Contenuto del file
+ * @param {number} startIndex - Indice di inizio dei dati numerici
+ * @returns {Array} - Array di punti {x, y}
+ */
+function extractDataPoints(content, startIndex) {
+    const lines = content.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+    const points = [];
+    
+    for (let i = startIndex; i < lines.length; i++) {
+        const line = lines[i];
+        
+        // Salta righe vuote o commenti
+        if (!line || line.startsWith('#') || line.startsWith('//')) {
+            continue;
+        }
+        
+        // Dividi usando diversi separatori possibili
+        const parts = line.split(/[\s,;\t]+/).filter(p => p.length > 0);
+        
+        if (parts.length >= 2) {
+            const x = parseFloat(parts[0]);
+            const y = parseFloat(parts[1]);
+            
+            if (!isNaN(x) && isFinite(x) && !isNaN(y) && isFinite(y)) {
+                points.push({ x, y });
+            }
+        }
+    }
+    
+    return points;
+}
+
+/**
  * Recupera i file associati a una voce della cronologia.
  * @param {number} entryId - L'ID della voce della cronologia.
  * @param {number} projectId - L'ID del progetto.
@@ -402,58 +488,9 @@ function createFileItem(file, projectId, entryId, canDelete) {
                     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                     const content = await response.text();
                     
-                    // Estrai i punti per il grafico con parsing migliorato
-                    const lines = content.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-                    
-                    // Rileva automaticamente se c'è un header
-                    let startIndex = 0;
-                    for (let i = 0; i < Math.min(3, lines.length); i++) {
-                        const line = lines[i];
-                        
-                        // Rileva header se contiene caratteri tipici di intestazione
-                        if (line.includes('[') || line.includes(']') || 
-                            line.toLowerCase().includes('freq') || 
-                            line.toLowerCase().includes('phase') || 
-                            line.toLowerCase().includes('db') ||
-                            line.toLowerCase().includes('hz') ||
-                            /^[a-zA-Z]/.test(line)) {
-                            
-                            startIndex = i + 1;
-                            break;
-                        }
-                        
-                        // Se la riga contiene solo numeri, probabilmente non c'è header
-                        const parts = line.split(/[\s,;\t]+/).filter(p => p.length > 0);
-                        const numericParts = parts.filter(p => !isNaN(parseFloat(p)) && isFinite(parseFloat(p)));
-                        
-                        if (numericParts.length >= 2 && numericParts.length === parts.length) {
-                            startIndex = i;
-                            break;
-                        }
-                    }
-                    
-                    const points = [];
-                    for (let i = startIndex; i < lines.length; i++) {
-                        const line = lines[i];
-                        
-                        // Salta righe vuote o commenti
-                        if (!line || line.startsWith('#') || line.startsWith('//')) {
-                            continue;
-                        }
-                        
-                        // Dividi usando diversi separatori possibili (spazi, tab, virgole, punto e virgola)
-                        const parts = line.split(/[\s,;\t]+/).filter(p => p.length > 0);
-                        
-                        if (parts.length >= 2) {
-                            const x = parseFloat(parts[0]);
-                            const y = parseFloat(parts[1]);
-                            
-                            // Considera il punto valido solo se entrambe le coordinate sono numeri finiti
-                            if (!isNaN(x) && isFinite(x) && !isNaN(y) && isFinite(y)) {
-                                points.push({ x, y });
-                            }
-                        }
-                    }
+                    // Usa le funzioni helper centralizzate per analizzare il file
+                    const { dataType, startIndex } = analyzeFileContent(content);
+                    const points = extractDataPoints(content, startIndex);
                     
                     if (points.length === 0) {
                         alert(`Could not extract valid numerical data points (X, Y) from "${file.filename}". Opening as text.`);
@@ -471,10 +508,11 @@ function createFileItem(file, projectId, entryId, canDelete) {
                             targetWindow.postMessage({
                                 type: 'addGraph',
                                 points: points,
-                                filename: file.filename
+                                filename: file.filename,
+                                dataType: dataType // Aggiunto dataType al messaggio
                             }, '*');
                         } catch (e) {
-                            console.error(`Errore postMessage a ${targetWindow.name} (file .txt):`, e);
+                            console.error(`Errore postMessage a ${targetWindow.name} (file .txt) con dataType:`, e);
                         }
                     };
 
@@ -572,60 +610,9 @@ function createFileItem(file, projectId, entryId, canDelete) {
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const content = await response.text();
                 
-                // Estrai i punti per il grafico con parsing migliorato (anche per file non-txt)
-                const lines = content.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-                
-                // Rileva automaticamente se c'è un header
-                let startIndex = 0;
-                for (let i = 0; i < Math.min(3, lines.length); i++) {
-                    const line = lines[i];
-                    
-                    // Rileva header se contiene caratteri tipici di intestazione
-                    if (line.includes('[') || line.includes(']') || 
-                        line.toLowerCase().includes('freq') || 
-                        line.toLowerCase().includes('phase') || 
-                        line.toLowerCase().includes('db') ||
-                        line.toLowerCase().includes('hz') ||
-                        /^[a-zA-Z]/.test(line)) {
-                        
-                        console.log(`Header detected: "${line}"`);
-                        startIndex = i + 1;
-                        break;
-                    }
-                    
-                    // Se la riga contiene solo numeri, probabilmente non c'è header
-                    const parts = line.split(/[\s,;\t]+/).filter(p => p.length > 0);
-                    const numericParts = parts.filter(p => !isNaN(parseFloat(p)) && isFinite(parseFloat(p)));
-                    
-                    if (numericParts.length >= 2 && numericParts.length === parts.length) {
-                        console.log('No header detected, data starts immediately');
-                        startIndex = i;
-                        break;
-                    }
-                }
-                
-                const points = [];
-                for (let i = startIndex; i < lines.length; i++) {
-                    const line = lines[i];
-                    
-                    // Salta righe vuote o commenti
-                    if (!line || line.startsWith('#') || line.startsWith('//')) {
-                        continue;
-                    }
-                    
-                    // Dividi usando diversi separatori possibili (spazi, tab, virgole, punto e virgola)
-                    const parts = line.split(/[\s,;\t]+/).filter(p => p.length > 0);
-                    
-                    if (parts.length >= 2) {
-                        const x = parseFloat(parts[0]);
-                        const y = parseFloat(parts[1]);
-                        
-                        // Considera il punto valido solo se entrambe le coordinate sono numeri finiti
-                        if (!isNaN(x) && isFinite(x) && !isNaN(y) && isFinite(y)) {
-                            points.push({ x, y });
-                        }
-                    }
-                }
+                // Usa le funzioni helper centralizzate per analizzare il file
+                const { dataType, startIndex } = analyzeFileContent(content);
+                const points = extractDataPoints(content, startIndex);
                 
                 if (points.length === 0) {
                     alert(`Could not extract valid numerical data points (X, Y) from "${file.filename}". Opening as text.`);
@@ -643,10 +630,11 @@ function createFileItem(file, projectId, entryId, canDelete) {
                         targetWindow.postMessage({
                             type: 'addGraph',
                             points: points,
-                            filename: file.filename
+                            filename: file.filename,
+                            dataType: dataType // Aggiunto dataType al messaggio
                         }, '*');
                     } catch (e) {
-                        console.error(`Errore postMessage a ${targetWindow.name} (altri file):`, e);
+                        console.error(`Errore postMessage a ${targetWindow.name} (altri file) con dataType:`, e);
                     }
                 };
 

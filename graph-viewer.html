@@ -157,18 +157,18 @@
             
             <div class="separator"></div>
             
-            <label><input type="checkbox" id="grid-toggle" checked> Grid</label>
-            
-            <div class="separator"></div>
-            
             <!-- Controlli Ohm -->
             <label>Ohm Min:</label>
             <input type="number" id="ohm-min" value="0" min="0" max="1000" style="width: 60px;">
             <label>Max:</label>
             <input type="number" id="ohm-max" value="100" min="0" max="1000" style="width: 60px;">
-            
+
             <div class="separator"></div>
             
+            <label><input type="checkbox" id="grid-toggle" checked> Grid</label>
+            
+            <div class="separator"></div>
+                        
             <button id="export-btn" title="Export">💾</button>
             <button id="clear-btn" title="Clear">🗑️</button>
         </div>
@@ -180,12 +180,8 @@
                 <h4 style="margin: 0 0 10px 0; font-size: 14px;">Datasets</h4>
                 <div id="dataset-list"></div>
             </div>
-            
-
         </div>
     </div>
-
-
 
     <script>
         // Array per memorizzare i dataset
@@ -209,7 +205,6 @@
         function highlightFrequency(freq, color) {
             if (!chart) return;
             
-            // Rimuovi eventuali highlight precedenti
             const xScale = chart.scales.x;
             if (xScale._highlightLine) {
                 xScale.ctx.clearRect(
@@ -220,7 +215,6 @@
                 );
             }
             
-            // Disegna la nuova linea di highlight
             const xPos = xScale.getPixelForValue(freq);
             xScale.ctx.strokeStyle = color || 'rgba(255, 255, 255, 0.7)';
             xScale.ctx.lineWidth = 2;
@@ -229,28 +223,22 @@
             xScale.ctx.lineTo(xPos, xScale.bottom);
             xScale.ctx.stroke();
             
-            // Salva la posizione per poterla rimuovere dopo
             xScale._highlightLine = {x: xPos, color: color};
         }
 
-        // Mostra il valore dB persistente della curva selezionata
         function showFrozenValue(freq, value, color, yAxisID) {
             const container = document.querySelector('.chart-container');
-            
-            // Rimuovi eventuali valori precedenti
             const existing = document.getElementById('frozen-value');
             if (existing) existing.remove();
             
-            // Determina l'unità di misura
             const unit = yAxisID === 'yOhm' ? 'Ω' : 'dB';
-            const yAxis = chart.scales[yAxisID]; // Ottieni l'asse Y corretto
+            const yAxis = chart.scales[yAxisID];
             
-            // Crea il nuovo elemento
             const div = document.createElement('div');
             div.id = 'frozen-value';
             div.style.position = 'absolute';
             div.style.left = chart.scales.x.getPixelForValue(freq) + 'px';
-            div.style.top = yAxis.getPixelForValue(value) + 'px'; // Usa l'asse Y corretto
+            div.style.top = yAxis.getPixelForValue(value) + 'px';
             div.style.transform = 'translate(-50%, -50%)';
             div.style.backgroundColor = 'rgba(42, 58, 74, 0.9)';
             div.style.color = color || '#ffffff';
@@ -259,279 +247,236 @@
             div.style.border = `1px solid ${color || '#ffffff'}`;
             div.style.fontSize = '12px';
             div.textContent = `${value.toFixed(1)} ${unit}`;
-            
             container.appendChild(div);
         }
 
-        // Definizione del posizionatore personalizzato per il tooltip
-        // Questo posizionerà il tooltip in corrispondenza della posizione Y del mouse
         Chart.Tooltip.positioners.mouseYPosition = function(elements, eventPosition) {
-            // elements: array degli elementi attivi del tooltip
-            // eventPosition: {x, y} coordinate dell'evento mouse relative al canvas
             return {
                 x: eventPosition.x,
                 y: eventPosition.y
             };
         };
 
-        // Gestore ottimizzato per il click sul canvas
         function handleCanvasClick(event) {
             if (!chart || chart.data.datasets.length <= 1) return;
-            
-            const points = chart.getElementsAtEventForMode(
-                event, 
-                'nearest', 
-                {intersect: false}, 
-                true
-            );
+            const points = chart.getElementsAtEventForMode(event, 'nearest', {intersect: false}, true);
             
             if (points.length > 0) {
                 const point = points[0];
                 selectedDatasetIndex = point.datasetIndex;
                 
-                // Aggiorna lo stile delle curve
                 chart.data.datasets.forEach((dataset, i) => {
                     dataset.borderWidth = (i === selectedDatasetIndex) ? 4 : 2;
                     dataset.borderDash = [];
                 });
                 
-                // Congela il tooltip e mostra valore persistente
                 const freq = point.element.$context.parsed.x;
-                const yValue = point.element.$context.parsed.y; // Questo è il valore sull'asse Y associato al dataset
+                const yValue = point.element.$context.parsed.y;
                 const datasetIndex = point.datasetIndex;
                 const yAxisID = chart.data.datasets[datasetIndex].yAxisID;
                 const color = chart.data.datasets[datasetIndex].borderColor;
 
                 frozenTooltip = {
-                    freq: freq,
-                    value: yValue, // Usiamo un nome generico 'value'
-                    yAxisID: yAxisID, // Memorizziamo l'ID dell'asse
-                    color: color,
-                    datasetIndex: datasetIndex,
-                    clickedPointIndex: point.index
+                    freq: freq, value: yValue, yAxisID: yAxisID,
+                    color: color, datasetIndex: datasetIndex, clickedPointIndex: point.index
                 };
                 
-                // Highlight frequenza sull'asse x con colore della curva
                 highlightFrequency(freq, color);
-                // Mostra valore persistente
                 showFrozenValue(freq, yValue, color, yAxisID);
-                
                 requestAnimationFrame(() => chart.update());
             }
         }
 
-        // Inizializza il grafico
-        function initChart() {
-            if (chartReady) return; // Esegui solo una volta
+        // Nuova funzione per aggiornare la visibilità degli assi e dei controlli
+        function updateAxesAndControlsVisibility() {
+            if (!chart) return;
+
+            const freqControls = [
+                document.getElementById('freq-min'), document.getElementById('freq-max'),
+                document.querySelector('label[for="freq-min"]'), document.querySelector('label[for="freq-max"]')
+            ].filter(el => el); // Rimuovi eventuali elementi null se i selettori falliscono
             
-            // Aggiungi gestore eventi click sul canvas (ottimizzato)
+            const dbControls = [
+                document.getElementById('db-min'), document.getElementById('db-max'), document.getElementById('db-scale'),
+                document.querySelector('label[for="db-min"]'), document.querySelector('label[for="db-max"]'), document.querySelector('label[for="db-scale"]')
+            ].filter(el => el);
+
+            const ohmControls = [
+                document.getElementById('ohm-min'), document.getElementById('ohm-max'),
+                document.querySelector('label[for="ohm-min"]'), document.querySelector('label[for="ohm-max"]')
+            ].filter(el => el);
+
+            let showDb = false;
+            let showOhm = false;
+
+            if (datasets.length > 0) {
+                const typesInData = new Set(datasets.map(ds => ds.yAxisID));
+                if (typesInData.has('y')) showDb = true;
+                if (typesInData.has('yOhm')) showOhm = true;
+            } else {
+                // Se non ci sono dataset, potremmo voler mostrare i controlli dB di default
+                showDb = true; 
+                showOhm = false;
+            }
+
+            chart.options.scales.y.display = showDb;
+            chart.options.scales.yOhm.display = showOhm;
+
+            // I controlli di frequenza sono sempre visibili
+            freqControls.forEach(el => el.style.display = ''); 
+
+            dbControls.forEach(el => el.style.display = showDb ? '' : 'none');
+            ohmControls.forEach(el => el.style.display = showOhm ? '' : 'none');
+            
+            const separators = Array.from(document.querySelectorAll('.toolbar .separator'));
+            
+            // Logica di visibilità per i separatori (semplificata)
+            // Separatore 0 (dopo Freq): visibile se dB o Ohm sono visibili
+            if (separators[0]) separators[0].style.display = (showDb || showOhm) ? '' : 'none';
+            // Separatore 1 (dopo dB): visibile se dB è visibile E (Ohm è visibile OPPURE Grid è visibile)
+            if (separators[1]) separators[1].style.display = showDb && (showOhm || document.getElementById('grid-toggle').checked) ? '' : 'none';
+             // Separatore 2 (dopo Ohm): visibile se Ohm è visibile E Grid è visibile
+            if (separators[2]) separators[2].style.display = showOhm && document.getElementById('grid-toggle').checked ? '' : 'none';
+            // Separatore 3 (dopo Grid): sempre visibile se Grid è visibile (per separare dai bottoni)
+            // Questa logica potrebbe necessitare di aggiustamenti in base al layout esatto e a quanti separatori ci sono.
+            // Per ora, la logica sopra gestisce i primi tre. L'ultimo separatore prima dei bottoni
+            // dovrebbe essere visibile se l'ultimo gruppo di controlli prima di esso è visibile.
+            const gridToggleLabel = document.querySelector('label[for="grid-toggle"]');
+            if (separators[3] && gridToggleLabel) { // Assumendo che il 4° separatore sia dopo Grid
+                 separators[3].style.display = gridToggleLabel.style.display !== 'none' ? '' : 'none';
+            }
+
+
+            const h1 = document.querySelector('h1');
+            if (showOhm && !showDb) {
+                h1.textContent = 'Impedance Analyzer';
+            } else if (showDb && !showOhm) {
+                h1.textContent = 'Frequency Response Analyzer';
+            } else if (showDb && showOhm) {
+                h1.textContent = 'Frequency & Impedance Analyzer';
+            } else {
+                 // Se non ci sono dati o solo dati di tipo 'unknown' che mappano a 'y' ma senza 'db' esplicito
+                h1.textContent = 'Graph Viewer';
+            }
+        }
+
+
+        function initChart() {
+            if (chartReady) return;
+            
             const canvas = document.getElementById('graph-canvas');
             canvas.addEventListener('click', handleCanvasClick);
-            canvas.style.willChange = 'contents'; // Ottimizza le animazioni
+            canvas.style.willChange = 'contents';
 
             const ctx = canvas.getContext('2d');
             chart = new Chart(ctx, {
                 type: 'line',
-                data: {
-                    datasets: datasets // Chart.js userà i dati presenti in questo array al momento della creazione
-                },
+                data: { datasets: datasets },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     backgroundColor: '#1e2a3a',
                     scales: {
                         x: {
-                            type: 'logarithmic',
-                            position: 'bottom',
-                            title: {
-                                display: true,
-                                text: 'Frequency (Hz)',
-                                color: '#ffffff'
-                            },
-                            ticks: {
-                                color: '#ffffff',
-                                callback: function(value) {
-                                    if (value >= 1000) {
-                                        return (value / 1000) + 'k';
-                                    }
-                                    return value;
-                                }
-                            },
-                            grid: {
-                                color: '#3a4a5a',
-                                lineWidth: 1
-                            },
-                            min: 20,
-                            max: 20000
+                            type: 'logarithmic', position: 'bottom',
+                            title: { display: true, text: 'Frequency (Hz)', color: '#ffffff' },
+                            ticks: { color: '#ffffff', callback: function(value) { return value >= 1000 ? (value / 1000) + 'k' : value; }},
+                            grid: { color: '#3a4a5a', lineWidth: 1 },
+                            min: 20, max: 20000
                         },
-                        y: {
-                            type: 'linear',
-                            position: 'left',
-                            title: {
-                                display: true,
-                                text: 'dBSPL',
-                                color: '#ffffff'
-                            },
-                            ticks: {
-                                color: '#ffffff'
-                            },
-                            grid: {
-                                color: '#3a4a5a',
-                                lineWidth: 1
-                            },
-                            min: 20,
-                            max: 120
+                        y: { // Asse per dBSPL
+                            type: 'linear', position: 'left', display: true, // Inizialmente visibile
+                            title: { display: true, text: 'dBSPL', color: '#ffffff' },
+                            ticks: { color: '#ffffff' },
+                            grid: { color: '#3a4a5a', lineWidth: 1 },
+                            min: 20, max: 120
                         },
-                        yOhm: {
-                            type: 'linear',
-                            position: 'right',
-                            title: {
-                                display: true,
-                                text: 'Ohm',
-                                color: '#ffffff'
-                            },
-                            ticks: {
-                                color: '#ffffff'
-                            },
-                            grid: {
-                                display: false
-                            },
-                            min: 0,
-                            max: 100
+                        yOhm: { // Asse per Ohm
+                            type: 'linear', position: 'right', display: false, // Inizialmente nascosto
+                            title: { display: true, text: 'Ohm (Ω)', color: '#ffffff' },
+                            ticks: { color: '#ffffff' },
+                            grid: { display: false }, // Griglia per Ohm solitamente non mostrata con quella dB
+                            min: 0, max: 100
                         }
                     },
                     plugins: {
-                        legend: {
-                            display: false
-                        },
-                    tooltip: {
-                        position: 'mouseYPosition', // Usa il posizionatore personalizzato
-                        // yAlign: 'top', // Non più necessario con il posizionatore custom
-                        // caretPadding: 100, // Non più necessario con il posizionatore custom
-                        backgroundColor: 'rgba(42, 58, 74, 0.9)',
-                        titleColor: '#ffffff',
-                        bodyColor: '#ffffff',
-                        borderColor: '#ffffff',
-                        borderWidth: 1,
-                        filter: function(tooltipItem) {
-                            // Escludi completamente la curva selezionata dal tooltip
-                            if (frozenTooltip && tooltipItem.datasetIndex === frozenTooltip.datasetIndex) {
-                                return false;
-                            }
-                            return true;
-                        },
-                        callbacks: {
-                            title: function(context) {
-                                // Mostra sempre la frequenza
-                                return `${context[0].parsed.x.toFixed(1)} Hz`;
+                        legend: { display: false },
+                        tooltip: {
+                            position: 'mouseYPosition',
+                            backgroundColor: 'rgba(42, 58, 74, 0.9)',
+                            titleColor: '#ffffff', bodyColor: '#ffffff', borderColor: '#ffffff', borderWidth: 1,
+                            filter: function(tooltipItem) {
+                                return !(frozenTooltip && tooltipItem.datasetIndex === frozenTooltip.datasetIndex);
                             },
-                            label: function(context) {
-                                const currentDataset = context.dataset;
-                                const currentYAxisID = currentDataset.yAxisID;
-                                const currentUnit = currentYAxisID === 'yOhm' ? 'Ω' : 'dB';
-                                
-                                // Se una curva è selezionata (frozenTooltip esiste)
-                                if (frozenTooltip) {
-                                    // Calcola il delta solo se l'unità di misura è la stessa
-                                    // Altrimenti, mostra il valore assoluto della curva corrente
-                                    if (currentYAxisID === frozenTooltip.yAxisID) {
-                                        const delta = context.parsed.y - frozenTooltip.value;
-                                        const sign = delta >= 0 ? '+' : '';
-                                        return `${sign}${delta.toFixed(1)} ${currentUnit}`;
-                                    } else {
-                                        return `${context.parsed.y.toFixed(1)} ${currentUnit}`;
+                            callbacks: {
+                                title: function(context) { return `${context[0].parsed.x.toFixed(1)} Hz`; },
+                                label: function(context) {
+                                    const currentDataset = context.dataset;
+                                    const currentYAxisID = currentDataset.yAxisID;
+                                    const currentUnit = currentYAxisID === 'yOhm' ? 'Ω' : 'dB';
+                                    if (frozenTooltip) {
+                                        if (currentYAxisID === frozenTooltip.yAxisID) {
+                                            const delta = context.parsed.y - frozenTooltip.value;
+                                            const sign = delta >= 0 ? '+' : '';
+                                            return `${sign}${delta.toFixed(1)} ${currentUnit}`;
+                                        } else {
+                                            return `${context.parsed.y.toFixed(1)} ${currentUnit}`;
+                                        }
                                     }
+                                    return `${context.parsed.y.toFixed(1)} ${currentUnit}`;
+                                },
+                                labelColor: function(context) {
+                                    return { borderColor: context.dataset.borderColor, backgroundColor: context.dataset.borderColor, borderWidth: 0, borderRadius: 0, boxWidth: 8, boxHeight: 8 };
                                 }
-                                // Altrimenti mostra il valore assoluto
-                                return `${context.parsed.y.toFixed(1)} ${currentUnit}`;
                             },
-                            labelColor: function(context) {
-                                // Restituisce il colore per l'indicatore nel tooltip
-                                return {
-                                    borderColor: context.dataset.borderColor,
-                                    backgroundColor: context.dataset.borderColor,
-                                    borderWidth: 0,
-                                    borderRadius: 0,
-                                    boxWidth: 8,
-                                    boxHeight: 8
-                                };
-                            }
-                        },
-                        external: function(context) {
-                            // Resetta il tooltip congelato quando il mouse esce dal grafico
-                            if (context.tooltip.opacity === 0 && frozenTooltip) {
-                                frozenTooltip = null;
-                                selectedDatasetIndex = -1;
-                                
-                                // Ripristina lo stile delle curve
-                                chart.data.datasets.forEach(dataset => {
-                                    dataset.borderWidth = 2;
-                                });
-                                
-                                // Rimuovi highlight frequenza
-                                const xScale = chart.scales.x;
-                                if (xScale._highlightLine) {
-                                    xScale.ctx.clearRect(
-                                        xScale._highlightLine.x - 1, 
-                                        xScale.top, 
-                                        2, 
-                                        xScale.bottom - xScale.top
-                                    );
-                                    delete xScale._highlightLine;
+                            external: function(context) {
+                                if (context.tooltip.opacity === 0 && frozenTooltip) {
+                                    frozenTooltip = null; selectedDatasetIndex = -1;
+                                    chart.data.datasets.forEach(dataset => { dataset.borderWidth = 2; });
+                                    const xScale = chart.scales.x;
+                                    if (xScale._highlightLine) {
+                                        xScale.ctx.clearRect(xScale._highlightLine.x - 1, xScale.top, 2, xScale.bottom - xScale.top);
+                                        delete xScale._highlightLine;
+                                    }
+                                    const frozenValueEl = document.getElementById('frozen-value');
+                                    if (frozenValueEl) frozenValueEl.remove();
+                                    chart.update();
                                 }
-                                
-                                // Rimuovi valore persistente
-                                const frozenValue = document.getElementById('frozen-value');
-                                if (frozenValue) frozenValue.remove();
-                                
-                                chart.update();
                             }
                         }
-                        }
                     },
-                    elements: {
-                        point: {
-                            radius: 0,
-                            hoverRadius: 4
-                        },
-                        line: {
-                            tension: 0.1
-                        }
-                    },
-                    interaction: {
-                        intersect: false,
-                        mode: 'index'
-                    }
+                    elements: { point: { radius: 0, hoverRadius: 4 }, line: { tension: 0.1 }},
+                    interaction: { intersect: false, mode: 'index' }
                 }
             });
-            chartReady = true; // Il grafico è ora inizializzato
+            chartReady = true;
+            updateAxesAndControlsVisibility(); // Chiamata iniziale
 
-            // Se dei dati sono stati aggiunti a 'datasets' prima che initChart completasse,
-            // assicurati che il grafico li mostri e la lista sia aggiornata.
             if (datasets.length > 0) {
-                chart.update(); // Assicura che i dati pre-esistenti siano renderizzati
+                chart.update();
                 updateDatasetList();
             }
-
-            // Invia messaggio che il viewer è pronto
             if (window.opener && typeof window.opener.postMessage === 'function') {
                 console.log('Graph viewer sending graphViewerReady (initChart)');
                 window.opener.postMessage({ type: 'graphViewerReady', windowName: window.name || 'graphViewer' }, '*');
             }
         }
 
-        // Aggiungi un nuovo dataset al grafico
-        function addDataset(points, filename) {
+        // Modificata per accettare dataType
+        function addDataset(points, filename, dataType) { 
             const color = colors[nextColorIndex % colors.length];
             nextColorIndex++;
             
-            // Analizza il contenuto per determinare se è un file di impedenza
-            let isImpedance = false;
-            if (points.length > 0 && points[0].content) {
-                const content = points[0].content.toLowerCase();
-                isImpedance = content.includes('ohm');
+            let yAxisIDToUse = 'y'; // Default a 'y' (dBSPL)
+            if (dataType === 'ohm') {
+                yAxisIDToUse = 'yOhm';
+            } else if (dataType === 'db') {
+                yAxisIDToUse = 'y';
             }
-            
+            // Se dataType è 'unknown', userà 'y'
+
+            console.log(`[Graph Viewer] Aggiunta curva: ${filename}, Tipo dati: ${dataType}, Asse Y: ${yAxisIDToUse}`);
+
             const newDataset = {
                 label: filename,
                 data: points,
@@ -540,51 +485,36 @@
                 borderWidth: 2,
                 fill: false,
                 tension: 0.1,
-                yAxisID: isImpedance ? 'yOhm' : 'y',
+                yAxisID: yAxisIDToUse,
                 pointRadius: function(context) {
-                    // context contiene datasetIndex e dataIndex (l'indice del punto)
-                    // Mostra un pallino se questo è il punto cliccato e congelato
-                    if (frozenTooltip &&
-                        context.datasetIndex === frozenTooltip.datasetIndex &&
-                        context.dataIndex === frozenTooltip.clickedPointIndex) {
-                        return 5; // Raggio del punto cliccato e "congelato"
+                    if (frozenTooltip && context.datasetIndex === frozenTooltip.datasetIndex && context.dataIndex === frozenTooltip.clickedPointIndex) {
+                        return 5;
                     }
-                    return 0; // Normalmente i punti non sono visibili
+                    return 0;
                 },
                 pointHoverRadius: function(context) {
-                    // Mantieni il raggio del punto cliccato o usa il raggio standard per l'hover
-                    if (frozenTooltip &&
-                        context.datasetIndex === frozenTooltip.datasetIndex &&
-                        context.dataIndex === frozenTooltip.clickedPointIndex) {
-                        return 5; // Mantiene lo stesso raggio se è il punto cliccato
+                    if (frozenTooltip && context.datasetIndex === frozenTooltip.datasetIndex && context.dataIndex === frozenTooltip.clickedPointIndex) {
+                        return 5;
                     }
-                    return 4; // Raggio standard per l'hover sugli altri punti
+                    return 4;
                 }
             };
             
-            datasets.push(newDataset); // Aggiungi sempre i dati all'array globale
+            datasets.push(newDataset);
             
-            if (chartReady) { // Se il grafico è già inizializzato e pronto
-                chart.data.datasets = datasets; // Assegna l'array aggiornato
-                
-                // Ottimizzazione: aggiorna solo se necessario
+            if (chartReady) {
+                chart.data.datasets = datasets;
                 requestAnimationFrame(() => {
-                    chart.update(); // Aggiorna il grafico
-                    updateDatasetList(); // Aggiorna la UI della lista dataset
+                    updateAxesAndControlsVisibility(); // Aggiorna visibilità prima di chart.update()
+                    chart.update();
+                    updateDatasetList();
                 });
             }
-            // Se chartReady è false, initChart() (chiamato da DOMContentLoaded)
-            // prenderà i dati da 'datasets' e gestirà l'aggiornamento.
         }
 
-        // Aggiorna la lista dei dataset nel pannello di controllo (ottimizzata)
         function updateDatasetList() {
             const list = document.getElementById('dataset-list');
-            
-            // Usa DocumentFragment per minimizzare i reflow
             const fragment = document.createDocumentFragment();
-            
-            // Crea una mappa dei dataset esistenti per evitare ricostruzioni non necessarie
             const existingItems = Array.from(list.children).reduce((acc, child) => {
                 const label = child.querySelector('span').textContent;
                 acc[label] = child;
@@ -593,22 +523,19 @@
             
             datasets.forEach((dataset, index) => {
                 let item = existingItems[dataset.label];
-                
                 if (!item) {
-                    // Crea nuovo elemento solo se non esiste già
                     item = document.createElement('div');
                     item.className = 'dataset-item';
                     item.style.marginBottom = '8px';
                     
-                    // Color picker
                     const colorInput = document.createElement('input');
                     colorInput.type = 'color';
                     colorInput.className = 'color-picker';
                     colorInput.value = rgbToHex(dataset.borderColor);
                     colorInput.style.backgroundColor = colorInput.value;
-                    colorInput.addEventListener('change', function() {
+                    colorInput.addEventListener('input', function() { // 'input' per aggiornamento live
                         datasets[index].borderColor = this.value;
-                        this.style.backgroundColor = this.value;
+                        this.style.backgroundColor = this.value; // Aggiorna anche il colore di sfondo del picker
                         if (chart) chart.update();
                     });
                     
@@ -638,68 +565,66 @@
                     item.appendChild(toggleBtn);
                     item.appendChild(removeBtn);
                 } else {
-                    // Aggiorna solo il color picker se l'elemento esiste già
                     const colorInput = item.querySelector('input[type="color"]');
                     colorInput.value = rgbToHex(dataset.borderColor);
                     colorInput.style.backgroundColor = colorInput.value;
                 }
-                
                 fragment.appendChild(item);
             });
             
-            // Sostituisci tutto in un'unica operazione
             list.innerHTML = '';
             list.appendChild(fragment);
         }
 
-        // Mostra/nascondi un dataset
         function toggleDataset(index) {
             const meta = chart.getDatasetMeta(index);
             meta.hidden = !meta.hidden;
             chart.update();
         }
 
-        // Rimuovi un dataset
         function removeDataset(index) {
             datasets.splice(index, 1);
-            chart.data.datasets = datasets;
-            chart.update();
+            if (chart) { // Verifica se chart esiste
+                chart.data.datasets = datasets; // Assegna l'array modificato
+                chart.update();
+            }
             updateDatasetList();
+            updateAxesAndControlsVisibility(); // Aggiorna la UI dopo la rimozione
         }
 
-        // Esporta il grafico come immagine
         document.getElementById('export-btn').addEventListener('click', function() {
-            // Salva le opzioni originali
+            if (!chart) return;
             const originalXTicksColor = chart.options.scales.x.ticks.color;
             const originalYTicksColor = chart.options.scales.y.ticks.color;
+            const originalYOhmsTicksColor = chart.options.scales.yOhm ? chart.options.scales.yOhm.ticks.color : null;
             const originalXTitleColor = chart.options.scales.x.title.color;
             const originalYTitleColor = chart.options.scales.y.title.color;
+            const originalYOhmsTitleColor = chart.options.scales.yOhm ? chart.options.scales.yOhm.title.color : null;
             
-            // Imposta i colori a nero per l'esportazione
             chart.options.scales.x.ticks.color = '#000000';
             chart.options.scales.y.ticks.color = '#000000';
+            if (chart.options.scales.yOhm) chart.options.scales.yOhm.ticks.color = '#000000';
             chart.options.scales.x.title.color = '#000000';
             chart.options.scales.y.title.color = '#000000';
+            if (chart.options.scales.yOhm) chart.options.scales.yOhm.title.color = '#000000';
             chart.update();
             
-            // Crea il link di download
             const link = document.createElement('a');
             link.download = 'graph.png';
             link.href = document.getElementById('graph-canvas').toDataURL('image/png');
             
-            // Ripristina i colori originali dopo un breve delay
             setTimeout(() => {
                 chart.options.scales.x.ticks.color = originalXTicksColor;
                 chart.options.scales.y.ticks.color = originalYTicksColor;
+                if (chart.options.scales.yOhm && originalYOhmsTicksColor) chart.options.scales.yOhm.ticks.color = originalYOhmsTicksColor;
                 chart.options.scales.x.title.color = originalXTitleColor;
                 chart.options.scales.y.title.color = originalYTitleColor;
+                if (chart.options.scales.yOhm && originalYOhmsTitleColor) chart.options.scales.yOhm.title.color = originalYOhmsTitleColor;
                 chart.update();
             }, 100);
-            
             link.click();
         });
 
-        // Pulisci tutti i grafici
         document.getElementById('clear-btn').addEventListener('click', function() {
             datasets = [];
             if (chart) {
@@ -707,99 +632,75 @@
                 chart.update();
             }
             updateDatasetList();
+            updateAxesAndControlsVisibility(); // Aggiorna la visibilità dopo aver pulito
         });
 
-        // Converte RGB in formato esadecimale
         function rgbToHex(rgb) {
-            // Estrae i valori RGB dalla stringa
+            if (typeof rgb !== 'string') return '#000000'; // Fallback per input non validi
             const match = rgb.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
             if (match) {
                 const r = parseInt(match[1]);
                 const g = parseInt(match[2]);
                 const b = parseInt(match[3]);
-                return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+                return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).padStart(6, '0');
             }
-            return rgb; // Se è già in formato hex
+            return rgb; 
         }
 
-        // Funzione per applicare le impostazioni istantaneamente
         function applySettings() {
             if (!chart) return;
             
-            // Applica le impostazioni degli assi
             const freqMin = parseFloat(document.getElementById('freq-min').value);
             const freqMax = parseFloat(document.getElementById('freq-max').value);
             const dbMin = parseFloat(document.getElementById('db-min').value);
             const dbMax = parseFloat(document.getElementById('db-max').value);
             const dbScale = parseFloat(document.getElementById('db-scale').value);
             
-            // Valida i valori
-            if (freqMin >= freqMax || dbMin >= dbMax) {
-                return; // Non applicare se i valori non sono validi
+            if (freqMin < freqMax) {
+                 chart.options.scales.x.min = freqMin;
+                 chart.options.scales.x.max = freqMax;
+            }
+            if (dbMin < dbMax) {
+                chart.options.scales.y.min = dbMin;
+                chart.options.scales.y.max = dbMax;
+                chart.options.scales.y.ticks.stepSize = dbScale;
             }
             
-            // Aggiorna le scale del grafico
-            chart.options.scales.x.min = freqMin;
-            chart.options.scales.x.max = freqMax;
-            chart.options.scales.y.min = dbMin;
-            chart.options.scales.y.max = dbMax;
-            
-            // Configura la scala dB
-            chart.options.scales.y.ticks.stepSize = dbScale;
-            
-            // Applica le impostazioni per l'asse Ohm
             const ohmMin = parseFloat(document.getElementById('ohm-min').value);
             const ohmMax = parseFloat(document.getElementById('ohm-max').value);
             
-            if (chart.options.scales.yOhm) { // Controlla se l'asse yOhm esiste
-                if (!isNaN(ohmMin) && !isNaN(ohmMax) && ohmMin < ohmMax) {
-                    chart.options.scales.yOhm.min = ohmMin;
-                    chart.options.scales.yOhm.max = ohmMax;
-                }
+            if (chart.options.scales.yOhm && ohmMin < ohmMax) {
+                chart.options.scales.yOhm.min = ohmMin;
+                chart.options.scales.yOhm.max = ohmMax;
             }
-            
-            // Aggiorna il grafico
             chart.update();
         }
 
-        // Event listeners per applicare i cambiamenti istantaneamente
-        document.getElementById('freq-min').addEventListener('input', applySettings);
-        document.getElementById('freq-max').addEventListener('input', applySettings);
-        document.getElementById('db-min').addEventListener('input', applySettings);
-        document.getElementById('db-max').addEventListener('input', applySettings);
+        ['freq-min', 'freq-max', 'db-min', 'db-max', 'ohm-min', 'ohm-max'].forEach(id => {
+            document.getElementById(id).addEventListener('input', applySettings);
+        });
         document.getElementById('db-scale').addEventListener('change', applySettings);
-        
-        // Aggiungi event listeners per i controlli Ohm
-        document.getElementById('ohm-min').addEventListener('input', applySettings);
-        document.getElementById('ohm-max').addEventListener('input', applySettings);
 
-        // Controlli checkbox
         document.getElementById('grid-toggle').addEventListener('change', function() {
             if (chart) {
                 const showGrid = this.checked;
                 chart.options.scales.x.grid.display = showGrid;
-                chart.options.scales.y.grid.display = showGrid;
+                // Applica la visibilità della griglia solo agli assi visibili
+                if(chart.options.scales.y.display) chart.options.scales.y.grid.display = showGrid;
+                if(chart.options.scales.yOhm.display) chart.options.scales.yOhm.grid.display = false; // Griglia Ohm sempre spenta per chiarezza
                 chart.update();
             }
         });
-
-
-
-
 
         // Gestione ottimizzata dei messaggi dalla finestra principale
         function handleAppMessages(event) {
             if (!event.data) return;
 
             if (event.data.type === 'addGraph') {
-                // Mostra il loader
                 document.getElementById('loader').style.display = 'flex';
-                
-                // Usa requestAnimationFrame per priorità alta
                 requestAnimationFrame(() => {
                     try {
-                        addDataset(event.data.points, event.data.filename);
-                        // Nascondi il loader dopo un breve delay per evitare flickering
+                        addDataset(event.data.points, event.data.filename, event.data.dataType);
                         setTimeout(() => {
                             document.getElementById('loader').style.display = 'none';
                         }, 300);
@@ -809,8 +710,6 @@
                     }
                 });
             } else if (event.data.type === 'areYouReady') {
-                // Rispondi se il grafico è pronto
-                // Assicurati che il messaggio sia per questa finestra specifica se targetWindowName è fornito
                 if (event.data.targetWindowName && (window.name !== event.data.targetWindowName)) {
                     return; 
                 }
@@ -820,19 +719,22 @@
                 }
             }
         }
-
-        // Aggiungi listener ottimizzato
         window.addEventListener('message', handleAppMessages, { passive: true });
 
-        // Inizializza il grafico al caricamento della pagina
         window.addEventListener('DOMContentLoaded', () => {
             initChart();
-            // Nascondi il loader dopo l'inizializzazione, ma assicurati che sia visibile se i dati arrivano subito
-            // Il loader viene nascosto anche in addDataset dopo il caricamento dei dati.
-            // Se non ci sono dati iniziali, nascondilo qui.
             if (datasets.length === 0) {
                  document.getElementById('loader').style.display = 'none';
             }
+            // Assicura che i label for siano corretti per i controlli della toolbar
+            // Questo è un workaround se i label non hanno l'attributo 'for'
+            const toolbarLabels = document.querySelectorAll('.toolbar label');
+            toolbarLabels.forEach(label => {
+                const input = label.querySelector('input[type="number"], select, input[type="checkbox"]');
+                if (input && input.id && !label.hasAttribute('for')) {
+                    label.setAttribute('for', input.id);
+                }
+            });
         });
     </script>
 </body>

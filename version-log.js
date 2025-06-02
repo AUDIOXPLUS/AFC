@@ -136,17 +136,6 @@ function createVersionLogPopup() {
     // Aggiungi stili CSS per le sottoliste e i dettagli
     const styleElement = document.createElement('style');
     styleElement.textContent = `
-        @keyframes blink {
-            0% { background-color: #ff0000; color: white; }
-            50% { background-color: #0000ff; color: white; }
-            100% { background-color: #ff0000; color: white; }
-        }
-        .blink-version {
-            animation: blink 1s infinite !important;
-            font-weight: bold !important;
-            padding: 5px 10px;
-            border-radius: 4px;
-        }
         .version-details {
             margin-left: 0;
             margin-top: 5px;
@@ -208,12 +197,8 @@ function createVersionLogPopup() {
                                             parseInt(month) - 1, 
                                             parseInt(day)));
         
-        const shouldBlink = group.version === 'V4.0' || group.version === 'V4.1';
-        
-        console.log(`Version: ${group.version}, Should blink: ${shouldBlink}, Today: ${today}, VersionDate: ${versionDate}, TwoDaysLater: ${twoDaysLater}`);
-        
-        contentHTML += `
-            <div class="version-header${shouldBlink ? ' blink-version' : ''}" style="${shouldBlink ? 'color: red;' : ''}">[${group.version}] - ${dateFormatted}</div>
+            contentHTML += `
+                <div class="version-header">[${group.version}] - ${dateFormatted}</div>
             <ul>
                 ${group.items.map(item => `<li class="feature-item">${item}</li>`).join('')}
             </ul>
@@ -285,11 +270,6 @@ function initializeVersionLog() {
     }
 
     updateVersionText();
-    // Apply blinking to version text in menu
-    const versionTextElement = document.getElementById('version-text');
-    if (versionTextElement) {
-        versionTextElement.classList.add('blink-version');
-    }
     
     createVersionLogPopup();
     const overlay = document.getElementById('version-overlay');
