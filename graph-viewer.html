@@ -287,6 +287,25 @@
             }
         }
 
+        function updateGridVisibility() {
+            if (!chart) return;
+
+            const showGrid = document.getElementById('grid-toggle').checked;
+            chart.options.scales.x.grid.display = showGrid;
+
+            const isDbAxisVisible = chart.options.scales.y.display;
+            const isOhmAxisVisible = chart.options.scales.yOhm.display;
+
+            if (isDbAxisVisible) {
+                chart.options.scales.y.grid.display = showGrid;
+            }
+
+            // Mostra la griglia per l'asse Ohm solo se l'asse dB non è visibile per evitare sovrapposizioni.
+            if (isOhmAxisVisible) {
+                chart.options.scales.yOhm.grid.display = !isDbAxisVisible && showGrid;
+            }
+        }
+
         // Nuova funzione per aggiornare la visibilità degli assi e dei controlli
         function updateAxesAndControlsVisibility() {
             if (!chart) return;
@@ -321,6 +340,8 @@
 
             chart.options.scales.y.display = showDb;
             chart.options.scales.yOhm.display = showOhm;
+
+            updateGridVisibility(); // Aggiorna la visibilità della griglia in base agli assi visibili
 
             // I controlli di frequenza sono sempre visibili
             freqControls.forEach(el => el.style.display = ''); 
@@ -387,7 +408,7 @@
                         y: { // Asse per dBSPL
                             type: 'linear', position: 'left', display: true, // Inizialmente visibile
                             title: { display: true, text: 'dBSPL', color: '#ffffff' },
-                            ticks: { color: '#ffffff' },
+                            ticks: { color: '#ffffff', stepSize: 5 },
                             grid: { color: '#3a4a5a', lineWidth: 1 },
                             min: 20, max: 120
                         },
@@ -395,7 +416,7 @@
                             type: 'linear', position: 'right', display: false, // Inizialmente nascosto
                             title: { display: true, text: 'Ohm (Ω)', color: '#ffffff' },
                             ticks: { color: '#ffffff' },
-                            grid: { display: false }, // Griglia per Ohm solitamente non mostrata con quella dB
+                            grid: { color: '#3a4a5a', lineWidth: 1 }, // La visibilità della griglia Ohm è ora gestita dinamicamente
                             min: 0, max: 100
                         }
                     },
@@ -594,33 +615,92 @@
 
         document.getElementById('export-btn').addEventListener('click', function() {
             if (!chart) return;
+            const canvas = chart.canvas;
+            const ctx = canvas.getContext('2d');
+
+            // Salva colori e stati originali
+            // const originalChartBackgroundColor = chart.options.backgroundColor; // Rimosso, gestiremo lo sfondo manualmente per l'export
             const originalXTicksColor = chart.options.scales.x.ticks.color;
             const originalYTicksColor = chart.options.scales.y.ticks.color;
             const originalYOhmsTicksColor = chart.options.scales.yOhm ? chart.options.scales.yOhm.ticks.color : null;
             const originalXTitleColor = chart.options.scales.x.title.color;
             const originalYTitleColor = chart.options.scales.y.title.color;
             const originalYOhmsTitleColor = chart.options.scales.yOhm ? chart.options.scales.yOhm.title.color : null;
+            const originalXGridColor = chart.options.scales.x.grid.color;
+            const originalYGridColor = chart.options.scales.y.grid.color;
+            const originalYOhmsGridDisplay = (chart.options.scales.yOhm && chart.options.scales.yOhm.grid) ? chart.options.scales.yOhm.grid.display : null;
+            const originalYOhmsGridColor = (chart.options.scales.yOhm && chart.options.scales.yOhm.grid) ? chart.options.scales.yOhm.grid.color : null;
             
+            const originalLegendDisplay = chart.options.plugins.legend.display;
+            const originalLegendPosition = chart.options.plugins.legend.position;
+            const originalLegendLabelsColor = chart.options.plugins.legend.labels.color;
+
+            // Imposta i colori e le opzioni per l'esportazione
+            // chart.options.backgroundColor = 'white'; // Rimosso, lo sfondo bianco verrà disegnato manualmente
             chart.options.scales.x.ticks.color = '#000000';
             chart.options.scales.y.ticks.color = '#000000';
             if (chart.options.scales.yOhm) chart.options.scales.yOhm.ticks.color = '#000000';
             chart.options.scales.x.title.color = '#000000';
             chart.options.scales.y.title.color = '#000000';
             if (chart.options.scales.yOhm) chart.options.scales.yOhm.title.color = '#000000';
-            chart.update();
-            
+            chart.options.scales.x.grid.color = '#cccccc';
+            chart.options.scales.y.grid.color = '#cccccc';
+            if (chart.options.scales.yOhm && chart.options.scales.yOhm.grid) {
+                if (chart.options.scales.yOhm.display) {
+                    chart.options.scales.yOhm.grid.display = true;
+                }
+                chart.options.scales.yOhm.grid.color = '#cccccc';
+            }
+
+            // Configura e mostra la legenda per l'esportazione
+            chart.options.plugins.legend.display = true;
+            chart.options.plugins.legend.position = 'top'; // Posizione della legenda
+            chart.options.plugins.legend.labels.color = '#000000'; // Colore del testo della legenda
+            chart.options.plugins.legend.labels.usePointStyle = false; // Forza l'uso di rettangoli pieni invece di stili dei punti
+            chart.options.plugins.legend.labels.boxWidth = 12; // Larghezza del box colorato
+            chart.options.plugins.legend.labels.padding = 10; // Spaziatura
+
+
+            chart.update('none'); // Aggiorna il grafico per applicare tutte le modifiche, inclusa la legenda
+
+            // Disegna esplicitamente lo sfondo bianco DOPO l'aggiornamento del grafico e PRIMA di toDataURL
+            ctx.save();
+            ctx.globalCompositeOperation = 'destination-over'; // Disegna sotto il contenuto esistente
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.restore();
+
             const link = document.createElement('a');
-            link.download = 'graph.png';
-            link.href = document.getElementById('graph-canvas').toDataURL('image/png');
-            
+            link.download = 'graph.jpg'; // Nome file JPG
+            link.href = canvas.toDataURL('image/jpeg', 1.0); // Esporta come JPG con qualità 1.0
+
+            // Ripristina i colori e gli stati originali
             setTimeout(() => {
+                // chart.options.backgroundColor = originalChartBackgroundColor; // Rimosso
                 chart.options.scales.x.ticks.color = originalXTicksColor;
                 chart.options.scales.y.ticks.color = originalYTicksColor;
-                if (chart.options.scales.yOhm && originalYOhmsTicksColor) chart.options.scales.yOhm.ticks.color = originalYOhmsTicksColor;
+                if (chart.options.scales.yOhm && originalYOhmsTicksColor !== null) chart.options.scales.yOhm.ticks.color = originalYOhmsTicksColor;
                 chart.options.scales.x.title.color = originalXTitleColor;
                 chart.options.scales.y.title.color = originalYTitleColor;
-                if (chart.options.scales.yOhm && originalYOhmsTitleColor) chart.options.scales.yOhm.title.color = originalYOhmsTitleColor;
-                chart.update();
+                if (chart.options.scales.yOhm && originalYOhmsTitleColor !== null) chart.options.scales.yOhm.title.color = originalYOhmsTitleColor;
+                chart.options.scales.x.grid.color = originalXGridColor;
+                chart.options.scales.y.grid.color = originalYGridColor;
+                if (chart.options.scales.yOhm && chart.options.scales.yOhm.grid) {
+                    if (originalYOhmsGridDisplay !== null) chart.options.scales.yOhm.grid.display = originalYOhmsGridDisplay;
+                    if (originalYOhmsGridColor !== null) chart.options.scales.yOhm.grid.color = originalYOhmsGridColor;
+                }
+
+                chart.options.plugins.legend.display = originalLegendDisplay;
+                chart.options.plugins.legend.position = originalLegendPosition;
+                chart.options.plugins.legend.labels.color = originalLegendLabelsColor;
+                // Ripristina anche usePointStyle se era stato salvato uno stato specifico, altrimenti Chart.js userà il suo default.
+                // Per sicurezza, se si vuole essere certi di ripristinare il comportamento di default di Chart.js per usePointStyle,
+                // si potrebbe salvare chart.options.plugins.legend.labels.usePointStyle originale.
+                // Se non era definito, Chart.js ha un suo default (spesso false per le linee).
+                // Per ora, non lo ripristiniamo esplicitamente assumendo che il default di Chart.js sia OK per la visualizzazione normale.
+                // Se necessario, aggiungere: chart.options.plugins.legend.labels.usePointStyle = originalUsePointStyle; (dopo averlo salvato)
+                
+                chart.update('none'); // Aggiorna per tornare allo stato originale
             }, 100);
             link.click();
         });
@@ -683,11 +763,7 @@
 
         document.getElementById('grid-toggle').addEventListener('change', function() {
             if (chart) {
-                const showGrid = this.checked;
-                chart.options.scales.x.grid.display = showGrid;
-                // Applica la visibilità della griglia solo agli assi visibili
-                if(chart.options.scales.y.display) chart.options.scales.y.grid.display = showGrid;
-                if(chart.options.scales.yOhm.display) chart.options.scales.yOhm.grid.display = false; // Griglia Ohm sempre spenta per chiarezza
+                updateGridVisibility();
                 chart.update();
             }
         });
