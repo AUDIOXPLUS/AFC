@@ -218,8 +218,12 @@ async function fetchTasks() {
 
     try {
         console.log('Fetching tasks from API...');
-        const response = await fetch('/api/tasks');
-        console.log('Response status:', response.status);
+        const statusCheckboxes = document.querySelectorAll('#status-filter input[type="checkbox"]');
+        const includeCompleted = Array.from(statusCheckboxes).some(cb => cb.value === 'Completed' && cb.checked);
+        const apiUrl = `/api/tasks${includeCompleted ? '?includeCompleted=true' : ''}`;
+
+        const response = await fetch(apiUrl);
+        console.log(`Response status from ${apiUrl}:`, response.status);
         const tasks = await handleResponse(response);
         console.log('Fetched tasks:', tasks);
 
@@ -267,10 +271,9 @@ async function displayTasks(tasks) {
 
     // Usiamo Promise.all per attendere che tutte le righe siano create
     await Promise.all(tasks.map(async task => {
-        // Non mostrare i task con assigned_to "completed"
-        if (task.assignedTo === 'Completed') {
-            return;
-        }
+        // Il filtraggio dei task completati ora viene gestito dal backend,
+        // quindi questa verifica non è più necessaria e viene rimossa per permettere
+        // la visualizzazione quando il filtro "Completed" è attivo.
 
         const row = tableBody.insertRow();
         row.setAttribute('data-task-id', task.id);
@@ -519,7 +522,11 @@ function enableLiveFiltering() {
     });
 
     statusCheckboxes.forEach(checkbox => {
-        checkbox.addEventListener('change', applyFilters);
+        checkbox.addEventListener('change', () => {
+            // Quando un filtro di stato cambia, ricarichiamo i task dal backend
+            fetchTasks(); 
+            // applyFilters verrà chiamato da fetchTasks dopo aver ricevuto e visualizzato i nuovi dati
+        });
     });
 
     // Carica i filtri salvati e inizializza il display degli stati

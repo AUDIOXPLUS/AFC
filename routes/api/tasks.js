@@ -47,6 +47,11 @@ router.get('/', checkAuthentication, async (req, res) => {
         `;
         const queryParams = [];
 
+        // Se non richiesto esplicitamente, escludi i task completati per migliorare le performance
+        if (req.query.includeCompleted !== 'true') {
+            query += ` AND ph.status != 'Completed'`;
+        }
+
         // Se user_properties è NULL, l'utente non ha permessi di lettura
         if (!user.user_properties) {
             return res.status(403).json({ error: 'Permesso di lettura negato' });
