@@ -722,13 +722,13 @@ async function fetchProjects() {
 // Rimossa funzione getProjectStatus - non più necessaria
 
 /**
- * Crea la progress bar per visualizzare lo stato delle fasi del progetto.
- * @param {Array} projectHistory - Array di oggetti che rappresentano la cronologia del progetto.
+ * Crea la progress bar per visualizzare lo stato delle fasi del progetto utilizzando dati aggregati.
+ * @param {Array} projectHistorySummary - Array di oggetti che rappresentano il sommario della cronologia.
  * @param {Array} phases - Array di oggetti che rappresentano le fasi del progetto.
  * @param {number} projectId - L'ID del progetto a cui appartiene la progress bar.
  * @returns {HTMLElement} - Elemento DOM che rappresenta la progress bar.
  */
-function createPhaseProgressBar(projectHistory, phases, projectId) {
+function createPhaseProgressBar(projectHistorySummary, phases, projectId) {
     // Ordina le fasi per order_num
     const sortedPhases = [...phases].sort((a, b) => a.order_num - b.order_num);
 
@@ -736,107 +736,63 @@ function createPhaseProgressBar(projectHistory, phases, projectId) {
     const progressBar = document.createElement('div');
     progressBar.className = 'phase-progress-bar';
 
+    // Crea una mappa per una ricerca rapida dei sommari delle fasi
+    const summaryMap = new Map();
+    projectHistorySummary.forEach(s => summaryMap.set(String(s.phaseId), s));
+
     // Per ogni fase, determina il colore in base alla logica richiesta
     sortedPhases.forEach((phase, index) => {
         const phaseItem = document.createElement('div');
         phaseItem.className = 'phase-progress-item';
 
-        // Filtra i record della cronologia per questa fase (convertendo l'ID fase in stringa per il confronto)
-        const phaseRecords = projectHistory.filter(record => String(record.phase) === String(phase.id));
+        // Ottieni il sommario per la fase corrente
+        const summary = summaryMap.get(String(phase.id));
 
-        // Verifica se ci sono record "in progress" per questa fase
-        const hasInProgress = phaseRecords.some(record => record.status === 'In Progress');
+        // Estrai gli stati dal sommario
+        const hasInProgress = summary ? !!summary.hasInProgress : false;
+        const hasCompleted = summary ? !!summary.hasCompleted : false;
+        const hasNewEntries = summary ? !!summary.hasNew : false;
 
-        // Verifica se ci sono record "completed" per questa fase
-        const hasCompleted = phaseRecords.some(record => record.status === 'Completed');
-
-        // Verifica se ci sono fasi successive con record "in progress" o "completed"
+        // Calcola se una fase successiva è attiva (richiede i sommari di tutte le fasi)
         const hasLaterPhaseActive = sortedPhases.slice(index + 1).some(laterPhase => {
-            const laterPhaseRecords = projectHistory.filter(record => String(record.phase) === String(laterPhase.id));
-            return laterPhaseRecords.some(record =>
-                record.status === 'In Progress' || record.status === 'Completed'
-            );
+            const laterPhaseSummary = summaryMap.get(String(laterPhase.id));
+            return laterPhaseSummary && (!!laterPhaseSummary.hasInProgress || !!laterPhaseSummary.hasCompleted);
         });
-
-        // Trova l'ultimo record per questa fase (ordinato per data)
-        let latestRecord = null;
-        if (phaseRecords.length > 0) {
-            latestRecord = phaseRecords.sort((a, b) =>
-                new Date(b.date) - new Date(a.date)
-            )[0];
-        }
 
         // Prepara il testo del tooltip
         let tooltipText = `${phase.name}: `;
 
-        // Debug esteso - ispeziona i dati effettivi per capire il problema
-        console.log(`Fase ${phase.name} (ID: ${phase.id}):`, {
-            hasInProgress,
-            hasCompleted,
-            hasLaterPhaseActive,
-            recordsCount: phaseRecords.length
-        });
-
-        // Verifica la corrispondenza degli ID
-        const phaseId = phase.id;
-        console.log('Record filtrati per questa fase:', phaseRecords);
-        console.log('Tutti i record nella history:', projectHistory.map(h => ({
-            phase: h.phase,
-            status: h.status,
-            phaseIdMatch: h.phase === phaseId, // Verifica corrispondenza
-            phaseIdTypeA: typeof h.phase,
-            phaseIdTypeB: typeof phaseId
-        })));
-
-        // Applica la logica dei colori secondo le specifiche:
-        // - Giallo: se c'è almeno un task "in progress" per quella fase
-        // - Verde: se non ci sono record con stato "in progress" per quella fase e c'è almeno un record con status "completed"
-        // - Rosso: se NON ci sono task "completed" ED esiste una fase successiva con tasks "in progress" o "completed"
-
+        // Applica la logica dei colori
         if (hasInProgress) {
-            // GIALLO: se c'è almeno un task "in progress" per quella fase
             phaseItem.classList.add('phase-progress-yellow');
             tooltipText += 'In Progress';
         } else if (hasCompleted) {
-            // VERDE: se non ci sono record con stato "in progress" per quella fase e c'è almeno un record con status "completed"
             phaseItem.classList.add('phase-progress-green');
             tooltipText += 'Completed';
         } else if (hasLaterPhaseActive) {
-            // ROSSO: se NON ci sono task "completed" ED esiste una fase successiva con tasks "in progress" o "completed"
             phaseItem.classList.add('phase-progress-red');
             tooltipText += 'Not Started (subsequent phases active)';
         } else {
-            // Grigio: nessuna attività in questa fase e nelle fasi successive
             phaseItem.classList.add('phase-progress-none');
             tooltipText += 'Not Started';
         }
 
-        // Verifica se ci sono voci nuove/aggiornate (is_new = true) per questa fase
-        const hasNewEntries = phaseRecords.some(record => record.is_new === true || record.is_new === 1);
-        
-        // Se ci sono voci nuove, aggiungi la classe per l'animazione di pulsazione
+        // Se ci sono voci nuove, aggiungi l'animazione e aggiorna il tooltip
         if (hasNewEntries) {
             phaseItem.classList.add('new-project-item');
-            console.log(`[Evidenziazione] Fase ${phase.name} (ID: ${phase.id}) del progetto ${projectId}: Trovata voce aggiornata, applica evidenziazione al quadratino.`);
             tooltipText += '\n(UPDATED)';
         }
 
-        // Aggiungi dettagli dell'ultimo record al tooltip se disponibile
-        if (latestRecord) {
-            tooltipText += `\nLast update: ${latestRecord.date}`;
-            tooltipText += `\nDescription: ${latestRecord.description || 'No description'}`;
-            tooltipText += `\nStatus: ${latestRecord.status}`;
-            tooltipText += `\nAssigned to: ${latestRecord.assigned_to || 'Not assigned'}`;
-        }
+        // Imposta il tooltip (ora più semplice, senza dettagli dell'ultimo record)
         phaseItem.title = tooltipText;
 
         // Aggiungi l'event listener per il click
         phaseItem.addEventListener('click', () => {
-            // Se è una voce aggiornata (lampeggiante), aggiunge SOLO il parametro highlightPhase
+            // Se ci sono voci nuove, evidenzia la fase nella pagina dei dettagli
             if (hasNewEntries) {
                 window.location.href = `project-details.html?id=${projectId}&highlightPhase=${phase.id}`;
             } else {
-                // Se NON è una voce aggiornata, aggiunge SOLO il parametro filterPhase
+                // Altrimenti, filtra per quella fase
                 window.location.href = `project-details.html?id=${projectId}&filterPhase=${phase.id}`;
             }
         });
@@ -902,7 +858,7 @@ async function displayProjects(projects) {
         console.log(`Creating row for project ID: ${project.id}`);
         const row = tableBody.insertRow();
         row.style.height = 'auto'; // Ensure consistent row height
-        const projectHistory = project.history || []; // Estrai la cronologia dall'oggetto progetto
+        const projectHistorySummary = project.historySummary || []; // Estrai il sommario della cronologia
 
         // Nota: la logica di evidenziazione è stata spostata nella funzione createPhaseProgressBar
         // e ora viene applicata solo ai singoli quadratini della progress bar invece che all'intera riga
@@ -984,13 +940,13 @@ async function displayProjects(projects) {
         // Status - Aggiungi la progress bar
         const statusCell = row.insertCell(10);
 
-        // Usa la cronologia pre-caricata per creare la progress bar
-        if (window.projectPhases && window.projectPhases.length > 0 && projectHistory && projectHistory.length > 0) {
+        // Usa il sommario della cronologia pre-caricato per creare la progress bar
+        if (window.projectPhases && window.projectPhases.length > 0 && projectHistorySummary && projectHistorySummary.length > 0) {
             // Rimuovi eventuale contenuto precedente (anche se la riga è nuova, per sicurezza)
             statusCell.innerHTML = '';
 
             // Crea e aggiungi la progress bar, passando anche l'ID del progetto
-            const progressBar = createPhaseProgressBar(projectHistory, window.projectPhases, project.id);
+            const progressBar = createPhaseProgressBar(projectHistorySummary, window.projectPhases, project.id);
             if (progressBar) { // createPhaseProgressBar potrebbe restituire null
                  statusCell.appendChild(progressBar);
             } else {

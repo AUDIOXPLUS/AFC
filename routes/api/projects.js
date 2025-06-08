@@ -432,13 +432,15 @@ router.get('/', checkAuthentication, async (req, res) => {
             const projectIds = rows.map(p => p.id);
             const placeholders = projectIds.map(() => '?').join(',');
 
-            // Seconda query per recuperare tutta la cronologia per i progetti trovati
-            const historyQuery = `
-                SELECT ph.*, u.id as user_id, 
-                       u.name as creator_name,
-                       ph.parent_id
+            // Seconda query per recuperare i dati aggregati della cronologia per la progress bar
+            const historySummaryQuery = `
+                SELECT
+                    ph.project_id,
+                    ph.phase as phase_id,
+                    MAX(CASE WHEN ph.status = 'In Progress' THEN 1 ELSE 0 END) as hasInProgress,
+                    MAX(CASE WHEN ph.status = 'Completed' THEN 1 ELSE 0 END) as hasCompleted,
+                    MAX(CASE WHEN ph.is_new = 1 THEN 1 ELSE 0 END) as hasNew
                 FROM project_history ph
-                LEFT JOIN users u ON ph.created_by = u.id
                 WHERE ph.project_id IN (${placeholders})
                 AND (
                     ph.private_by IS NULL 
@@ -447,7 +449,7 @@ router.get('/', checkAuthentication, async (req, res) => {
                     OR ph.private_by LIKE ? 
                     OR ph.private_by LIKE ?
                 )
-                ORDER BY ph.project_id, ph.date DESC, ph.id DESC
+                GROUP BY ph.project_id, ph.phase
             `;
 
             // Prepara i parametri per la ricerca con separatore virgola per la visibilità
@@ -461,27 +463,33 @@ router.get('/', checkAuthentication, async (req, res) => {
             ];
             const historyParams = [...projectIds, userId, patterns[1], patterns[2], patterns[3]];
 
-            req.db.all(historyQuery, historyParams, (historyErr, historyRows) => {
+            req.db.all(historySummaryQuery, historyParams, (historyErr, summaryRows) => {
                 if (historyErr) {
-                    console.error('Errore nel recupero delle cronologie:', historyErr);
-                    return res.status(500).json({ error: 'Errore del server nel recupero delle cronologie' });
+                    console.error('Errore nel recupero del sommario della cronologia:', historyErr);
+                    return res.status(500).json({ error: 'Errore del server nel recupero del sommario della cronologia' });
                 }
 
-                // Raggruppa le cronologie per project_id
-                const historiesMap = {};
-                historyRows.forEach(h => {
-                    if (!historiesMap[h.project_id]) {
-                        historiesMap[h.project_id] = [];
+                // Raggruppa i sommari per project_id
+                const summaryMap = {};
+                summaryRows.forEach(s => {
+                    if (!summaryMap[s.project_id]) {
+                        summaryMap[s.project_id] = [];
                     }
-                    historiesMap[h.project_id].push(h);
+                    summaryMap[s.project_id].push({
+                        phaseId: s.phase_id,
+                        hasInProgress: s.hasInProgress,
+                        hasCompleted: s.hasCompleted,
+                        hasNew: s.hasNew
+                    });
                 });
 
-                // Aggiungi l'array di cronologia a ciascun progetto
+                // Aggiungi l'array di sommario a ciascun progetto
                 rows.forEach(project => {
-                    project.history = historiesMap[project.id] || []; // Aggiungi array vuoto se non c'è cronologia
+                    // Il campo si chiamerà 'historySummary' per non confonderlo con la cronologia completa
+                    project.historySummary = summaryMap[project.id] || []; 
                 });
 
-                console.log('Prima riga risultato con cronologia:', rows[0]);
+                console.log('Prima riga risultato con sommario cronologia:', rows[0]);
                 res.json(rows);
             });
         });
