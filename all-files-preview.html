@@ -226,32 +226,16 @@
             const urlParams = new URLSearchParams(window.location.search);
             const ids = urlParams.get('ids');
             if (ids) {
+                // Caricamento diretto delle immagini con controlli, senza iframe
                 const previewContainer = document.getElementById('preview-container');
                 const fileIds = ids.split(',');
-                // IntersectionObserver per lazy loading
-                const observer = new IntersectionObserver((entries, observer) => {
-                    entries.forEach(entry => {
-                        if (entry.isIntersecting) {
-                            const placeholder = entry.target;
-                            const fileId = placeholder.dataset.fileId;
-                            const iframe = document.createElement('iframe');
-                            iframe.src = `/api/files/${fileId}/view`;
-                            iframe.style.width = '100%';
-                            iframe.style.height = '500px';
-                            iframe.style.border = '1px solid #ccc';
-                            placeholder.parentNode.replaceChild(iframe, placeholder);
-                            observer.unobserve(placeholder);
-                        }
-                    });
-                }, {root: null, rootMargin: '100px', threshold: 0.1});
-                // Crea i placeholder
                 fileIds.forEach(fileId => {
+                    // Crea un div per ogni file
                     const filePreview = document.createElement('div');
                     filePreview.className = 'file-preview';
+                    // Header con nome file
                     const fileHeader = document.createElement('h3');
-                    // Mostra temporaneamente l'ID, poi aggiorna con il nome file reale
                     fileHeader.textContent = `File ID: ${fileId}`;
-                    // Recupera il nome file dal backend
                     fetch(`/api/files/${fileId}`)
                         .then(resp => resp.ok ? resp.json() : null)
                         .then(data => {
@@ -261,14 +245,9 @@
                         })
                         .catch(() => {});
                     filePreview.appendChild(fileHeader);
-                    const placeholder = document.createElement('div');
-                    placeholder.className = 'file-placeholder';
-                    placeholder.dataset.fileId = fileId;
-                    placeholder.style.height = '500px';
-                    placeholder.textContent = 'Caricamento anteprima...';
-                    filePreview.appendChild(placeholder);
+                    // Usa la funzione già esistente per generare anteprima e controlli
+                    handleImageFile(filePreview, fileId, `/api/files/${fileId}/view`);
                     previewContainer.appendChild(filePreview);
-                    observer.observe(placeholder);
                 });
                 // Gestione download all
                 const downloadAllBtn = document.getElementById('download-all-btn');
@@ -612,7 +591,7 @@
                 const resizeControls = document.createElement('div');
                 resizeControls.className = 'resize-controls';
                 
-                // Crea i controlli di ridimensionamento
+                // Crea i controlli di ridimensionamento e zoom
                 resizeControls.innerHTML = `
                     <div class="resize-group">
                         <label for="width-${fileId}">W:</label>
@@ -629,6 +608,8 @@
                         <button class="fit-btn">Fit to View</button>
                         <button class="load-original-btn">Full Res</button>
                         <button class="download-btn">Download</button>
+                        <button class="zoom-in-btn">Zoom In</button>
+                        <button class="zoom-out-btn">Zoom Out</button>
                         <span class="file-size">Size: calculating...</span>
                     </div>
                 `;
@@ -701,6 +682,25 @@
                 
                 // Aggiungi gli event listener per i controlli
                 setupImageControls(filePreview, img, imageContainer);
+
+                // Pulsanti zoom
+                const zoomInBtn = resizeControls.querySelector('.zoom-in-btn');
+                const zoomOutBtn = resizeControls.querySelector('.zoom-out-btn');
+                let currentScale = 1;
+
+                // Zoom In
+                zoomInBtn.addEventListener('click', function() {
+                    currentScale *= 1.2;
+                    img.style.transform = `scale(${currentScale})`;
+                    img.style.transition = 'transform 0.2s';
+                });
+
+                // Zoom Out
+                zoomOutBtn.addEventListener('click', function() {
+                    currentScale /= 1.2;
+                    img.style.transform = `scale(${currentScale})`;
+                    img.style.transition = 'transform 0.2s';
+                });
             }
             
             // Funzione per gestire i file PDF
