@@ -222,6 +222,65 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // --- INIZIO INTEGRAZIONE LAZY LOADING SOLO SE ids PRESENTE ---
+            const urlParams = new URLSearchParams(window.location.search);
+            const ids = urlParams.get('ids');
+            if (ids) {
+                const previewContainer = document.getElementById('preview-container');
+                const fileIds = ids.split(',');
+                // IntersectionObserver per lazy loading
+                const observer = new IntersectionObserver((entries, observer) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            const placeholder = entry.target;
+                            const fileId = placeholder.dataset.fileId;
+                            const iframe = document.createElement('iframe');
+                            iframe.src = `/api/files/${fileId}/view`;
+                            iframe.style.width = '100%';
+                            iframe.style.height = '500px';
+                            iframe.style.border = '1px solid #ccc';
+                            placeholder.parentNode.replaceChild(iframe, placeholder);
+                            observer.unobserve(placeholder);
+                        }
+                    });
+                }, {root: null, rootMargin: '100px', threshold: 0.1});
+                // Crea i placeholder
+                fileIds.forEach(fileId => {
+                    const filePreview = document.createElement('div');
+                    filePreview.className = 'file-preview';
+                    const fileHeader = document.createElement('h3');
+                    fileHeader.textContent = `File ID: ${fileId}`;
+                    filePreview.appendChild(fileHeader);
+                    const placeholder = document.createElement('div');
+                    placeholder.className = 'file-placeholder';
+                    placeholder.dataset.fileId = fileId;
+                    placeholder.style.height = '500px';
+                    placeholder.textContent = 'Caricamento anteprima...';
+                    filePreview.appendChild(placeholder);
+                    previewContainer.appendChild(filePreview);
+                    observer.observe(placeholder);
+                });
+                // Gestione download all
+                const downloadAllBtn = document.getElementById('download-all-btn');
+                if (downloadAllBtn) {
+                    downloadAllBtn.addEventListener('click', function() {
+                        fileIds.forEach((id, index) => {
+                            setTimeout(() => {
+                                const link = document.createElement('a');
+                                link.href = `/api/files/${id}/download`;
+                                link.download = `file-${id}`;
+                                link.style.display = 'none';
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                            }, index * 500);
+                        });
+                    });
+                }
+                // Blocca l'esecuzione del resto della funzione se ids è presente
+                return;
+            }
+            // --- FINE INTEGRAZIONE LAZY LOADING ---
             // Riferimenti agli elementi globali
             const previewContainer = document.getElementById('preview-container');
             const resizeAllBtn = document.getElementById('resize-all-btn');
