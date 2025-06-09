@@ -809,9 +809,14 @@ async function previewAllFiles(files) {
     const otherFiles = [];
 
     // Analizza ogni file per determinare il tipo
+    // Parole chiave da cercare nei file di testo
+    const KEYWORDS = [
+        "Fs", "Re", "Sd", "Qms", "Qes", "Qts", "Cms", "Mms", "Rms", "Bl", "dBspl", "VAS", "Zmin", "L1kHz", "L10kHz"
+    ];
+
     for (const file of files) {
         try {
-            // Solo i file di testo possono contenere dati grafici
+            // Solo i file di testo possono contenere dati grafici o parametri
             if (file.filename && file.filename.toLowerCase().endsWith('.txt')) {
                 const response = await fetch(`/api/files/${file.id}/content`);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -819,12 +824,46 @@ async function previewAllFiles(files) {
                 // Usa le funzioni helper centralizzate per analizzare il file
                 const { dataType, startIndex } = analyzeFileContent(content);
                 const points = extractDataPoints(content, startIndex);
+
+                // Cerca le parole chiave nel testo (case-insensitive)
+                let keywordCount = 0;
+                for (const kw of KEYWORDS) {
+                    if (content.toLowerCase().includes(kw.toLowerCase())) {
+                        keywordCount++;
+                    }
+                }
+
+                // Se contiene dati grafici, va in graphFiles
                 if (points.length > 0) {
                     graphFiles.push({ file, points, dataType });
                     continue;
                 }
+
+                // Se contiene almeno 3 parole chiave, va in floating graph viewer
+                if (keywordCount >= 3) {
+                    // Invia il file come "floating" al graph viewer
+                    // La finestra floating sarà gestita da graph-viewer.html
+                    const graphWindowName = 'graphViewer';
+                    let graphWindow = window.open('', graphWindowName);
+                    const sendFloatingToGraphWindow = (targetWindow) => {
+                        targetWindow.postMessage({
+                            type: 'addFloatingText',
+                            filename: file.filename,
+                            content: content
+                        }, '*');
+                    };
+                    if (!graphWindow || graphWindow.closed || !graphWindow.location || !graphWindow.location.href.includes('graph-viewer.html')) {
+                        graphWindow = window.open('graph-viewer.html', graphWindowName);
+                        graphWindow.onload = () => sendFloatingToGraphWindow(graphWindow);
+                    } else {
+                        graphWindow.focus();
+                        sendFloatingToGraphWindow(graphWindow);
+                    }
+                    // Non aggiungere agli altri file
+                    continue;
+                }
             }
-            // Se non è un file grafico, aggiungilo agli altri
+            // Se non è un file grafico o parametri, aggiungilo agli altri
             otherFiles.push(file);
         } catch (error) {
             console.error(`Errore nell'analisi del file "${file.filename}", verrà trattato come file generico:`, error);

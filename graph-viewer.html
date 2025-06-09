@@ -813,5 +813,178 @@
             });
         });
     </script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Gestione finestre floating per parametri
+    function createFloatingWindow(title, content) {
+        // Crea il contenitore della finestra
+        const win = document.createElement('div');
+        win.className = 'floating-window';
+        win.style.position = 'fixed';
+        win.style.top = Math.floor(Math.random() * 200 + 50) + 'px';
+        win.style.left = Math.floor(Math.random() * 400 + 50) + 'px';
+        win.style.width = '400px';
+        win.style.background = '#fff';
+        win.style.border = '2px solid #2196F3';
+        win.style.borderRadius = '8px';
+        win.style.boxShadow = '0 4px 16px rgba(0,0,0,0.2)';
+        win.style.zIndex = 9999;
+        win.style.minHeight = '60px';
+        win.style.resize = 'both';
+        win.style.overflow = 'auto';
+
+        // Header con titolo e pulsanti
+        const header = document.createElement('div');
+        header.style.cursor = 'move';
+        header.style.background = '#2196F3';
+        header.style.color = '#fff';
+        header.style.padding = '8px 12px';
+        header.style.display = 'flex';
+        header.style.justifyContent = 'space-between';
+        header.style.alignItems = 'center';
+        header.style.borderTopLeftRadius = '8px';
+        header.style.borderTopRightRadius = '8px';
+
+        const titleSpan = document.createElement('span');
+        titleSpan.textContent = title;
+        header.appendChild(titleSpan);
+
+        // Pulsanti minimizza, font +/-, chiudi
+        const btns = document.createElement('div');
+        btns.style.display = 'flex';
+        btns.style.gap = '8px';
+
+        // Font size controls
+        const fontMinusBtn = document.createElement('button');
+        fontMinusBtn.textContent = 'A-';
+        fontMinusBtn.title = 'Font smaller';
+        fontMinusBtn.style.background = '#fff';
+        fontMinusBtn.style.color = '#2196F3';
+        fontMinusBtn.style.border = 'none';
+        fontMinusBtn.style.fontWeight = 'bold';
+        fontMinusBtn.style.fontSize = '14px';
+        fontMinusBtn.style.cursor = 'pointer';
+        fontMinusBtn.style.width = '28px';
+        fontMinusBtn.style.height = '28px';
+        fontMinusBtn.style.borderRadius = '50%';
+
+        const fontPlusBtn = document.createElement('button');
+        fontPlusBtn.textContent = 'A+';
+        fontPlusBtn.title = 'Font bigger';
+        fontPlusBtn.style.background = '#fff';
+        fontPlusBtn.style.color = '#2196F3';
+        fontPlusBtn.style.border = 'none';
+        fontPlusBtn.style.fontWeight = 'bold';
+        fontPlusBtn.style.fontSize = '14px';
+        fontPlusBtn.style.cursor = 'pointer';
+        fontPlusBtn.style.width = '28px';
+        fontPlusBtn.style.height = '28px';
+        fontPlusBtn.style.borderRadius = '50%';
+
+        const minBtn = document.createElement('button');
+        minBtn.textContent = '–';
+        minBtn.title = 'Minimize';
+        minBtn.style.background = '#fff';
+        minBtn.style.color = '#2196F3';
+        minBtn.style.border = 'none';
+        minBtn.style.fontWeight = 'bold';
+        minBtn.style.fontSize = '18px';
+        minBtn.style.cursor = 'pointer';
+        minBtn.style.width = '28px';
+        minBtn.style.height = '28px';
+        minBtn.style.borderRadius = '50%';
+
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = '×';
+        closeBtn.title = 'Close';
+        closeBtn.style.background = '#fff';
+        closeBtn.style.color = '#2196F3';
+        closeBtn.style.border = 'none';
+        closeBtn.style.fontWeight = 'bold';
+        closeBtn.style.fontSize = '18px';
+        closeBtn.style.cursor = 'pointer';
+        closeBtn.style.width = '28px';
+        closeBtn.style.height = '28px';
+        closeBtn.style.borderRadius = '50%';
+
+        btns.appendChild(fontMinusBtn);
+        btns.appendChild(fontPlusBtn);
+        btns.appendChild(minBtn);
+        btns.appendChild(closeBtn);
+        header.appendChild(btns);
+
+        win.appendChild(header);
+
+        // Corpo della finestra
+        const body = document.createElement('div');
+        body.className = 'floating-body';
+        body.style.padding = '12px';
+        body.style.overflow = 'auto';
+        body.style.maxHeight = '300px';
+        body.style.background = '#f9f9f9';
+        body.style.fontFamily = 'monospace';
+        body.style.whiteSpace = 'pre-wrap';
+        body.style.color = '#222'; // testo scuro per leggibilità
+        let fontSize = 15;
+        body.style.fontSize = fontSize + 'px';
+        body.textContent = content;
+        win.appendChild(body);
+
+        // Font size controls
+        fontMinusBtn.addEventListener('click', function() {
+            fontSize = Math.max(8, fontSize - 2);
+            body.style.fontSize = fontSize + 'px';
+        });
+        fontPlusBtn.addEventListener('click', function() {
+            fontSize = Math.min(48, fontSize + 2);
+            body.style.fontSize = fontSize + 'px';
+        });
+
+        // Minimizza
+        minBtn.addEventListener('click', function() {
+            if (body.style.display !== 'none') {
+                body.style.display = 'none';
+                minBtn.textContent = '+';
+            } else {
+                body.style.display = '';
+                minBtn.textContent = '–';
+            }
+        });
+
+        // Chiudi
+        closeBtn.addEventListener('click', function() {
+            win.remove();
+        });
+
+        // Drag & drop
+        let isDragging = false, offsetX = 0, offsetY = 0;
+        header.addEventListener('mousedown', function(e) {
+            isDragging = true;
+            offsetX = e.clientX - win.offsetLeft;
+            offsetY = e.clientY - win.offsetTop;
+            document.body.style.userSelect = 'none';
+        });
+        document.addEventListener('mousemove', function(e) {
+            if (isDragging) {
+                win.style.left = (e.clientX - offsetX) + 'px';
+                win.style.top = (e.clientY - offsetY) + 'px';
+            }
+        });
+        document.addEventListener('mouseup', function() {
+            isDragging = false;
+            document.body.style.userSelect = '';
+        });
+
+        document.body.appendChild(win);
+    }
+
+    // Gestione postMessage
+    window.addEventListener('message', function(event) {
+        if (event.data && event.data.type === 'addFloatingText') {
+            createFloatingWindow(event.data.filename, event.data.content);
+        }
+    });
+});
+</script>
 </body>
 </html>
