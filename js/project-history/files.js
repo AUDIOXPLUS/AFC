@@ -800,110 +800,30 @@ async function downloadAllFiles(files) {
 }
 
 /**
- * Visualizza l'anteprima di tutti i file, separando i file di curve dagli altri.
+ * Visualizza l'anteprima di tutti i file.
  * @param {Array} files - Array di oggetti file
  */
 async function previewAllFiles(files) {
-    // Array per separare i file
-    const graphFiles = [];
-    const otherFiles = [];
+    // Raccogli tutti gli ID dei file
+    const fileIds = files.map(file => file.id);
 
-    // Messaggio di attesa per l'utente
-    console.log("Analisi dei file per l'anteprima in corso...");
-
-    // Analizza ogni file per determinare il tipo
-    for (const file of files) {
-        try {
-            const response = await fetch(`/api/files/${file.id}/content`);
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            const content = await response.text();
-            
-            // Riutilizza la logica di analisi esistente
-            const { dataType, startIndex } = analyzeFileContent(content);
-            const points = extractDataPoints(content, startIndex);
-            
-            if (points.length > 0) {
-                // Se ci sono punti, è un file per il grafico
-                graphFiles.push({ file, points, dataType });
-            } else {
-                // Altrimenti, è un altro tipo di file
-                otherFiles.push(file);
-            }
-        } catch (error) {
-            console.error(`Errore nell'analisi del file "${file.filename}", verrà trattato come file generico:`, error);
-            otherFiles.push(file); // In caso di errore, lo mettiamo negli "altri"
-        }
+    // Se non ci sono file, non fare nulla
+    if (fileIds.length === 0) {
+        console.log("Nessun file da visualizzare.");
+        return;
     }
 
-    // Gestisce l'apertura della finestra per i grafici
-    if (graphFiles.length > 0) {
-        const graphWindowName = 'graphViewer';
-        let graphWindow = window.open('', graphWindowName);
+    // Costruisci l'URL per la pagina di anteprima con gli ID dei file
+    const url = `all-files-preview.html?ids=${fileIds.join(',')}`;
 
-        // Funzione per inviare i dati alla finestra del grafico
-        const sendDataToGraphWindow = (targetWindow) => {
-            console.log(`Invio ${graphFiles.length} grafici alla finestra.`);
-            // Pulisce i grafici precedenti prima di aggiungerne di nuovi
-            targetWindow.postMessage({ type: 'clearGraphs' }, '*');
-            
-            graphFiles.forEach(graphData => {
-                targetWindow.postMessage({
-                    type: 'addGraph',
-                    points: graphData.points,
-                    filename: graphData.file.filename,
-                    dataType: graphData.dataType
-                }, '*');
-            });
-        };
+    // Apri la pagina di anteprima in una nuova finestra
+    const previewWindowName = 'allFilesPreview';
+    let previewWindow = window.open(url, previewWindowName);
 
-        // Se la finestra non esiste o è chiusa, la apriamo
-        if (!graphWindow || graphWindow.closed || !graphWindow.location || !graphWindow.location.href.includes('graph-viewer.html')) {
-            graphWindow = window.open('graph-viewer.html', graphWindowName);
-            // Aspettiamo che la finestra sia pronta
-            graphWindow.onload = () => sendDataToGraphWindow(graphWindow);
-        } else {
-            // Se è già aperta, la portiamo in primo piano e inviamo i dati
-            graphWindow.focus();
-            sendDataToGraphWindow(graphWindow);
-        }
-    }
-
-    // Gestisce l'apertura della finestra per tutti gli altri file
-    if (otherFiles.length > 0) {
-        const previewWindowName = 'allFilesPreview';
-        const previewWindow = window.open('all-files-preview.html', previewWindowName);
-        
-        previewWindow.onload = function() {
-            const previewContainer = previewWindow.document.getElementById('preview-container');
-            if (previewContainer) {
-                previewContainer.innerHTML = ''; // Svuota il contenuto precedente
-                otherFiles.forEach(file => {
-                    const fileHeader = document.createElement('h3');
-                    fileHeader.textContent = file.filename;
-                    previewContainer.appendChild(fileHeader);
-
-                    const iframe = document.createElement('iframe');
-                    iframe.src = `/api/files/${file.id}/view`;
-                    iframe.style.width = '100%';
-                    iframe.style.height = '500px';
-                    iframe.style.border = '1px solid #ccc';
-                    iframe.style.marginBottom = '20px';
-                    previewContainer.appendChild(iframe);
-                });
-            }
-        };
-        
-        // Se la finestra è già aperta ma vuota (es. ricaricata), la funzione onload potrebbe non scattare
-        // In questo caso, se la finestra non ha un gestore onload, potremmo dover ricaricare per sicurezza
-        if (previewWindow && !previewWindow.onload) {
-            // Questo aiuta a gestire il caso in cui la finestra è già aperta da una sessione precedente
-            // ma il nostro script non ha ancora agganciato l'evento onload.
-            // Ricaricando, forziamo l'esecuzione di onload.
-            setTimeout(() => {
-                if(previewWindow.document.getElementById('preview-container').children.length === 0) {
-                    previewWindow.location.reload();
-                }
-            }, 500);
-        }
+    // Se la finestra è già aperta, ricaricala per assicurarti che mostri i nuovi file
+    if (previewWindow && !previewWindow.closed) {
+        previewWindow.focus();
+        // Potrebbe essere necessario ricaricare se la finestra era già aperta con altri file
+        // previewWindow.location.href = url;
     }
 }
