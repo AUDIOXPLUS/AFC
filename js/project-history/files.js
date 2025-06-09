@@ -800,30 +800,75 @@ async function downloadAllFiles(files) {
 }
 
 /**
- * Visualizza l'anteprima di tutti i file.
+ * Visualizza l'anteprima di tutti i file, separando i file di curve dagli altri.
  * @param {Array} files - Array di oggetti file
  */
 async function previewAllFiles(files) {
-    // Raccogli tutti gli ID dei file
-    const fileIds = files.map(file => file.id);
+    // Array per separare i file
+    const graphFiles = [];
+    const otherFiles = [];
 
-    // Se non ci sono file, non fare nulla
-    if (fileIds.length === 0) {
-        console.log("Nessun file da visualizzare.");
-        return;
+    // Analizza ogni file per determinare il tipo
+    for (const file of files) {
+        try {
+            // Solo i file di testo possono contenere dati grafici
+            if (file.filename && file.filename.toLowerCase().endsWith('.txt')) {
+                const response = await fetch(`/api/files/${file.id}/content`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const content = await response.text();
+                // Usa le funzioni helper centralizzate per analizzare il file
+                const { dataType, startIndex } = analyzeFileContent(content);
+                const points = extractDataPoints(content, startIndex);
+                if (points.length > 0) {
+                    graphFiles.push({ file, points, dataType });
+                    continue;
+                }
+            }
+            // Se non è un file grafico, aggiungilo agli altri
+            otherFiles.push(file);
+        } catch (error) {
+            console.error(`Errore nell'analisi del file "${file.filename}", verrà trattato come file generico:`, error);
+            otherFiles.push(file); // In caso di errore, lo mettiamo negli "altri"
+        }
     }
 
-    // Costruisci l'URL per la pagina di anteprima con gli ID dei file
-    const url = `all-files-preview.html?ids=${fileIds.join(',')}`;
+    // Gestisce l'apertura della finestra per i grafici
+    if (graphFiles.length > 0) {
+        const graphWindowName = 'graphViewer';
+        let graphWindow = window.open('', graphWindowName);
 
-    // Apri la pagina di anteprima in una nuova finestra
-    const previewWindowName = 'allFilesPreview';
-    let previewWindow = window.open(url, previewWindowName);
+        // Funzione per inviare i dati alla finestra del grafico
+        const sendDataToGraphWindow = (targetWindow) => {
+            // Pulisce i grafici precedenti prima di aggiungerne di nuovi
+            targetWindow.postMessage({ type: 'clearGraphs' }, '*');
+            graphFiles.forEach(graphData => {
+                targetWindow.postMessage({
+                    type: 'addGraph',
+                    points: graphData.points,
+                    filename: graphData.file.filename,
+                    dataType: graphData.dataType
+                }, '*');
+            });
+        };
 
-    // Se la finestra è già aperta, ricaricala per assicurarti che mostri i nuovi file
-    if (previewWindow && !previewWindow.closed) {
-        previewWindow.focus();
-        // Potrebbe essere necessario ricaricare se la finestra era già aperta con altri file
-        // previewWindow.location.href = url;
+        // Se la finestra non esiste o è chiusa, la apriamo
+        if (!graphWindow || graphWindow.closed || !graphWindow.location || !graphWindow.location.href.includes('graph-viewer.html')) {
+            graphWindow = window.open('graph-viewer.html', graphWindowName);
+            graphWindow.onload = () => sendDataToGraphWindow(graphWindow);
+        } else {
+            graphWindow.focus();
+            sendDataToGraphWindow(graphWindow);
+        }
+    }
+
+    // Gestisce l'apertura della finestra per tutti gli altri file
+    if (otherFiles.length > 0) {
+        const fileIds = otherFiles.map(file => file.id);
+        const url = `all-files-preview.html?ids=${fileIds.join(',')}`;
+        const previewWindowName = 'allFilesPreview';
+        let previewWindow = window.open(url, previewWindowName);
+        if (previewWindow && !previewWindow.closed) {
+            previewWindow.focus();
+        }
     }
 }
