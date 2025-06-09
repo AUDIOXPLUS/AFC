@@ -249,7 +249,17 @@
                     const filePreview = document.createElement('div');
                     filePreview.className = 'file-preview';
                     const fileHeader = document.createElement('h3');
+                    // Mostra temporaneamente l'ID, poi aggiorna con il nome file reale
                     fileHeader.textContent = `File ID: ${fileId}`;
+                    // Recupera il nome file dal backend
+                    fetch(`/api/files/${fileId}`)
+                        .then(resp => resp.ok ? resp.json() : null)
+                        .then(data => {
+                            if (data && data.filename) {
+                                fileHeader.textContent = data.filename;
+                            }
+                        })
+                        .catch(() => {});
                     filePreview.appendChild(fileHeader);
                     const placeholder = document.createElement('div');
                     placeholder.className = 'file-placeholder';
