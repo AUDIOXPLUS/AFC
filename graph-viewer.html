@@ -479,14 +479,28 @@
                                     const item = allItems.find(child => parseInt(child.dataset.originalIndex) === index);
                                     if (item) {
                                         const valueSpan = item.querySelector('.dataset-value');
+                                        valueSpan.style.color = '#c0d0e0'; // Resetta il colore di default
+
                                         if (yValue !== null) {
-                                            let displayValue = yValue;
-                                            // Se una curva di riferimento è selezionata e non è questa, calcola il delta
-                                            if (selectedDatasetIndex !== null && index !== selectedDatasetIndex && referenceY !== null && unit === 'dB') {
-                                                displayValue = yValue - referenceY;
-                                                valueSpan.textContent = `${displayValue > 0 ? '+' : ''}${displayValue.toFixed(1)} dB`;
+                                            // Se una curva di riferimento è selezionata, gestisci la visualizzazione delta
+                                            if (selectedDatasetIndex !== null && referenceY !== null && unit === 'dB') {
+                                                if (index === selectedDatasetIndex) {
+                                                    // La curva di riferimento mostra il suo valore assoluto
+                                                    valueSpan.textContent = `${yValue.toFixed(1)} ${unit}`;
+                                                } else {
+                                                    // Le altre curve mostrano il delta
+                                                    const displayValue = yValue - referenceY;
+                                                    valueSpan.textContent = `${displayValue > 0 ? '+' : ''}${displayValue.toFixed(1)} dB`;
+                                                    // Applica i colori per il delta
+                                                    if (displayValue > 0) {
+                                                        valueSpan.style.color = 'lightgreen';
+                                                    } else if (displayValue < 0) {
+                                                        valueSpan.style.color = 'salmon';
+                                                    }
+                                                }
                                             } else {
-                                                valueSpan.textContent = `${displayValue.toFixed(1)} ${unit}`;
+                                                // Modalità normale: mostra il valore assoluto
+                                                valueSpan.textContent = `${yValue.toFixed(1)} ${unit}`;
                                             }
                                         } else {
                                             valueSpan.textContent = '';
@@ -516,8 +530,12 @@
                                 const legendItem = Array.from(list.children).find(child => child.dataset && parseInt(child.dataset.originalIndex) === index);
                                 if (legendItem) {
                                     const labelSpan = legendItem.querySelector('.dataset-label');
-                                    if (isHovered) {
-                                        legendItem.style.backgroundColor = '#4a5a6a';
+                                    // Applica lo stile di sfondo per la curva selezionata
+                                    if (isSelected) {
+                                        legendItem.style.backgroundColor = 'rgba(75, 192, 192, 0.2)'; // Colore di highlight per la selezione
+                                        if (labelSpan) labelSpan.style.fontWeight = 'bold';
+                                    } else if (isHovered) {
+                                        legendItem.style.backgroundColor = '#4a5a6a'; // Colore per l'hover
                                         if (labelSpan) labelSpan.style.fontWeight = 'bold';
                                     } else {
                                         legendItem.style.backgroundColor = 'transparent';
