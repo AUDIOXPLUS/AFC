@@ -397,6 +397,45 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     backgroundColor: '#1e2a3a',
+                    onHover: (event, activeElements) => {
+                        const canvas = chart.canvas;
+                        // Usiamo getElementsAtEventForMode per trovare l'elemento più vicino,
+                        // che è più affidabile per l'effetto hover rispetto all'array activeElements
+                        // basato sulla modalità di interazione 'index'.
+                        const points = chart.getElementsAtEventForMode(event, 'nearest', { intersect: true }, false);
+
+                        canvas.style.cursor = points.length ? 'pointer' : 'default';
+
+                        let hoveredDatasetIndex = -1;
+                        if (points.length > 0) {
+                            hoveredDatasetIndex = points[0].datasetIndex;
+                        }
+
+                        chart.data.datasets.forEach((dataset, index) => {
+                            const legendItem = document.getElementById('dataset-list').children[index];
+
+                            const isSelected = (index === selectedDatasetIndex);
+                            const isHovered = (index === hoveredDatasetIndex);
+
+                            // Imposta lo spessore del bordo
+                            // Selezionato o in hover -> 4, altrimenti -> 2
+                            dataset.borderWidth = (isSelected || isHovered) ? 4 : 2;
+
+                            // Imposta lo stile della legenda
+                            if (legendItem) {
+                                const labelSpan = legendItem.querySelector('span');
+                                if (isHovered) {
+                                    legendItem.style.backgroundColor = '#4a5a6a';
+                                    if(labelSpan) labelSpan.style.fontWeight = 'bold';
+                                } else {
+                                    legendItem.style.backgroundColor = 'transparent';
+                                    if(labelSpan) labelSpan.style.fontWeight = 'normal';
+                                }
+                            }
+                        });
+                        
+                        chart.update('none');
+                    },
                     scales: {
                         x: {
                             type: 'logarithmic', position: 'bottom',
@@ -600,6 +639,13 @@
         function toggleDataset(index) {
             const meta = chart.getDatasetMeta(index);
             meta.hidden = !meta.hidden;
+            // Cambia il colore dell'icona in base allo stato di visibilità
+            const toggleBtn = document.getElementById('dataset-list').children[index].querySelector('button[title="Toggle visibility"]');
+            if (meta.hidden) {
+                toggleBtn.style.color = 'red';
+            } else {
+                toggleBtn.style.color = '';
+            }
             chart.update();
         }
 
