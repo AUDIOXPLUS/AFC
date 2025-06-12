@@ -79,6 +79,22 @@
             align-items: center;
             margin-bottom: 5px;
             font-size: 12px;
+            padding: 2px 4px;
+            border-radius: 3px;
+            transition: background-color 0.2s ease-in-out;
+        }
+        .dataset-value {
+            width: 70px; /* Larghezza fissa per l'allineamento */
+            text-align: right;
+            margin-right: 8px;
+            font-family: monospace;
+            font-size: 13px;
+            color: #c0d0e0; /* Colore per il valore */
+        }
+        .dataset-separator {
+            border: 0;
+            border-top: 1px solid #3a4a5a;
+            margin: 5px 0;
         }
         /* Classe .dataset-color rimossa perché non utilizzata nel codice JavaScript */
 
@@ -186,11 +202,12 @@
     <script>
         // Array per memorizzare i dataset
         let datasets = [];
+        let originalDatasets = []; // Array per conservare i dati originali
         let chart = null;
         let nextColorIndex = 0;
         let chartReady = false; // Flag per indicare se initChart è stato completato
-        let selectedDatasetIndex = -1; // Indice del dataset selezionato
-        let frozenTooltip = null; // Tooltip congelato
+        let selectedDatasetIndex = null; // Indice del dataset selezionato (null se nessuno è selezionato)
+        let lastMouseEvent = null; // Memorizza l'ultimo evento del mouse per il re-sorting
         const colors = [
             'rgb(75, 192, 192)',
             'rgb(255, 99, 132)',
@@ -201,54 +218,6 @@
             'rgb(255, 205, 86)'
         ];
 
-        // Highlight della frequenza sull'asse x con colore della curva
-        function highlightFrequency(freq, color) {
-            if (!chart) return;
-            
-            const xScale = chart.scales.x;
-            if (xScale._highlightLine) {
-                xScale.ctx.clearRect(
-                    xScale._highlightLine.x - 1, 
-                    xScale.top, 
-                    2, 
-                    xScale.bottom - xScale.top
-                );
-            }
-            
-            const xPos = xScale.getPixelForValue(freq);
-            xScale.ctx.strokeStyle = color || 'rgba(255, 255, 255, 0.7)';
-            xScale.ctx.lineWidth = 2;
-            xScale.ctx.beginPath();
-            xScale.ctx.moveTo(xPos, xScale.top);
-            xScale.ctx.lineTo(xPos, xScale.bottom);
-            xScale.ctx.stroke();
-            
-            xScale._highlightLine = {x: xPos, color: color};
-        }
-
-        function showFrozenValue(freq, value, color, yAxisID) {
-            const container = document.querySelector('.chart-container');
-            const existing = document.getElementById('frozen-value');
-            if (existing) existing.remove();
-            
-            const unit = yAxisID === 'yOhm' ? 'Ω' : 'dB';
-            const yAxis = chart.scales[yAxisID];
-            
-            const div = document.createElement('div');
-            div.id = 'frozen-value';
-            div.style.position = 'absolute';
-            div.style.left = chart.scales.x.getPixelForValue(freq) + 'px';
-            div.style.top = yAxis.getPixelForValue(value) + 'px';
-            div.style.transform = 'translate(-50%, -50%)';
-            div.style.backgroundColor = 'rgba(42, 58, 74, 0.9)';
-            div.style.color = color || '#ffffff';
-            div.style.padding = '2px 6px';
-            div.style.borderRadius = '3px';
-            div.style.border = `1px solid ${color || '#ffffff'}`;
-            div.style.fontSize = '12px';
-            div.textContent = `${value.toFixed(1)} ${unit}`;
-            container.appendChild(div);
-        }
 
         Chart.Tooltip.positioners.mouseYPosition = function(elements, eventPosition) {
             return {
@@ -257,33 +226,57 @@
             };
         };
 
-        function handleCanvasClick(event) {
-            if (!chart || chart.data.datasets.length <= 1) return;
-            const points = chart.getElementsAtEventForMode(event, 'nearest', {intersect: false}, true);
-            
-            if (points.length > 0) {
-                const point = points[0];
-                selectedDatasetIndex = point.datasetIndex;
-                
-                chart.data.datasets.forEach((dataset, i) => {
-                    dataset.borderWidth = (i === selectedDatasetIndex) ? 4 : 2;
-                    dataset.borderDash = [];
-                });
-                
-                const freq = point.element.$context.parsed.x;
-                const yValue = point.element.$context.parsed.y;
-                const datasetIndex = point.datasetIndex;
-                const yAxisID = chart.data.datasets[datasetIndex].yAxisID;
-                const color = chart.data.datasets[datasetIndex].borderColor;
+        /**
+         * Interpola il valore Y per una data ascissa X su una scala logaritmica.
+         * @param {Array} data - Array di punti {x, y}.
+         * @param {number} x - Il valore x per cui interpolare y.
+         * @returns {number|null} - Il valore y interpolato o null se non trovabile.
+         */
+        function getInterpolatedY(data, x) {
+            for (let i = 0; i < data.length - 1; i++) {
+                const p1 = data[i];
+                const p2 = data[i+1];
+                if (p1.x <= x && p2.x >= x) {
+                    const logX = Math.log(x);
+                    const logX1 = Math.log(p1.x);
+                    const logX2 = Math.log(p2.x);
+                    if (logX2 === logX1) return p1.y; // Evita divisione per zero
+                    return p1.y + (p2.y - p1.y) * (logX - logX1) / (logX2 - logX1);
+                }
+            }
+            return null; // X è fuori dal range del dataset
+        }
 
-                frozenTooltip = {
-                    freq: freq, value: yValue, yAxisID: yAxisID,
-                    color: color, datasetIndex: datasetIndex, clickedPointIndex: point.index
-                };
+
+        function handleCanvasClick(event) {
+            if (!chart) return;
+            const points = chart.getElementsAtEventForMode(event, 'nearest', { intersect: false }, true);
+
+            if (points.length > 0) {
+                const clickedIndex = points[0].datasetIndex;
                 
-                highlightFrequency(freq, color);
-                showFrozenValue(freq, yValue, color, yAxisID);
-                requestAnimationFrame(() => chart.update());
+                // Se si clicca sulla curva già selezionata, deselezionala.
+                if (selectedDatasetIndex === clickedIndex) {
+                    selectedDatasetIndex = null;
+                } else {
+                    selectedDatasetIndex = clickedIndex;
+                }
+
+                // Forza un aggiornamento dell'hover per ricalcolare i valori della legenda
+                if (lastMouseEvent) {
+                    chart.options.onHover(lastMouseEvent, [], chart);
+                }
+                chart.update('none'); // Aggiorna il grafico per mostrare il bordo più spesso
+            
+            } else {
+                // Se si clicca fuori, deseleziona tutto
+                if (selectedDatasetIndex !== null) {
+                    selectedDatasetIndex = null;
+                    if (lastMouseEvent) {
+                        chart.options.onHover(lastMouseEvent, [], chart);
+                    }
+                    chart.update('none');
+                }
             }
         }
 
@@ -389,6 +382,44 @@
             canvas.addEventListener('click', handleCanvasClick);
             canvas.style.willChange = 'contents';
 
+            canvas.addEventListener('mousemove', (e) => {
+                lastMouseEvent = e; // Aggiorna l'ultima posizione del mouse
+            });
+
+            // Aggiunto per pulire i valori e ripristinare l'ordine quando il mouse esce dal grafico
+            canvas.addEventListener('mouseout', () => {
+                if (!chart) return;
+                lastMouseEvent = null; // Resetta l'evento del mouse
+                const list = document.getElementById('dataset-list');
+                const items = Array.from(list.children);
+                
+                // Pulisce i valori e lo stile di hover
+                items.forEach(item => {
+                    const valueSpan = item.querySelector('.dataset-value');
+                    if (valueSpan) valueSpan.textContent = '';
+                    const labelSpan = item.querySelector('.dataset-label');
+                    item.style.backgroundColor = 'transparent';
+                    if (labelSpan) labelSpan.style.fontWeight = 'normal';
+                });
+
+                // Riordina gli elementi in base all'indice originale
+                items.sort((a, b) => {
+                    const indexA = parseInt(a.dataset.originalIndex, 10);
+                    const indexB = parseInt(b.dataset.originalIndex, 10);
+                    return indexA - indexB;
+                });
+
+                // Rimuove eventuali separatori e ripopola la lista
+                list.innerHTML = '';
+                items.forEach(item => list.appendChild(item));
+
+                // Ripristina lo spessore dei bordi
+                chart.data.datasets.forEach((dataset, index) => {
+                    dataset.borderWidth = (index === selectedDatasetIndex) ? 4 : 2;
+                });
+                chart.update('none');
+            });
+
             const ctx = canvas.getContext('2d');
             chart = new Chart(ctx, {
                 type: 'line',
@@ -397,42 +428,104 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     backgroundColor: '#1e2a3a',
-                    onHover: (event, activeElements) => {
+                    onHover: (event, activeElements, chart) => {
                         const canvas = chart.canvas;
-                        // Usiamo getElementsAtEventForMode per trovare l'elemento più vicino,
-                        // che è più affidabile per l'effetto hover rispetto all'array activeElements
-                        // basato sulla modalità di interazione 'index'.
-                        const points = chart.getElementsAtEventForMode(event, 'nearest', { intersect: true }, false);
-
-                        canvas.style.cursor = points.length ? 'pointer' : 'default';
-
-                        let hoveredDatasetIndex = -1;
-                        if (points.length > 0) {
-                            hoveredDatasetIndex = points[0].datasetIndex;
-                        }
-
-                        chart.data.datasets.forEach((dataset, index) => {
-                            const legendItem = document.getElementById('dataset-list').children[index];
-
-                            const isSelected = (index === selectedDatasetIndex);
-                            const isHovered = (index === hoveredDatasetIndex);
-
-                            // Imposta lo spessore del bordo
-                            // Selezionato o in hover -> 4, altrimenti -> 2
-                            dataset.borderWidth = (isSelected || isHovered) ? 4 : 2;
-
-                            // Imposta lo stile della legenda
-                            if (legendItem) {
-                                const labelSpan = legendItem.querySelector('span');
-                                if (isHovered) {
-                                    legendItem.style.backgroundColor = '#4a5a6a';
-                                    if(labelSpan) labelSpan.style.fontWeight = 'bold';
-                                } else {
-                                    legendItem.style.backgroundColor = 'transparent';
-                                    if(labelSpan) labelSpan.style.fontWeight = 'normal';
-                                }
+                        const mouseX = event.x;
+                        
+                        if (mouseX > chart.chartArea.left && mouseX < chart.chartArea.right) {
+                            const xValue = chart.scales.x.getValueForPixel(mouseX);
+                            const points = chart.getElementsAtEventForMode(event, 'nearest', { intersect: true }, false);
+                            let hoveredDatasetIndex = -1;
+                            if (points.length > 0) {
+                                hoveredDatasetIndex = points[0].datasetIndex;
                             }
-                        });
+
+                            // Ottieni il valore Y di riferimento se una curva è selezionata
+                            let referenceY = null;
+                            if (selectedDatasetIndex !== null && originalDatasets[selectedDatasetIndex]) {
+                                const referenceData = originalDatasets[selectedDatasetIndex].data;
+                                referenceY = getInterpolatedY(referenceData, xValue);
+                            }
+
+                            const calculatedValues = originalDatasets.map((dataset, index) => {
+                                const meta = chart.getDatasetMeta(index);
+                                const data = dataset.data; // Usa sempre i dati originali
+                                let yValue = null;
+                                if (!meta.hidden) {
+                                    yValue = getInterpolatedY(data, xValue);
+                                }
+                                return { index, yValue, yAxisID: dataset.yAxisID, hidden: meta.hidden };
+                            });
+
+                            const sortRule = (a, b) => {
+                                if (a.hidden && !b.hidden) return 1;
+                                if (!a.hidden && b.hidden) return -1;
+                                if (a.hidden && b.hidden) return 0;
+                                if (a.yValue === null && b.yValue !== null) return 1;
+                                if (a.yValue !== null && b.yValue === null) return -1;
+                                if (a.yValue === null && b.yValue === null) return 0;
+                                return b.yValue - a.yValue;
+                            };
+
+                            const dbValues = calculatedValues.filter(v => v.yAxisID === 'y').sort(sortRule);
+                            const ohmValues = calculatedValues.filter(v => v.yAxisID === 'yOhm').sort(sortRule);
+
+                            const list = document.getElementById('dataset-list');
+                            const fragment = document.createDocumentFragment();
+                            const allItems = Array.from(list.children);
+
+                            const appendGroup = (values, unit) => {
+                                values.forEach(({ index, yValue }) => {
+                                    const item = allItems.find(child => parseInt(child.dataset.originalIndex) === index);
+                                    if (item) {
+                                        const valueSpan = item.querySelector('.dataset-value');
+                                        if (yValue !== null) {
+                                            let displayValue = yValue;
+                                            // Se una curva di riferimento è selezionata e non è questa, calcola il delta
+                                            if (selectedDatasetIndex !== null && index !== selectedDatasetIndex && referenceY !== null && unit === 'dB') {
+                                                displayValue = yValue - referenceY;
+                                                valueSpan.textContent = `${displayValue > 0 ? '+' : ''}${displayValue.toFixed(1)} dB`;
+                                            } else {
+                                                valueSpan.textContent = `${displayValue.toFixed(1)} ${unit}`;
+                                            }
+                                        } else {
+                                            valueSpan.textContent = '';
+                                        }
+                                        fragment.appendChild(item);
+                                    }
+                                });
+                            };
+
+                            appendGroup(dbValues, 'dB');
+                            if (dbValues.some(v => !v.hidden) && ohmValues.some(v => !v.hidden)) {
+                                const separator = document.createElement('hr');
+                                separator.className = 'dataset-separator';
+                                fragment.appendChild(separator);
+                            }
+                            appendGroup(ohmValues, 'Ω');
+                            
+                            list.innerHTML = '';
+                            list.appendChild(fragment);
+
+                            // Gestione evidenziazione
+                            chart.data.datasets.forEach((dataset, index) => {
+                                const isSelected = (index === selectedDatasetIndex);
+                                const isHovered = (index === hoveredDatasetIndex);
+                                dataset.borderWidth = (isSelected || isHovered) ? 4 : 2;
+                                
+                                const legendItem = Array.from(list.children).find(child => child.dataset && parseInt(child.dataset.originalIndex) === index);
+                                if (legendItem) {
+                                    const labelSpan = legendItem.querySelector('.dataset-label');
+                                    if (isHovered) {
+                                        legendItem.style.backgroundColor = '#4a5a6a';
+                                        if (labelSpan) labelSpan.style.fontWeight = 'bold';
+                                    } else {
+                                        legendItem.style.backgroundColor = 'transparent';
+                                        if (labelSpan) labelSpan.style.fontWeight = 'normal';
+                                    }
+                                }
+                            });
+                        }
                         
                         chart.update('none');
                     },
@@ -462,46 +555,10 @@
                     plugins: {
                         legend: { display: false },
                         tooltip: {
+                            enabled: false, // Disabilita completamente il tooltip di Chart.js
                             position: 'mouseYPosition',
-                            backgroundColor: 'rgba(42, 58, 74, 0.9)',
-                            titleColor: '#ffffff', bodyColor: '#ffffff', borderColor: '#ffffff', borderWidth: 1,
-                            filter: function(tooltipItem) {
-                                return !(frozenTooltip && tooltipItem.datasetIndex === frozenTooltip.datasetIndex);
-                            },
-                            callbacks: {
-                                title: function(context) { return `${context[0].parsed.x.toFixed(1)} Hz`; },
-                                label: function(context) {
-                                    const currentDataset = context.dataset;
-                                    const currentYAxisID = currentDataset.yAxisID;
-                                    const currentUnit = currentYAxisID === 'yOhm' ? 'Ω' : 'dB';
-                                    if (frozenTooltip) {
-                                        if (currentYAxisID === frozenTooltip.yAxisID) {
-                                            const delta = context.parsed.y - frozenTooltip.value;
-                                            const sign = delta >= 0 ? '+' : '';
-                                            return `${sign}${delta.toFixed(1)} ${currentUnit}`;
-                                        } else {
-                                            return `${context.parsed.y.toFixed(1)} ${currentUnit}`;
-                                        }
-                                    }
-                                    return `${context.parsed.y.toFixed(1)} ${currentUnit}`;
-                                },
-                                labelColor: function(context) {
-                                    return { borderColor: context.dataset.borderColor, backgroundColor: context.dataset.borderColor, borderWidth: 0, borderRadius: 0, boxWidth: 8, boxHeight: 8 };
-                                }
-                            },
                             external: function(context) {
-                                if (context.tooltip.opacity === 0 && frozenTooltip) {
-                                    frozenTooltip = null; selectedDatasetIndex = -1;
-                                    chart.data.datasets.forEach(dataset => { dataset.borderWidth = 2; });
-                                    const xScale = chart.scales.x;
-                                    if (xScale._highlightLine) {
-                                        xScale.ctx.clearRect(xScale._highlightLine.x - 1, xScale.top, 2, xScale.bottom - xScale.top);
-                                        delete xScale._highlightLine;
-                                    }
-                                    const frozenValueEl = document.getElementById('frozen-value');
-                                    if (frozenValueEl) frozenValueEl.remove();
-                                    chart.update();
-                                }
+                                // Questo spazio può essere usato per un tooltip custom in futuro, se necessario.
                             }
                         }
                     },
@@ -546,21 +603,13 @@
                 fill: false,
                 tension: 0.1,
                 yAxisID: yAxisIDToUse,
-                pointRadius: function(context) {
-                    if (frozenTooltip && context.datasetIndex === frozenTooltip.datasetIndex && context.dataIndex === frozenTooltip.clickedPointIndex) {
-                        return 5;
-                    }
-                    return 0;
-                },
-                pointHoverRadius: function(context) {
-                    if (frozenTooltip && context.datasetIndex === frozenTooltip.datasetIndex && context.dataIndex === frozenTooltip.clickedPointIndex) {
-                        return 5;
-                    }
-                    return 4;
-                }
+                pointRadius: 0,
+                pointHoverRadius: 4
             };
             
+            // Aggiunge il dataset sia alla versione di lavoro che a quella originale
             datasets.push(newDataset);
+            originalDatasets.push(JSON.parse(JSON.stringify(newDataset))); // Deep copy per i dati originali
             
             if (chartReady) {
                 chart.data.datasets = datasets;
@@ -574,79 +623,91 @@
 
         function updateDatasetList() {
             const list = document.getElementById('dataset-list');
+            list.innerHTML = ''; // Pulisce la lista per ricrearla
             const fragment = document.createDocumentFragment();
-            const existingItems = Array.from(list.children).reduce((acc, child) => {
-                const label = child.querySelector('span').textContent;
-                acc[label] = child;
-                return acc;
-            }, {});
             
             datasets.forEach((dataset, index) => {
-                let item = existingItems[dataset.label];
-                if (!item) {
-                    item = document.createElement('div');
-                    item.className = 'dataset-item';
-                    item.style.marginBottom = '8px';
-                    
-                    const colorInput = document.createElement('input');
-                    colorInput.type = 'color';
-                    colorInput.className = 'color-picker';
-                    colorInput.value = rgbToHex(dataset.borderColor);
-                    colorInput.style.backgroundColor = colorInput.value;
-                    colorInput.addEventListener('input', function() { // 'input' per aggiornamento live
-                        datasets[index].borderColor = this.value;
-                        this.style.backgroundColor = this.value; // Aggiorna anche il colore di sfondo del picker
-                        if (chart) chart.update();
-                    });
-                    
-                    const label = document.createElement('span');
-                    label.textContent = dataset.label;
-                    label.style.flex = '1';
-                    label.style.marginLeft = '5px';
-                    
-                    const toggleBtn = document.createElement('button');
-                    toggleBtn.innerHTML = '<i class="fas fa-eye-slash"></i>';
-                    toggleBtn.title = 'Toggle visibility';
-                    toggleBtn.style.fontSize = '10px';
-                    toggleBtn.style.padding = '2px 6px';
-                    toggleBtn.style.marginLeft = '5px';
-                    toggleBtn.onclick = () => toggleDataset(index);
-                    
-                    const removeBtn = document.createElement('button');
-                    removeBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
-                    removeBtn.title = 'Remove dataset';
-                    removeBtn.style.fontSize = '10px';
-                    removeBtn.style.padding = '2px 6px';
-                    removeBtn.style.marginLeft = '3px';
-                    removeBtn.onclick = () => removeDataset(index);
-                    
-                    item.appendChild(colorInput);
-                    item.appendChild(label);
-                    item.appendChild(toggleBtn);
-                    item.appendChild(removeBtn);
-                } else {
-                    const colorInput = item.querySelector('input[type="color"]');
-                    colorInput.value = rgbToHex(dataset.borderColor);
-                    colorInput.style.backgroundColor = colorInput.value;
-                }
+                const item = document.createElement('div');
+                item.className = 'dataset-item';
+                item.dataset.originalIndex = index; // Aggiungo l'indice per un facile recupero
+                
+                // Span per il valore (es. 94.1 dB)
+                const valueSpan = document.createElement('span');
+                valueSpan.className = 'dataset-value';
+                
+                const colorInput = document.createElement('input');
+                colorInput.type = 'color';
+                colorInput.className = 'color-picker';
+                colorInput.value = rgbToHex(dataset.borderColor);
+                colorInput.style.backgroundColor = colorInput.value;
+                colorInput.addEventListener('input', function() {
+                    datasets[index].borderColor = this.value;
+                    this.style.backgroundColor = this.value;
+                    if (chart) chart.update();
+                });
+                
+                const label = document.createElement('span');
+                label.className = 'dataset-label'; // Aggiunta classe per selezione
+                label.textContent = dataset.label;
+                label.style.flex = '1';
+                label.style.marginLeft = '5px';
+                
+                const toggleBtn = document.createElement('button');
+                toggleBtn.innerHTML = '<i class="fas fa-eye-slash"></i>';
+                toggleBtn.title = 'Toggle visibility';
+                toggleBtn.style.fontSize = '10px';
+                toggleBtn.style.padding = '2px 6px';
+                toggleBtn.style.marginLeft = '5px';
+                toggleBtn.onclick = () => toggleDataset(index);
+                
+                const removeBtn = document.createElement('button');
+                removeBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
+                removeBtn.title = 'Remove dataset';
+                removeBtn.style.fontSize = '10px';
+                removeBtn.style.padding = '2px 6px';
+                removeBtn.style.marginLeft = '3px';
+                removeBtn.onclick = () => removeDataset(index);
+                
+                item.appendChild(valueSpan);
+                item.appendChild(colorInput);
+                item.appendChild(label);
+                item.appendChild(toggleBtn);
+                item.appendChild(removeBtn);
+                
                 fragment.appendChild(item);
             });
             
-            list.innerHTML = '';
             list.appendChild(fragment);
         }
 
         function toggleDataset(index) {
             const meta = chart.getDatasetMeta(index);
             meta.hidden = !meta.hidden;
-            // Cambia il colore dell'icona in base allo stato di visibilità
-            const toggleBtn = document.getElementById('dataset-list').children[index].querySelector('button[title="Toggle visibility"]');
-            if (meta.hidden) {
-                toggleBtn.style.color = 'red';
-            } else {
-                toggleBtn.style.color = '';
+            
+            // Trova il bottone corretto usando l'indice originale, anche dopo il riordinamento
+            const allItems = document.getElementById('dataset-list').children;
+            let toggleBtn = null;
+            for(let item of allItems) {
+                if (item.dataset && parseInt(item.dataset.originalIndex) === index) {
+                    toggleBtn = item.querySelector('button[title="Toggle visibility"]');
+                    break;
+                }
             }
-            chart.update();
+
+            if (toggleBtn) {
+                if (meta.hidden) {
+                    toggleBtn.style.color = 'red';
+                } else {
+                    toggleBtn.style.color = '';
+                }
+            }
+            
+            chart.update('none'); // Usiamo 'none' per evitare animazioni indesiderate
+
+            // Forza il riordinamento della lista se il mouse è ancora sul grafico
+            if (lastMouseEvent) {
+                chart.options.onHover(lastMouseEvent, [], chart);
+            }
         }
 
         function removeDataset(index) {
