@@ -177,8 +177,25 @@
         .image-container {
             position: relative;
             width: 100%;
-            overflow: hidden;
+            overflow: auto;
             margin: 0 auto;
+            max-height: 500px;
+        }
+        
+        .pdf-viewer {
+            position: relative;
+            width: 100%;
+            overflow: auto;
+            margin: 0 auto;
+            max-height: 600px;
+        }
+        
+        .video-player {
+            position: relative;
+            width: 100%;
+            overflow: auto;
+            margin: 0 auto;
+            max-height: 500px;
         }
         
         .load-original-btn.loaded, #full-res-all-btn.loaded {
@@ -815,8 +832,9 @@
                 if (window.pdfjsLib) {
                     pdfjsLib.getDocument(iframeSrc).promise.then(function(pdfDoc) {
                         const pageNum = 1;
+                        let currentScale = 1.0;
                         pdfDoc.getPage(pageNum).then(function(page) {
-                            const viewport = page.getViewport({ scale: 1.0 });
+                            const viewport = page.getViewport({ scale: currentScale });
                             const canvas = document.createElement('canvas');
                             const context = canvas.getContext('2d');
                             canvas.height = viewport.height;
@@ -827,6 +845,41 @@
                             page.render({
                                 canvasContext: context,
                                 viewport: viewport
+                            });
+                            
+                            // Aggiungi pulsanti di zoom per il PDF nella sezione dei controlli in alto
+                            const zoomControls = document.createElement('div');
+                            zoomControls.className = 'resize-group';
+                            zoomControls.innerHTML = `
+                                <button class="zoom-in-pdf-btn">Zoom In</button>
+                                <button class="zoom-out-pdf-btn">Zoom Out</button>
+                            `;
+                            actionControls.appendChild(zoomControls);
+                            
+                            // Event listener per lo zoom in
+                            const zoomInBtn = zoomControls.querySelector('.zoom-in-pdf-btn');
+                            zoomInBtn.addEventListener('click', function() {
+                                currentScale *= 1.2;
+                                const newViewport = page.getViewport({ scale: currentScale });
+                                canvas.height = newViewport.height;
+                                canvas.width = newViewport.width;
+                                page.render({
+                                    canvasContext: context,
+                                    viewport: newViewport
+                                });
+                            });
+                            
+                            // Event listener per lo zoom out
+                            const zoomOutBtn = zoomControls.querySelector('.zoom-out-pdf-btn');
+                            zoomOutBtn.addEventListener('click', function() {
+                                currentScale /= 1.2;
+                                const newViewport = page.getViewport({ scale: currentScale });
+                                canvas.height = newViewport.height;
+                                canvas.width = newViewport.width;
+                                page.render({
+                                    canvasContext: context,
+                                    viewport: newViewport
+                                });
                             });
                             
                             // Aggiungi un messaggio per pagine multiple

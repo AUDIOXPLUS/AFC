@@ -1,5 +1,16 @@
 // Dati del version log (ristrutturati per leggibilità)
 const versionLogData = [
+    // 12/06/25 - V4.2
+    { 
+        date: '12/06/25', 
+        version: 'V4.2', 
+        description: 'all file preview can now show pdf etc'
+    },
+    { 
+        date: '12/06/25', 
+        version: 'V4.2', 
+        description: 'graph viewer now is more intuitive'
+    },
     // 29/05/25 - V4.1
     { 
         date: '29/05/25', 
@@ -136,6 +147,16 @@ function createVersionLogPopup() {
     // Aggiungi stili CSS per le sottoliste e i dettagli
     const styleElement = document.createElement('style');
     styleElement.textContent = `
+        @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0.3; }
+            100% { opacity: 1; }
+        }
+        .version-text.new-version {
+            animation: blink 1.5s infinite;
+            color: #ff9900;
+            font-weight: bold;
+        }
         .version-details {
             margin-left: 0;
             margin-top: 5px;
@@ -244,8 +265,8 @@ function updateVersionText() {
         }
     }
 
-    // Get the most recent version (V4.1)
-    const currentVersion = 'V4.1';
+    // Get the most recent version (V4.2)
+    const currentVersion = 'V4.2';
     versionTextElement.textContent = `${currentVersion} - ${userName}`;
 }
 
@@ -270,6 +291,11 @@ function initializeVersionLog() {
     }
 
     updateVersionText();
+    
+    // Aggiungi classe per effetto lampeggiante
+    if (versionText) {
+        versionText.classList.add('new-version');
+    }
     
     createVersionLogPopup();
     const overlay = document.getElementById('version-overlay');
