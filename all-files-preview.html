@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>All Files Preview</title>
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; frame-src 'self'; media-src 'self';">
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -197,6 +197,8 @@
             cursor: wait;
         }
     </style>
+    <!-- Inclusione di PDF.js per visualizzare i PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
 </head>
 <body>
     <div class="global-controls">
@@ -226,7 +228,7 @@
             const urlParams = new URLSearchParams(window.location.search);
             const ids = urlParams.get('ids');
             if (ids) {
-                // Caricamento diretto delle immagini con controlli, senza iframe
+                // Caricamento diretto dei file con controlli, senza iframe
                 const previewContainer = document.getElementById('preview-container');
                 const fileIds = ids.split(',');
                 fileIds.forEach(fileId => {
@@ -236,17 +238,88 @@
                     // Header con nome file
                     const fileHeader = document.createElement('h3');
                     fileHeader.textContent = `File ID: ${fileId}`;
+                    const fileViewUrl = `/api/files/${fileId}/view`;
                     fetch(`/api/files/${fileId}`)
                         .then(resp => resp.ok ? resp.json() : null)
                         .then(data => {
                             if (data && data.filename) {
                                 fileHeader.textContent = data.filename;
+                                // Determina il tipo di file in base all'estensione del nome file
+                                const fileType = getFileType(data.filename);
+                                const fileTypeSpan = document.createElement('span');
+                                fileTypeSpan.textContent = `Tipo: ${fileType.toUpperCase()}`;
+                                fileTypeSpan.style.marginLeft = '10px';
+                                fileTypeSpan.style.fontSize = '12px';
+                                fileTypeSpan.style.color = '#666';
+                                fileHeader.appendChild(fileTypeSpan);
+                                // Gestisci il file in base al tipo
+                                if (fileType === 'image') {
+                                    handleImageFile(filePreview, fileId, fileViewUrl);
+                                } else if (fileType === 'pdf') {
+                                    handlePdfFile(filePreview, fileId, fileViewUrl);
+                                } else if (fileType === 'text') {
+                                    handleTextFile(filePreview, fileId, fileViewUrl);
+                                } else if (fileType === 'video') {
+                                    handleVideoFile(filePreview, fileId, fileViewUrl);
+                                } else if (fileType === 'audio') {
+                                    handleAudioFile(filePreview, fileId, fileViewUrl);
+                                } else {
+                                    handleGenericFile(filePreview, fileId, fileViewUrl, fileType);
+                                }
+                            } else {
+                                // Se non è possibile ottenere il nome file, prova a determinare il tipo tramite HEAD request
+                                fetch(fileViewUrl, { method: 'HEAD' })
+                                    .then(response => {
+                                        const contentType = response.headers.get('content-type');
+                                        console.log(`Tipo MIME rilevato per ${fileId}: ${contentType}`);
+                                        let fileType = 'other';
+                                        if (contentType) {
+                                            if (contentType.startsWith('image/')) {
+                                                fileType = 'image';
+                                            } else if (contentType === 'application/pdf') {
+                                                fileType = 'pdf';
+                                            } else if (contentType.startsWith('text/') || 
+                                                       contentType === 'application/json' || 
+                                                       contentType === 'application/xml') {
+                                                fileType = 'text';
+                                            } else if (contentType.startsWith('video/')) {
+                                                fileType = 'video';
+                                            } else if (contentType.startsWith('audio/')) {
+                                                fileType = 'audio';
+                                            }
+                                        }
+                                        const fileTypeSpan = document.createElement('span');
+                                        fileTypeSpan.textContent = `Tipo: ${fileType.toUpperCase()}`;
+                                        fileTypeSpan.style.marginLeft = '10px';
+                                        fileTypeSpan.style.fontSize = '12px';
+                                        fileTypeSpan.style.color = '#666';
+                                        fileHeader.appendChild(fileTypeSpan);
+                                        // Gestisci il file in base al tipo
+                                        if (fileType === 'image') {
+                                            handleImageFile(filePreview, fileId, fileViewUrl);
+                                        } else if (fileType === 'pdf') {
+                                            handlePdfFile(filePreview, fileId, fileViewUrl);
+                                        } else if (fileType === 'text') {
+                                            handleTextFile(filePreview, fileId, fileViewUrl);
+                                        } else if (fileType === 'video') {
+                                            handleVideoFile(filePreview, fileId, fileViewUrl);
+                                        } else if (fileType === 'audio') {
+                                            handleAudioFile(filePreview, fileId, fileViewUrl);
+                                        } else {
+                                            handleGenericFile(filePreview, fileId, fileViewUrl, fileType);
+                                        }
+                                    })
+                                    .catch(error => {
+                                        console.error('Errore nel rilevamento del tipo di file:', error);
+                                        handleGenericFile(filePreview, fileId, fileViewUrl, 'unknown');
+                                    });
                             }
                         })
-                        .catch(() => {});
+                        .catch(() => {
+                            // Se fallisce il recupero delle informazioni, usa un approccio generico
+                            handleGenericFile(filePreview, fileId, fileViewUrl, 'unknown');
+                        });
                     filePreview.appendChild(fileHeader);
-                    // Usa la funzione già esistente per generare anteprima e controlli
-                    handleImageFile(filePreview, fileId, `/api/files/${fileId}/view`);
                     previewContainer.appendChild(filePreview);
                 });
                 // Gestione download all
@@ -309,6 +382,8 @@
                 const pdfExtensions = ['pdf'];
                 const textExtensions = ['txt', 'md', 'csv', 'json', 'xml', 'html', 'css', 'js', 'log'];
                 const documentExtensions = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
+                const videoExtensions = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv'];
+                const audioExtensions = ['mp3', 'wav', 'ogg', 'm4a'];
                 
                 // Verifica il tipo di file in base all'estensione
                 if (imageExtensions.includes(extension)) {
@@ -323,6 +398,12 @@
                 } else if (documentExtensions.includes(extension)) {
                     console.log("Tipo rilevato: documento");
                     return 'document';
+                } else if (videoExtensions.includes(extension)) {
+                    console.log("Tipo rilevato: video");
+                    return 'video';
+                } else if (audioExtensions.includes(extension)) {
+                    console.log("Tipo rilevato: audio");
+                    return 'audio';
                 } else {
                     // Se non riusciamo a determinare il tipo di file dall'estensione,
                     // proviamo a determinarlo dal contenuto dell'URL
@@ -505,12 +586,18 @@
                 const videoPlayer = document.createElement('video');
                 videoPlayer.className = 'video-player';
                 videoPlayer.controls = true;
+                videoPlayer.preload = 'metadata';
                 videoPlayer.style.width = '100%';
                 videoPlayer.style.maxHeight = '500px';
                 videoPlayer.src = iframeSrc;
                 videoPlayer.dataset.fileName = fileId;
                 videoPlayer.dataset.fileType = 'video';
                 filePreview.appendChild(videoPlayer);
+                
+                // Aggiungi un fallback per i browser che non supportano il formato video
+                videoPlayer.onerror = function() {
+                    videoPlayer.innerHTML = '<p>Errore nella riproduzione del video. Il formato potrebbe non essere supportato. Utilizza il pulsante di download per accedere al file.</p>';
+                };
                 
                 // Aggiungi l'event listener per il download
                 const downloadBtn = filePreview.querySelector('.download-btn');
@@ -716,13 +803,46 @@
                 `;
                 filePreview.appendChild(actionControls);
                 
-                // Crea un iframe per visualizzare il PDF
-                const pdfViewer = document.createElement('iframe');
+                // Crea un contenitore per il visualizzatore PDF
+                const pdfViewer = document.createElement('div');
                 pdfViewer.className = 'pdf-viewer';
-                pdfViewer.src = iframeSrc;
                 pdfViewer.dataset.fileName = fileId;
                 pdfViewer.dataset.fileType = 'pdf';
+                pdfViewer.innerHTML = '<p>Caricamento del PDF in corso...</p>';
                 filePreview.appendChild(pdfViewer);
+                
+                // Usa PDF.js per visualizzare il PDF
+                if (window.pdfjsLib) {
+                    pdfjsLib.getDocument(iframeSrc).promise.then(function(pdfDoc) {
+                        const pageNum = 1;
+                        pdfDoc.getPage(pageNum).then(function(page) {
+                            const viewport = page.getViewport({ scale: 1.0 });
+                            const canvas = document.createElement('canvas');
+                            const context = canvas.getContext('2d');
+                            canvas.height = viewport.height;
+                            canvas.width = viewport.width;
+                            pdfViewer.innerHTML = '';
+                            pdfViewer.appendChild(canvas);
+                            
+                            page.render({
+                                canvasContext: context,
+                                viewport: viewport
+                            });
+                            
+                            // Aggiungi un messaggio per pagine multiple
+                            if (pdfDoc.numPages > 1) {
+                                const pageInfo = document.createElement('p');
+                                pageInfo.textContent = `Pagina 1 di ${pdfDoc.numPages}. Scarica il PDF per visualizzare tutte le pagine.`;
+                                pdfViewer.appendChild(pageInfo);
+                            }
+                        });
+                    }).catch(function(error) {
+                        console.error('Errore nel caricamento del PDF:', error);
+                        pdfViewer.innerHTML = '<p>Errore nel caricamento del PDF. Utilizza il pulsante di download per accedere al file.</p>';
+                    });
+                } else {
+                    pdfViewer.innerHTML = '<p>Visualizzatore PDF non disponibile. Utilizza il pulsante di download per accedere al file.</p>';
+                }
                 
                 // Aggiungi l'event listener per il download
                 const downloadBtn = filePreview.querySelector('.download-btn');

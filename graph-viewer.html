@@ -379,17 +379,40 @@
             if (chartReady) return;
             
             const canvas = document.getElementById('graph-canvas');
+            // Creo una volta sola il tooltip custom per mostrare la frequenza
+            const customTooltip = document.createElement('div');
+            customTooltip.id = 'custom-freq-tooltip';
+            customTooltip.style.position = 'fixed';
+            customTooltip.style.pointerEvents = 'none';
+            customTooltip.style.background = 'rgba(42, 58, 74, 0.95)';
+            customTooltip.style.color = '#fff';
+            customTooltip.style.padding = '4px 10px';
+            customTooltip.style.borderRadius = '4px';
+            customTooltip.style.fontSize = '13px';
+            customTooltip.style.fontFamily = 'monospace';
+            customTooltip.style.zIndex = '9999';
+            customTooltip.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+            customTooltip.style.display = 'none';
+            document.body.appendChild(customTooltip);
             canvas.addEventListener('click', handleCanvasClick);
             canvas.style.willChange = 'contents';
 
             canvas.addEventListener('mousemove', (e) => {
                 lastMouseEvent = e; // Aggiorna l'ultima posizione del mouse
+                // Aggiorna testo e posizione del tooltip persistente
+                const freq = chart.scales.x.getValueForPixel(e.offsetX);
+                customTooltip.textContent = `${freq.toFixed(1)} Hz`;
+                customTooltip.style.left = (e.clientX + 16) + 'px';
+                customTooltip.style.top = (e.clientY - 16) + 'px';
+                customTooltip.style.display = 'block';
             });
 
             // Aggiunto per pulire i valori e ripristinare l'ordine quando il mouse esce dal grafico
             canvas.addEventListener('mouseout', () => {
                 if (!chart) return;
                 lastMouseEvent = null; // Resetta l'evento del mouse
+                // Nascondi tooltip persistente
+                customTooltip.style.display = 'none';
                 const list = document.getElementById('dataset-list');
                 const items = Array.from(list.children);
                 
@@ -573,11 +596,7 @@
                     plugins: {
                         legend: { display: false },
                         tooltip: {
-                            enabled: false, // Disabilita completamente il tooltip di Chart.js
-                            position: 'mouseYPosition',
-                            external: function(context) {
-                                // Questo spazio può essere usato per un tooltip custom in futuro, se necessario.
-                            }
+                            enabled: false
                         }
                     },
                     elements: { point: { radius: 0, hoverRadius: 4 }, line: { tension: 0.1 }},
