@@ -965,14 +965,17 @@ document.addEventListener('DOMContentLoaded', function() {
         const win = document.createElement('div');
         win.className = 'floating-window';
         win.style.position = 'fixed';
-        win.style.top = Math.floor(Math.random() * 200 + 50) + 'px';
-        win.style.left = Math.floor(Math.random() * 400 + 50) + 'px';
-        win.style.width = '400px';
-        win.style.background = '#fff';
+        // Posiziona la finestra in basso a destra con un offset progressivo verso sinistra
+        const offset = document.querySelectorAll('.floating-window').length * 210;
+        win.style.bottom = '80px'; // Sposta le finestre un po' più in basso
+        win.style.right = (80 + offset) + 'px'; // Sposta le finestre un po' a destra
+        win.style.width = '200px'; // Larghezza dimezzata per default
+        win.style.background = 'rgba(42, 58, 74, 0.9)'; // Sfondo uguale a quello del dataset
         win.style.border = '2px solid #2196F3';
         win.style.borderRadius = '8px';
         win.style.boxShadow = '0 4px 16px rgba(0,0,0,0.2)';
         win.style.zIndex = 9999;
+        win.style.height = '300px'; // Imposta un'altezza fissa più alta per tutte le finestre
         win.style.minHeight = '60px';
         win.style.resize = 'both';
         win.style.overflow = 'auto';
@@ -1065,11 +1068,11 @@ document.addEventListener('DOMContentLoaded', function() {
         body.style.padding = '12px';
         body.style.overflow = 'auto';
         body.style.maxHeight = '300px';
-        body.style.background = '#f9f9f9';
+        body.style.background = 'rgba(42, 58, 74, 0.9)'; // Sfondo uguale a quello del dataset
         body.style.fontFamily = 'monospace';
         body.style.whiteSpace = 'pre-wrap';
-        body.style.color = '#222'; // testo scuro per leggibilità
-        let fontSize = 15;
+        body.style.color = '#c0d0e0'; // Testo grigio chiaro uguale a quello del dataset
+        let fontSize = 12; // Dimensione del carattere aumentata leggermente per default
         body.style.fontSize = fontSize + 'px';
         body.textContent = content;
         win.appendChild(body);
@@ -1104,14 +1107,17 @@ document.addEventListener('DOMContentLoaded', function() {
         let isDragging = false, offsetX = 0, offsetY = 0;
         header.addEventListener('mousedown', function(e) {
             isDragging = true;
-            offsetX = e.clientX - win.offsetLeft;
-            offsetY = e.clientY - win.offsetTop;
+            const rect = win.getBoundingClientRect();
+            offsetX = e.clientX - rect.left;
+            offsetY = e.clientY - rect.top;
             document.body.style.userSelect = 'none';
         });
         document.addEventListener('mousemove', function(e) {
             if (isDragging) {
                 win.style.left = (e.clientX - offsetX) + 'px';
                 win.style.top = (e.clientY - offsetY) + 'px';
+                win.style.right = 'auto';
+                win.style.bottom = 'auto';
             }
         });
         document.addEventListener('mouseup', function() {

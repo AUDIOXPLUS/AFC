@@ -12,6 +12,11 @@
     <link rel="stylesheet" href="css/pages.css">
     <link rel="stylesheet" href="mobile.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        tr.selected {
+            background-color: #ffcccb;
+        }
+    </style>
 </head>
 <body>
     <header>
@@ -286,6 +291,15 @@
 
             files.forEach(file => {
                 const row = document.createElement('tr');
+                row.dataset.fileId = file.id;
+                row.style.cursor = 'pointer';
+                
+                row.addEventListener('click', function(e) {
+                    // Evita di selezionare la riga se si clicca su un pulsante di azione
+                    if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'I') {
+                        this.classList.toggle('selected');
+                    }
+                });
                 
                 // Colonna Client
                 const clientCell = document.createElement('td');
@@ -433,6 +447,58 @@
         }
 
         function viewFile(file) {
+            // Controlla se ci sono righe selezionate
+            const selectedRows = document.querySelectorAll('#speaker-files-table tbody tr.selected');
+            if (selectedRows.length > 0) {
+                const graphWindowName = 'graphViewer';
+                let graphWindow = window.open('', graphWindowName);
+                
+                if (!graphWindow || graphWindow.closed || !graphWindow.location || !graphWindow.location.href.includes('graph-viewer.html')) {
+                    graphWindow = window.open('graph-viewer.html', graphWindowName);
+                    graphWindow.onload = () => sendSelectedFilesToGraphWindow(graphWindow);
+                } else {
+                    graphWindow.focus();
+                    sendSelectedFilesToGraphWindow(graphWindow);
+                }
+            } else {
+                // Se non ci sono righe selezionate, visualizza solo il file corrente
+                openSingleFile(file);
+            }
+        }
+
+        function sendSelectedFilesToGraphWindow(targetWindow) {
+            const selectedRows = document.querySelectorAll('#speaker-files-table tbody tr.selected');
+            selectedRows.forEach(row => {
+                const fileId = row.dataset.fileId;
+                const file = allFiles.find(f => f.id == fileId);
+                if (file && file.filename.toLowerCase().endsWith('.txt')) {
+                    try {
+                        const content = file.content || '';
+                        const { dataType, startIndex } = analyzeFileContent(content);
+                        const points = extractDataPoints(content, startIndex);
+                        
+                        if (points.length > 0) {
+                            targetWindow.postMessage({
+                                type: 'addGraph',
+                                points: points,
+                                filename: file.filename,
+                                dataType: dataType
+                            }, '*');
+                        } else if (checkForTSParameters(content)) {
+                            targetWindow.postMessage({
+                                type: 'addFloatingText',
+                                filename: file.filename,
+                                content: content
+                            }, '*');
+                        }
+                    } catch (error) {
+                        console.error(`Error processing "${file.filename}" as graph:`, error);
+                    }
+                }
+            });
+        }
+
+        function openSingleFile(file) {
             if (file.filename.toLowerCase().endsWith('.txt')) {
                 try {
                     const content = file.content || '';
