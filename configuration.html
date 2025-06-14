@@ -19,7 +19,7 @@
             <div class="logo">AFC</div>
             <ul>
                 <li><a href="projects.html" data-translate="Projects">Projects</a></li>
-                <li><a href="graph-viewer.html" target="_blank" data-translate="Speaker Database">Speaker Database</a></li>
+                <li><a href="#" onclick="openSpeakerDatabase(); return false;" data-translate="Speaker Database">Speaker Database</a></li>
                 <li><a href="users.html" data-translate="Team Members">Team Members</a></li>
                 <li><a href="tasks.html" data-translate="My Tasks">My Tasks</a></li>
                 <li><a href="configuration.html" data-translate="Configuration">Configuration</a></li>
@@ -576,6 +576,7 @@
     <script src="product-kinds.js"></script>
     <script src="translations.js"></script> <!-- Script per la tabella traduzioni -->
     <script src="i18n.js"></script> <!-- Script per la gestione delle traduzioni -->
+    <script src="menu-utils.js"></script> <!-- Aggiungi script per menu utils -->
     <script>
         // Le funzioni specifiche di questa pagina rimangono qui
         function toggleBackupSection(type) {

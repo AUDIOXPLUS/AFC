@@ -22,7 +22,7 @@
             <div class="logo">AFC</div>
             <ul>
                 <li><a href="projects.html" class="active" data-translate="Projects">Projects</a></li>
-                <li><a href="graph-viewer.html" target="_blank" data-translate="Speaker Database">Speaker Database</a></li>
+                <li><a href="#" onclick="openSpeakerDatabase(); return false;" data-translate="Speaker Database">Speaker Database</a></li>
                 <li><a href="users.html" data-translate="Team Members">Team Members</a></li>
                 <li><a href="tasks.html" data-translate="My Tasks">My Tasks</a></li>
                 <li><a href="configuration.html" data-translate="Configuration">Configuration</a></li>
@@ -189,6 +189,7 @@
     <script src="projects.js"></script>
     <script src="mobile-menu.js"></script>
     <script src="i18n.js"></script> <!-- Aggiungi script i18n -->
+    <script src="menu-utils.js"></script> <!-- Aggiungi script per menu utils -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             displayLoggedInUser();

@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-translate="Speaker Files">Speaker Files</title>
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/table.css">
+    <link rel="stylesheet" href="css/filters.css">
+    <link rel="stylesheet" href="css/modal.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/pages.css">
+    <link rel="stylesheet" href="mobile.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo">AFC</div>
+            <ul>
+                <li><a href="projects.html" data-translate="Projects">Projects</a></li>
+                <li><a href="#" onclick="openSpeakerDatabase(); return false;" class="active" data-translate="Speaker Database">Speaker Database</a></li>
+                <li><a href="users.html" data-translate="Team Members">Team Members</a></li>
+                <li><a href="tasks.html" data-translate="My Tasks">My Tasks</a></li>
+                <li><a href="configuration.html" data-translate="Configuration">Configuration</a></li>
+            </ul>
+        </nav>
+        <div class="user-info">
+            <div class="notification-bell" id="notification-bell">
+                <i class="fas fa-bell"></i>
+                <span class="notification-count" style="display: none">0</span>
+            </div>
+            <a href="#" id="logout" data-translate="Logout">Logout</a>
+        </div>
+    </header>
+
+    <main class="container">
+        <section class="speaker-files-section">
+            <h2 data-translate="Speaker Files">Speaker Files</h2>
+            <div class="filters">
+                <div class="filter-group">
+                    <input type="text" id="client-filter" placeholder="Client" data-translate-placeholder="Client">
+                    <label class="column-visibility"><input type="checkbox" data-column="0" checked></label>
+                </div>
+                <div class="filter-group">
+                    <input type="text" id="product-kind-filter" placeholder="Product Kind" data-translate-placeholder="Product Kind">
+                    <label class="column-visibility"><input type="checkbox" data-column="1" checked></label>
+                </div>
+                <div class="filter-group">
+                    <input type="text" id="brand-filter" placeholder="Brand" data-translate-placeholder="Brand">
+                    <label class="column-visibility"><input type="checkbox" data-column="2" checked></label>
+                </div>
+                <div class="filter-group">
+                    <input type="text" id="range-filter" placeholder="Range" data-translate-placeholder="Range">
+                    <label class="column-visibility"><input type="checkbox" data-column="3" checked></label>
+                </div>
+                <div class="filter-group">
+                    <input type="text" id="line-filter" placeholder="Line" data-translate-placeholder="Line">
+                    <label class="column-visibility"><input type="checkbox" data-column="4" checked></label>
+                </div>
+                <div class="filter-group">
+                    <input type="text" id="model-filter" placeholder="Model N" data-translate-placeholder="Model N">
+                    <label class="column-visibility"><input type="checkbox" data-column="5" checked></label>
+                </div>
+                <div class="filter-group">
+                    <input type="text" id="filename-filter" placeholder="File Name" data-translate-placeholder="File Name">
+                    <label class="column-visibility"><input type="checkbox" data-column="6" checked></label>
+                </div>
+                <div class="filter-group">
+                    <input type="text" id="filekind-filter" placeholder="File Kind" data-translate-placeholder="File Kind">
+                    <label class="column-visibility"><input type="checkbox" data-column="7" checked></label>
+                </div>
+                <div class="filter-group">
+                    <label class="column-visibility"><input type="checkbox" data-column="8" checked></label>
+                    <span data-translate="Actions">Actions</span>
+                </div>
+            </div>
+            <div class="table-wrapper">
+                <table id="speaker-files-table" class="data-table">
+                    <thead>
+                        <tr>
+                            <th data-translate="Client">Client</th>
+                            <th data-translate="Product Kind">Product Kind</th>
+                            <th data-translate="Brand">Brand</th>
+                            <th data-translate="Range">Range</th>
+                            <th data-translate="Line">Line</th>
+                            <th data-translate="Model N">Model N</th>
+                            <th data-translate="File Name">File Name</th>
+                            <th data-translate="File Kind">File Kind</th>
+                            <th data-translate="Actions">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- I file verranno inseriti qui dinamicamente -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script src="version-log.js"></script>
+    <script src="auth.js"></script>
+    <script src="users.js"></script> <!-- Aggiunto users.js per displayLoggedInUser -->
+    <script src="i18n.js"></script>
+    <script src="menu-utils.js"></script>
+    <script>
+        let allFiles = []; // Array globale per memorizzare tutti i file
+        
+        document.addEventListener('DOMContentLoaded', async function() {
+            displayLoggedInUser();
+            initializeNotifications();
+            await loadSpeakerFiles();
+            initializeFilters();
+            applyDefaultSorting();
+            adjustColumnWidths();
+        });
+
+        async function loadSpeakerFiles() {
+            try {
+                const response = await fetch('/api/files/speaker-files');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const files = await response.json();
+                
+                // Carica il contenuto dei file per poterli filtrare
+                const filesWithContent = await Promise.all(files.map(async (file) => {
+                    try {
+                        const contentResponse = await fetch(`/api/files/${file.id}/content`);
+                        if (contentResponse.ok) {
+                            const content = await contentResponse.text();
+                            return { ...file, content: content };
+                        }
+                    } catch (err) {
+                        console.warn(`Impossibile caricare il contenuto del file ${file.filename}:`, err);
+                    }
+                    return { ...file, content: '' };
+                }));
+                
+                // Filtra solo i file con parametri TS, risposte in frequenza e impedenza
+                const filteredFiles = filesWithContent.filter(file => {
+                    if (!file.content) return false;
+                    
+                    // Verifica se contiene parametri TS
+                    const hasTS = checkForTSParameters(file.content);
+                    if (hasTS) return true;
+                    
+                    // Verifica se contiene dati di risposta in frequenza o impedenza
+                    const { dataType } = analyzeFileContent(file.content);
+                    return dataType === 'db' || dataType === 'ohm';
+                });
+                
+                allFiles = filteredFiles; // Memorizza solo i file filtrati
+                displayFiles(filteredFiles);
+                
+                console.log(`Caricati ${filteredFiles.length} file rilevanti su ${files.length} totali`);
+            } catch (error) {
+                console.error('Errore nel caricamento dei file speaker:', error);
+                alert('Errore nel caricamento dei file. Riprova più tardi.');
+            }
+        }
+        async function loadSpeakerFiles() {
+            try {
+                const response = await fetch('/api/files/speaker-files');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const files = await response.json();
+                
+                // Carica il contenuto dei file per poterli filtrare
+                const filesWithContent = await Promise.all(files.map(async (file) => {
+                    try {
+                        const contentResponse = await fetch(`/api/files/${file.id}/content`);
+                        if (contentResponse.ok) {
+                            const content = await contentResponse.text();
+                            return { ...file, content: content };
+                        }
+                    } catch (err) {
+                        console.warn(`Impossibile caricare il contenuto del file ${file.filename}:`, err);
+                    }
+                    return { ...file, content: '' };
+                }));
+                
+                // Filtra solo i file con parametri TS, risposte in frequenza e impedenza
+                const filteredFiles = filesWithContent.filter(file => {
+                    if (!file.content) return false;
+                    
+                    // Verifica se contiene parametri TS
+                    const hasTS = checkForTSParameters(file.content);
+                    if (hasTS) return true;
+                    
+                    // Verifica se contiene dati di risposta in frequenza o impedenza
+                    const { dataType } = analyzeFileContent(file.content);
+                    return dataType === 'db' || dataType === 'ohm';
+                });
+                
+                allFiles = filteredFiles; // Memorizza solo i file filtrati
+                displayFiles(filteredFiles);
+                
+                console.log(`Caricati ${filteredFiles.length} file rilevanti su ${files.length} totali`);
+            } catch (error) {
+                console.error('Errore nel caricamento dei file speaker:', error);
+                alert('Errore nel caricamento dei file. Riprova più tardi.');
+            }
+        }
+
+        function initializeFilters() {
+            // Aggiungi event listener per i filtri di testo
+            const textFilters = [
+                'client-filter', 'product-kind-filter', 'brand-filter', 
+                'range-filter', 'line-filter', 'model-filter', 
+                'filename-filter', 'filekind-filter'
+            ];
+            
+            textFilters.forEach(filterId => {
+                const filterElement = document.getElementById(filterId);
+                if (filterElement) {
+                    filterElement.addEventListener('input', applyFilters);
+                }
+            });
+
+            // Aggiungi event listener per le checkbox di visibilità colonne
+            const columnCheckboxes = document.querySelectorAll('.column-visibility input[type="checkbox"]');
+            columnCheckboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', toggleColumnVisibility);
+            });
+
+            // Aggiungi event listener per il raggruppamento tramite click sull'intestazione della colonna
+            enableColumnSorting();
+        }
+
+        function applyFilters() {
+            const filters = {
+                client: document.getElementById('client-filter')?.value.toLowerCase() || '',
+                productKind: document.getElementById('product-kind-filter')?.value.toLowerCase() || '',
+                brand: document.getElementById('brand-filter')?.value.toLowerCase() || '',
+                range: document.getElementById('range-filter')?.value.toLowerCase() || '',
+                line: document.getElementById('line-filter')?.value.toLowerCase() || '',
+                model: document.getElementById('model-filter')?.value.toLowerCase() || '',
+                filename: document.getElementById('filename-filter')?.value.toLowerCase() || '',
+                filekind: document.getElementById('filekind-filter')?.value.toLowerCase() || ''
+            };
+
+            const filteredFiles = allFiles.filter(file => {
+                return (
+                    (!filters.client || (file.client || '').toLowerCase().includes(filters.client)) &&
+                    (!filters.productKind || (file.productKind || '').toLowerCase().includes(filters.productKind)) &&
+                    (!filters.brand || (file.brand || '').toLowerCase().includes(filters.brand)) &&
+                    (!filters.range || (file.range || '').toLowerCase().includes(filters.range)) &&
+                    (!filters.line || (file.line || '').toLowerCase().includes(filters.line)) &&
+                    (!filters.model || (file.modelNumber || '').toLowerCase().includes(filters.model)) &&
+                    (!filters.filename || (file.filename || '').toLowerCase().includes(filters.filename)) &&
+                    (!filters.filekind || determineFileType(file.filename, file.content).toLowerCase().includes(filters.filekind))
+                );
+            });
+
+            displayFiles(filteredFiles);
+            applyLastSorting(); // Applica l'ultimo ordinamento salvato dopo il filtraggio
+        }
+
+        function toggleColumnVisibility() {
+            const table = document.getElementById('speaker-files-table');
+            const columnCheckboxes = document.querySelectorAll('.column-visibility input[type="checkbox"]');
+            
+            columnCheckboxes.forEach(checkbox => {
+                const columnIndex = parseInt(checkbox.getAttribute('data-column'));
+                const isVisible = checkbox.checked;
+                
+                // Nascondi/mostra header
+                const headerCell = table.querySelector(`thead tr th:nth-child(${columnIndex + 1})`);
+                if (headerCell) {
+                    headerCell.style.display = isVisible ? '' : 'none';
+                }
+                
+                // Nascondi/mostra celle delle righe
+                const bodyCells = table.querySelectorAll(`tbody tr td:nth-child(${columnIndex + 1})`);
+                bodyCells.forEach(cell => {
+                    cell.style.display = isVisible ? '' : 'none';
+                });
+            });
+        }
+
+        function displayFiles(files) {
+            const tbody = document.querySelector('#speaker-files-table tbody');
+            tbody.innerHTML = '';
+
+            files.forEach(file => {
+                const row = document.createElement('tr');
+                
+                // Colonna Client
+                const clientCell = document.createElement('td');
+                clientCell.textContent = file.client || '-';
+                row.appendChild(clientCell);
+                
+                // Colonna Product Kind
+                const productKindCell = document.createElement('td');
+                productKindCell.textContent = file.productKind || '-';
+                row.appendChild(productKindCell);
+                
+                // Colonna Brand
+                const brandCell = document.createElement('td');
+                brandCell.textContent = file.brand || '-';
+                row.appendChild(brandCell);
+                
+                // Colonna Range
+                const rangeCell = document.createElement('td');
+                rangeCell.textContent = file.range || '-';
+                row.appendChild(rangeCell);
+                
+                // Colonna Line
+                const lineCell = document.createElement('td');
+                lineCell.textContent = file.line || '-';
+                row.appendChild(lineCell);
+                
+                // Colonna Model N
+                const modelCell = document.createElement('td');
+                modelCell.textContent = file.modelNumber || '-';
+                row.appendChild(modelCell);
+                
+                // Colonna File Name
+                const nameCell = document.createElement('td');
+                nameCell.textContent = file.filename;
+                row.appendChild(nameCell);
+                
+                // Colonna File Kind
+                const fileKindCell = document.createElement('td');
+                fileKindCell.textContent = determineFileType(file.filename, file.content);
+                row.appendChild(fileKindCell);
+                
+                // Colonna Actions
+                const actionsCell = document.createElement('td');
+                const viewButton = document.createElement('button');
+                viewButton.innerHTML = '<i class="fas fa-eye"></i>';
+                viewButton.title = 'View';
+                viewButton.addEventListener('click', () => viewFile(file));
+                actionsCell.appendChild(viewButton);
+                
+                const downloadButton = document.createElement('button');
+                downloadButton.innerHTML = '<i class="fas fa-download"></i>';
+                downloadButton.title = 'Download';
+                downloadButton.addEventListener('click', () => downloadFile(file.id));
+                actionsCell.appendChild(downloadButton);
+                
+                row.appendChild(actionsCell);
+                tbody.appendChild(row);
+            });
+        }
+
+        function determineFileType(filename, content) {
+            if (filename.toLowerCase().endsWith('.txt') && content) {
+                // Verifica se contiene parametri TS
+                if (checkForTSParameters(content)) {
+                    return 'TS Parameters';
+                }
+                
+                // Verifica se contiene dati di risposta in frequenza o impedenza
+                const { dataType } = analyzeFileContent(content);
+                if (dataType === 'db') {
+                    return 'Frequency Response';
+                } else if (dataType === 'ohm') {
+                    return 'Impedance';
+                }
+            }
+            return 'Other';
+        }
+
+        function checkForTSParameters(content) {
+            const keywords = ["Fs", "Re", "Sd", "Qms", "Qes", "Qts", "Cms", "Mms", "Rms", "Bl", "dBspl", "VAS", "Zmin", "L1kHz", "L10kHz"];
+            let count = 0;
+            keywords.forEach(kw => {
+                if (content.toLowerCase().includes(kw.toLowerCase())) {
+                    count++;
+                }
+            });
+            return count >= 3;
+        }
+
+        function analyzeFileContent(content) {
+            const lines = content.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+            let dataType = 'unknown';
+            let startIndex = 0;
+
+            for (let i = 0; i < Math.min(5, lines.length); i++) {
+                const lineForCheck = lines[i].toLowerCase();
+                if (lineForCheck.includes('db')) {
+                    dataType = 'db';
+                } else if (lineForCheck.includes('ohm') || lineForCheck.includes('impedance')) {
+                    dataType = 'ohm';
+                }
+
+                if (lineForCheck.includes('[') || lineForCheck.includes(']') || 
+                    lineForCheck.includes('freq') || 
+                    lineForCheck.includes('phase') || 
+                    lineForCheck.includes('hz') ||
+                    dataType !== 'unknown' ||
+                    /^[a-zA-Z]/.test(lines[i])) {
+                    startIndex = i + 1;
+                } else {
+                    const parts = lines[i].split(/[\s,;\t]+/).filter(p => p.length > 0);
+                    const numericParts = parts.filter(p => !isNaN(parseFloat(p)) && isFinite(parseFloat(p)));
+                    if (numericParts.length >= 2 && numericParts.length === parts.length) {
+                        if (startIndex <= i) {
+                            startIndex = i;
+                        }
+                        break;
+                    } else {
+                        startIndex = i + 1;
+                    }
+                }
+            }
+            return { dataType, startIndex };
+        }
+
+        function extractDataPoints(content, startIndex) {
+            const lines = content.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+            const points = [];
+            
+            for (let i = startIndex; i < lines.length; i++) {
+                const line = lines[i];
+                if (!line || line.startsWith('#') || line.startsWith('//')) {
+                    continue;
+                }
+                const parts = line.split(/[\s,;\t]+/).filter(p => p.length > 0);
+                if (parts.length >= 2) {
+                    const x = parseFloat(parts[0]);
+                    const y = parseFloat(parts[1]);
+                    if (!isNaN(x) && isFinite(x) && !isNaN(y) && isFinite(y)) {
+                        points.push({ x, y });
+                    }
+                }
+            }
+            return points;
+        }
+
+        function viewFile(file) {
+            if (file.filename.toLowerCase().endsWith('.txt')) {
+                try {
+                    const content = file.content || '';
+                    const { dataType, startIndex } = analyzeFileContent(content);
+                    const points = extractDataPoints(content, startIndex);
+                    
+                    if (points.length > 0) {
+                        const graphWindowName = 'graphViewer';
+                        let graphWindow = window.open('', graphWindowName);
+                        const sendDataToGraphWindow = (targetWindow) => {
+                            targetWindow.postMessage({
+                                type: 'addGraph',
+                                points: points,
+                                filename: file.filename,
+                                dataType: dataType
+                            }, '*');
+                        };
+                        if (!graphWindow || graphWindow.closed || !graphWindow.location || !graphWindow.location.href.includes('graph-viewer.html')) {
+                            graphWindow = window.open('graph-viewer.html', graphWindowName);
+                            graphWindow.onload = () => sendDataToGraphWindow(graphWindow);
+                        } else {
+                            graphWindow.focus();
+                            sendDataToGraphWindow(graphWindow);
+                        }
+                    } else if (checkForTSParameters(content)) {
+                        const graphWindowName = 'graphViewer';
+                        let graphWindow = window.open('', graphWindowName);
+                        const sendFloatingToGraphWindow = (targetWindow) => {
+                            targetWindow.postMessage({
+                                type: 'addFloatingText',
+                                filename: file.filename,
+                                content: content
+                            }, '*');
+                        };
+                        if (!graphWindow || graphWindow.closed || !graphWindow.location || !graphWindow.location.href.includes('graph-viewer.html')) {
+                            graphWindow = window.open('graph-viewer.html', graphWindowName);
+                            graphWindow.onload = () => sendFloatingToGraphWindow(graphWindow);
+                        } else {
+                            graphWindow.focus();
+                            sendFloatingToGraphWindow(graphWindow);
+                        }
+                    } else {
+                        window.open(`/api/files/${file.id}/view`, '_blank');
+                    }
+                } catch (error) {
+                    console.error(`Error opening "${file.filename}" as graph:`, error);
+                    window.open(`/api/files/${file.id}/view`, '_blank');
+                }
+            } else {
+                window.open(`/api/files/${file.id}/view`, '_blank');
+            }
+        }
+
+        function downloadFile(fileId) {
+            window.location.href = `/api/files/${fileId}/download`;
+        }
+
+        // Funzione per abilitare l'ordinamento e il raggruppamento delle colonne
+        function enableColumnSorting() {
+            const table = document.getElementById('speaker-files-table');
+            const headers = table.getElementsByTagName('th');
+            let sortDirection = Array(headers.length).fill(true); // true per ascendente, false per discendente
+
+            // Carica l'ultimo stato di ordinamento dal localStorage
+            const lastSorting = JSON.parse(localStorage.getItem('lastSpeakerFilesSorting'));
+            if (lastSorting) {
+                sortDirection[lastSorting.columnIndex] = lastSorting.direction;
+            }
+
+            for (let i = 0; i < headers.length - 1; i++) { // Esclude l'ultima colonna (Actions)
+                headers[i].addEventListener('click', function() {
+                    const columnIndex = i;
+                    const rows = Array.from(table.getElementsByTagName('tbody')[0].rows);
+                    const isAscending = sortDirection[columnIndex];
+
+                    // Salva l'ultimo ordinamento nel localStorage
+                    localStorage.setItem('lastSpeakerFilesSorting', JSON.stringify({
+                        columnIndex: columnIndex,
+                        direction: !isAscending // Salva la prossima direzione
+                    }));
+
+                    // Rimuovi le classi di ordinamento da tutte le righe
+                    rows.forEach(row => {
+                        row.classList.remove('sorted-asc-1', 'sorted-asc-2', 'sorted-desc-1', 'sorted-desc-2');
+                    });
+
+                    // Rimuovi la classe sorted da tutti gli header
+                    Array.from(headers).forEach(header => header.classList.remove('sorted'));
+                    // Aggiungi la classe sorted all'header corrente
+                    headers[columnIndex].classList.add('sorted');
+
+                    rows.sort((a, b) => {
+                        const aText = a.cells[columnIndex].textContent.trim();
+                        const bText = b.cells[columnIndex].textContent.trim();
+                        return isAscending ? aText.localeCompare(bText) : bText.localeCompare(aText);
+                    });
+
+                    // Raggruppa le righe con lo stesso valore
+                    let currentValue = '';
+                    let colorGroup = 1;
+
+                    rows.forEach(row => {
+                        const cellValue = row.cells[columnIndex].textContent.trim();
+                        if (cellValue !== currentValue) {
+                            currentValue = cellValue;
+                            colorGroup = colorGroup === 1 ? 2 : 1;
+                        }
+                        row.classList.add(isAscending ? `sorted-asc-${colorGroup}` : `sorted-desc-${colorGroup}`);
+                    });
+
+                    sortDirection[columnIndex] = !isAscending; // Cambia direzione di ordinamento
+                    rows.forEach(row => table.getElementsByTagName('tbody')[0].appendChild(row)); // Riordina le righe
+                });
+            }
+        }
+
+        // Funzione per applicare l'ultimo ordinamento salvato
+        function applyLastSorting() {
+            const table = document.getElementById('speaker-files-table');
+            const lastSorting = JSON.parse(localStorage.getItem('lastSpeakerFilesSorting'));
+            if (lastSorting) {
+                const headers = table.getElementsByTagName('th');
+                if (headers[lastSorting.columnIndex]) {
+                    // Se la direzione salvata è false (discendente), clicca due volte per ottenere l'ordine discendente
+                    headers[lastSorting.columnIndex].click();
+                    if (!lastSorting.direction) {
+                        headers[lastSorting.columnIndex].click();
+                    }
+                }
+            }
+        }
+
+        // Funzione per applicare l'ordinamento predefinito a Model N
+        function applyDefaultSorting() {
+            const table = document.getElementById('speaker-files-table');
+            const lastSorting = JSON.parse(localStorage.getItem('lastSpeakerFilesSorting'));
+            // Se non c'è un ordinamento salvato, imposta Model N come predefinito
+            if (!lastSorting) {
+                const modelNHeader = table.querySelector('th:nth-child(6)');
+                if (modelNHeader) {
+                    modelNHeader.click();
+                    // Salva l'ordinamento predefinito nel localStorage
+                    localStorage.setItem('lastSpeakerFilesSorting', JSON.stringify({
+                        columnIndex: 5,
+                        direction: true
+                    }));
+                }
+            } else {
+                applyLastSorting();
+            }
+        }
+
+        // Funzione per adattare la larghezza delle colonne al contenuto
+        function adjustColumnWidths() {
+            const table = document.getElementById('speaker-files-table');
+            const rows = table.rows;
+            if (rows.length === 0) return;
+
+            // Itera su tutte le colonne
+            for (let col = 0; col < table.rows[0].cells.length; col++) {
+                let maxWidth = 0;
+                // Itera su tutte le righe per trovare la larghezza massima del contenuto
+                for (let row = 0; row < rows.length; row++) {
+                    const cell = rows[row].cells[col];
+                    if (cell) {
+                        const cellText = cell.textContent;
+                        const tempSpan = document.createElement('span');
+                        tempSpan.style.visibility = 'hidden';
+                        tempSpan.style.whiteSpace = 'nowrap';
+                        tempSpan.style.font = window.getComputedStyle(cell).font;
+                        tempSpan.textContent = cellText;
+                        document.body.appendChild(tempSpan);
+                        const width = tempSpan.offsetWidth;
+                        document.body.removeChild(tempSpan);
+                        maxWidth = Math.max(maxWidth, width);
+                    }
+                }
+                // Imposta la larghezza della colonna con un piccolo margine
+                const headerCell = table.querySelector(`thead tr th:nth-child(${col + 1})`);
+                if (headerCell) {
+                    headerCell.style.width = `${maxWidth + 20}px`; // Aggiungi un margine di 20px
+                }
+                // Applica la larghezza anche alle celle del corpo
+                const bodyCells = table.querySelectorAll(`tbody tr td:nth-child(${col + 1})`);
+                bodyCells.forEach(cell => {
+                    cell.style.width = `${maxWidth + 20}px`;
+                });
+            }
+        }
+    </script>
+</body>
+</html>

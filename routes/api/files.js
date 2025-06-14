@@ -53,6 +53,223 @@ const upload = multer({
     }
 });
 
+// Endpoint per ottenere tutti i file .txt dei progetti autorizzati per la pagina Speaker Files
+router.get('/speaker-files', checkAuthentication, async (req, res) => {
+    console.log('========== RICHIESTA SPEAKER FILES ==========');
+    
+    try {
+        // Prima otteniamo l'elenco degli ID dei progetti visibili replicando la logica dell'API projects
+        const projectsResponse = await new Promise((resolve, reject) => {
+            // Ottieni i permessi CRUD per replicare la logica projects
+            const permissionsQuery = `
+                SELECT c.properties, uc.properties as user_properties
+                FROM crud c
+                LEFT JOIN user_crud uc ON uc.crud_id = c.id AND uc.user_id = ?
+                WHERE c.page = 'Projects' 
+                AND c.action = 'Read'
+            `;
+            
+            req.db.get(permissionsQuery, [req.session.user.id], async (err, user) => {
+                if (err || !user || !user.user_properties) {
+                    return reject(new Error('Permessi non validi'));
+                }
+
+                let permissions;
+                try {
+                    permissions = JSON.parse(user.user_properties);
+                    if (!permissions.enabled) {
+                        return reject(new Error('Permessi non abilitati'));
+                    }
+                } catch (error) {
+                    return reject(new Error('Errore nel parsing dei permessi'));
+                }
+
+                // Costruisci la query per i progetti visibili (stessa logica di projects.js)
+                let projectQuery = `
+                    SELECT p.id
+                    FROM projects p
+                    LEFT JOIN (
+                        SELECT ph1.*
+                        FROM project_history ph1
+                        LEFT JOIN project_history ph2 ON ph1.project_id = ph2.project_id AND 
+                                                       (ph1.date < ph2.date OR (ph1.date = ph2.date AND ph1.id < ph2.id))
+                        WHERE ph2.id IS NULL
+                    ) latest_history ON p.id = latest_history.project_id
+                    WHERE p.archived = 0
+                    AND NOT EXISTS (
+                        SELECT 1 FROM project_history ph 
+                        WHERE ph.project_id = p.id 
+                        AND ph.status = 'On Hold'
+                        AND NOT EXISTS (
+                            SELECT 1 FROM project_history ph2
+                            WHERE ph2.project_id = p.id
+                            AND ph2.date > ph.date
+                        )
+                    )
+                `;
+
+                const projectQueryParams = [];
+                const level = permissions.level || permissions.scope;
+
+                // Applica filtri di permesso
+                switch (level) {
+                    case 'own':
+                        projectQuery += ` AND EXISTS (
+                            SELECT 1 FROM project_history ph
+                            WHERE ph.project_id = p.id
+                            AND ph.assigned_to = ?
+                        )`;
+                        projectQueryParams.push(req.session.user.name);
+                        break;
+                    case 'own-factory':
+                        projectQuery += ` AND p.factory = (
+                            SELECT factory FROM users WHERE id = ?
+                        )`;
+                        projectQueryParams.push(req.session.user.id);
+                        break;
+                    case 'all-factories':
+                        projectQuery += ` AND p.factory IS NOT NULL`;
+                        break;
+                    case 'own-client':
+                        projectQuery += ` AND p.client = (
+                            SELECT client_company_name FROM users WHERE id = ?
+                        )`;
+                        projectQueryParams.push(req.session.user.id);
+                        break;
+                    case 'all-clients':
+                        projectQuery += ` AND p.client IS NOT NULL`;
+                        break;
+                    case 'user-projects':
+                        const userPermsQuery = `
+                            SELECT uc.properties
+                            FROM crud c
+                            JOIN user_crud uc ON c.id = uc.crud_id
+                            WHERE c.page = 'Users'
+                            AND c.action = 'Read'
+                            AND uc.user_id = ?
+                            AND uc.properties IS NOT NULL
+                        `;
+                        
+                        const userPerms = await new Promise((resolve, reject) => {
+                            req.db.get(userPermsQuery, [req.session.user.id], (err, row) => {
+                                if (err) reject(err);
+                                else resolve(row);
+                            });
+                        });
+
+                        if (userPerms && userPerms.properties) {
+                            try {
+                                const userProps = JSON.parse(userPerms.properties);
+                                if (Array.isArray(userProps.userIds) && userProps.userIds.length > 0) {
+                                    projectQuery += ` AND EXISTS (
+                                        SELECT 1 FROM project_history ph
+                                        JOIN users u ON ph.assigned_to = u.name
+                                        WHERE ph.project_id = p.id
+                                        AND u.id IN (${userProps.userIds.map(() => '?').join(',')})
+                                    )`;
+                                    projectQueryParams.push(...userProps.userIds);
+                                } else {
+                                    return reject(new Error('Nessun utente specifico definito nei permessi'));
+                                }
+                            } catch (e) {
+                                return reject(new Error('Errore nel parsing delle properties degli utenti'));
+                            }
+                        } else {
+                            return reject(new Error('Nessun utente specifico definito nei permessi'));
+                        }
+                        break;
+                    case 'all':
+                        // Nessun filtro aggiuntivo
+                        break;
+                    default:
+                        return reject(new Error('Scope non valido'));
+                }
+
+                console.log('Query progetti visibili:', projectQuery);
+                console.log('Parametri progetti:', projectQueryParams);
+
+                // Esegui la query per ottenere gli ID dei progetti visibili
+                req.db.all(projectQuery, projectQueryParams, (err, projects) => {
+                    if (err) {
+                        return reject(err);
+                    }
+                    resolve(projects.map(p => p.id));
+                });
+            });
+        });
+
+        console.log(`Progetti visibili all'utente: ${projectsResponse.length}`);
+        
+        if (projectsResponse.length === 0) {
+            return res.json([]); // Nessun progetto visibile = nessun file
+        }
+
+        // Ora recupera i file .txt solo per i progetti visibili
+        const projectIds = projectsResponse;
+        const placeholders = projectIds.map(() => '?').join(',');
+
+        const filesQuery = `
+            SELECT pf.*, 
+                   p.client,
+                   p.productKind,
+                   p.brand,
+                   p.range,
+                   p.line,
+                   p.modelNumber,
+                   CASE 
+                       WHEN p.client IS NOT NULL AND p.modelNumber IS NOT NULL 
+                       THEN p.client || ' - ' || p.modelNumber
+                       WHEN p.client IS NOT NULL 
+                       Then p.client
+                       ELSE 'Progetto senza nome'
+                   END as project_name,
+                   CASE 
+                       WHEN p.brand IS NOT NULL OR p.range IS NOT NULL OR p.line IS NOT NULL OR p.productKind IS NOT NULL OR p.status IS NOT NULL
+                       THEN 
+                           COALESCE(p.brand, '') ||
+                           CASE WHEN p.brand IS NOT NULL AND (p.range IS NOT NULL OR p.line IS NOT NULL OR p.productKind IS NOT NULL OR p.status IS NOT NULL) THEN ' | ' ELSE '' END ||
+                           COALESCE(p.range, '') ||
+                           CASE WHEN p.range IS NOT NULL AND (p.line IS NOT NULL OR p.productKind IS NOT NULL OR p.status IS NOT NULL) THEN ' | ' ELSE '' END ||
+                           COALESCE(p.line, '') ||
+                           CASE WHEN p.line IS NOT NULL AND (p.productKind IS NOT NULL OR p.status IS NOT NULL) THEN ' | ' ELSE '' END ||
+                           COALESCE(p.productKind, '') ||
+                           CASE WHEN p.productKind IS NOT NULL AND p.status IS NOT NULL THEN ' | ' ELSE '' END ||
+                           COALESCE(p.status, '')
+                       ELSE 'Nessuna descrizione disponibile'
+                   END as project_description
+            FROM project_files pf
+            LEFT JOIN projects p ON pf.project_id = p.id
+            WHERE pf.filename LIKE '%.txt'
+            AND pf.project_id IN (${placeholders})
+            ORDER BY pf.upload_date DESC
+        `;
+
+        console.log('Query file per progetti autorizzati:', filesQuery);
+        console.log('ID progetti autorizzati:', projectIds);
+
+        req.db.all(filesQuery, projectIds, (err, files) => {
+            if (err) {
+                console.error('Error fetching speaker files:', err);
+                return res.status(500).json({ error: 'Failed to fetch speaker files' });
+            }
+            
+            console.log(`Trovati ${files.length} file .txt nei progetti autorizzati`);
+            
+            // Restituiamo i file con contenuto vuoto per ora
+            const filesWithEmptyContent = files.map(file => ({
+                ...file,
+                content: '' // Contenuto vuoto per ora
+            }));
+            
+            res.json(filesWithEmptyContent);
+        });
+
+    } catch (error) {
+        console.error('Errore generale nel recupero speaker files:', error);
+        res.status(500).json({ error: 'Errore del server' });
+    }
+});
+
 // Endpoint per visualizzare un file
 // Endpoint per ottenere le informazioni di un file
 router.get('/:fileId', checkAuthentication, (req, res) => {
@@ -442,6 +659,23 @@ router.get('/:fileId/content', checkAuthentication, (req, res) => {
         return res.status(404).json({ error: 'File not found on disk' });
     });
 });
+
+// Funzione helper per leggere il contenuto dei file per speaker files
+function readFileContentForSpeaker(filePath, fileRecord, filesArray, callback) {
+    fs.readFile(filePath, 'utf8', (err, content) => {
+        if (err) {
+            console.error(`Error reading file content for ${fileRecord.filename}:`, err);
+            content = ''; // Se non riusciamo a leggere, mettiamo stringa vuota
+        }
+        
+        filesArray.push({
+            ...fileRecord,
+            content: content || ''
+        });
+        
+        callback();
+    });
+}
 
 // Funzione helper per leggere e inviare il contenuto del file
 function readAndSendFileContent(filePath, res) {
