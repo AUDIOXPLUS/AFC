@@ -205,10 +205,27 @@
             <h2 data-translate="Select Projects to Clone/Merge">Select Projects to Clone/Merge</h2>
             <div class="modal-filters">
                 <input type="text" id="modal-client-filter" placeholder="Filter by Client..." data-translate-placeholder="Filter by Client..." class="modal-filter-input">
+                <input type="text" id="modal-product-kind-filter" placeholder="Filter by Product Kind..." data-translate-placeholder="Filter by Product Kind..." class="modal-filter-input">
+                <input type="text" id="modal-factory-filter" placeholder="Filter by Factory..." data-translate-placeholder="Filter by Factory..." class="modal-filter-input">
+                <input type="text" id="modal-brand-filter" placeholder="Filter by Brand..." data-translate-placeholder="Filter by Brand..." class="modal-filter-input">
                 <input type="text" id="modal-model-filter" placeholder="Filter by Model..." data-translate-placeholder="Filter by Model..." class="modal-filter-input">
             </div>
-            <div id="modal-project-list" class="project-list-container">
-                <!-- L'elenco dei progetti verrà caricato qui dinamicamente -->
+            <div class="table-wrapper modal-table-wrapper">
+                <table id="modal-project-table" class="modal-table">
+                    <thead>
+                        <tr>
+                            <th data-translate="Select">Select</th>
+                            <th data-translate="Client">Client</th>
+                            <th data-translate="Product kind">Product kind</th>
+                            <th data-translate="Factory">Factory</th>
+                            <th data-translate="Brand">Brand</th>
+                            <th data-translate="Model number">Model number</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modal-project-list">
+                        <!-- L'elenco dei progetti verrà caricato qui dinamicamente -->
+                    </tbody>
+                </table>
             </div>
             <div class="modal-actions">
                 <button id="confirm-clone-merge-btn" class="action-btn" data-translate="Confirm">Confirm</button>
@@ -216,5 +233,6 @@
             </div>
         </div>
     </div>
+>>>>>>> REPLACE
 </body>
 </html>

@@ -212,17 +212,20 @@
 /* Stili per i filtri nella modale */
 .modal-filters {
     display: flex;
+    flex-wrap: wrap; /* Permette ai filtri di andare a capo se non c'è spazio */
     gap: 10px; /* Spazio tra i filtri */
     margin-bottom: 15px;
+    overflow: hidden; /* Impedisce ai filtri di uscire dalla finestra */
 }
 
 .modal-filter-input {
-    flex: 1; /* Occupa lo spazio disponibile equamente */
-    padding: 10px;
-    /* margin-bottom: 15px; */ /* Rimosso perché ora c'è il gap nel contenitore */
+    flex: 1 1 calc(30% - 10px); /* Ogni filtro occupa circa un terzo della larghezza, con margine */
+    min-width: 150px; /* Larghezza minima per garantire leggibilità */
+    padding: 8px;
     border: 1px solid #ddd;
     border-radius: 4px;
-    font-size: 1em;
+    font-size: 0.9em;
+    box-sizing: border-box; /* Include padding e bordi nella larghezza */
 }
 
 /* Stili per la finestra modale generica */
@@ -240,13 +243,16 @@
 
 .modal-content {
     background-color: #fefefe;
-    margin: 10% auto; /* Centrato verticalmente e orizzontalmente */
+    margin: 10% auto; /* Margine superiore aumentato per spostare la finestra più in basso */
     padding: 20px;
     border: 1px solid #888;
-    width: 60%; /* Larghezza della modale */
-    max-width: 800px;
+    width: 80%; /* Aumentata larghezza per adattarsi ai contenuti */
+    max-width: 1000px; /* Larghezza massima aumentata */
+    max-height: 80vh; /* Limita l'altezza massima al 80% della viewport */
+    overflow-y: auto; /* Abilita lo scroll verticale se il contenuto è troppo lungo */
     border-radius: 8px;
     position: relative;
+    box-sizing: border-box; /* Include padding e bordi nella dimensione */
 }
 
 .close-btn {
@@ -272,13 +278,40 @@
     padding-bottom: 10px;
 }
 
-.project-list-container {
-    max-height: 400px; /* Altezza massima, abilita scroll interno */
-    overflow-y: auto;
+.modal-table-wrapper {
+    max-height: 40vh; /* Altezza massima proporzionale alla viewport */
+    overflow-y: auto; /* Abilita scroll interno */
     margin-bottom: 20px;
     border: 1px solid #ddd;
-    padding: 10px;
     background-color: #f9f9f9;
+    width: 100%; /* Assicura che la tabella occupi tutta la larghezza disponibile */
+    box-sizing: border-box;
+}
+
+.modal-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.modal-table th, .modal-table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+    white-space: normal; /* Permette il wrapping del testo per adattarsi al contenuto */
+    width: auto; /* Larghezza automatica in base al contenuto */
+}
+
+.modal-table th:first-child, .modal-table td:first-child {
+    width: 50px; /* Riduce la larghezza della colonna 'Select' */
+}
+
+.modal-table th:nth-child(5), .modal-table td:nth-child(5) {
+    width: 200px; /* Aumenta la larghezza della colonna 'Model Number' */
+}
+
+.modal-table th {
+    background-color: #f2f2f2;
+    font-weight: bold;
 }
 
 .project-list-container label {
@@ -310,6 +343,12 @@
     border-radius: 5px;
     cursor: pointer;
     font-size: 1em;
+    width: 120px; /* Imposta una larghezza fissa per garantire dimensioni uniformi */
+    height: 40px; /* Imposta un'altezza fissa per garantire dimensioni uniformi */
+    text-align: center; /* Centra il testo all'interno del pulsante */
+    display: inline-flex; /* Usa flex per allineare il contenuto */
+    align-items: center; /* Centra verticalmente il testo */
+    justify-content: center; /* Centra orizzontalmente il testo */
 }
 
 .modal-actions .action-btn {

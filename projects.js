@@ -292,29 +292,46 @@ function openCloneMergeModal() {
         const confirmBtn = document.getElementById('confirm-clone-merge-btn');
         if (confirmBtn) {
             // Rimuovi eventuali listener precedenti per evitare duplicati
-             confirmBtn.removeEventListener('click', handleCloneMergeConfirm);
-             confirmBtn.addEventListener('click', handleCloneMergeConfirm);
-         }
-         // Aggiungi event listener per i NUOVI filtri
-         const clientFilterInput = document.getElementById('modal-client-filter');
-         const modelFilterInput = document.getElementById('modal-model-filter');
-         
-         if (clientFilterInput) {
-             clientFilterInput.removeEventListener('input', filterModalProjects); // Rimuovi listener precedenti
-             clientFilterInput.addEventListener('input', filterModalProjects);
-             clientFilterInput.value = ''; // Pulisci il filtro all'apertura
-         }
-          if (modelFilterInput) {
-             modelFilterInput.removeEventListener('input', filterModalProjects); // Rimuovi listener precedenti
-             modelFilterInput.addEventListener('input', filterModalProjects);
-             modelFilterInput.value = ''; // Pulisci il filtro all'apertura
-         }
-         filterModalProjects(); // Applica filtro iniziale (mostra tutto)
-         
-     } else {
-         console.error('Clone/Merge modal element not found.');
-     }
- }
+            confirmBtn.removeEventListener('click', handleCloneMergeConfirm);
+            confirmBtn.addEventListener('click', handleCloneMergeConfirm);
+        }
+        // Aggiungi event listener per i filtri
+        const clientFilterInput = document.getElementById('modal-client-filter');
+        const productKindFilterInput = document.getElementById('modal-product-kind-filter');
+        const factoryFilterInput = document.getElementById('modal-factory-filter');
+        const brandFilterInput = document.getElementById('modal-brand-filter');
+        const modelFilterInput = document.getElementById('modal-model-filter');
+        
+        if (clientFilterInput) {
+            clientFilterInput.removeEventListener('input', filterModalProjects); // Rimuovi listener precedenti
+            clientFilterInput.addEventListener('input', filterModalProjects);
+            clientFilterInput.value = ''; // Pulisci il filtro all'apertura
+        }
+        if (productKindFilterInput) {
+            productKindFilterInput.removeEventListener('input', filterModalProjects);
+            productKindFilterInput.addEventListener('input', filterModalProjects);
+            productKindFilterInput.value = '';
+        }
+        if (factoryFilterInput) {
+            factoryFilterInput.removeEventListener('input', filterModalProjects);
+            factoryFilterInput.addEventListener('input', filterModalProjects);
+            factoryFilterInput.value = '';
+        }
+        if (brandFilterInput) {
+            brandFilterInput.removeEventListener('input', filterModalProjects);
+            brandFilterInput.addEventListener('input', filterModalProjects);
+            brandFilterInput.value = '';
+        }
+        if (modelFilterInput) {
+            modelFilterInput.removeEventListener('input', filterModalProjects);
+            modelFilterInput.addEventListener('input', filterModalProjects);
+            modelFilterInput.value = '';
+        }
+        filterModalProjects(); // Applica filtro iniziale (mostra tutto)
+    } else {
+        console.error('Clone/Merge modal element not found.');
+    }
+}
 
  // Funzione per chiudere la modale Clone/Merge
  function closeCloneMergeModal() {
@@ -350,11 +367,10 @@ async function populateCloneMergeModal() {
         console.error('Modal project list container not found.');
         return;
     }
-    projectListContainer.innerHTML = 'Loading active projects...'; // Messaggio di caricamento
+    projectListContainer.innerHTML = '<tr><td colspan="6">Loading active projects...</td></tr>'; // Messaggio di caricamento
 
     try {
         // Fetch solo progetti attivi (non archiviati, non completati - assumendo che l'API lo supporti)
-        // Potremmo aggiungere parametri tipo ?status=active o filtrare lato client
         const response = await fetch('/api/projects?showArchived=false&showOnHold=false'); // Filtra archiviati e on hold
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -367,26 +383,53 @@ async function populateCloneMergeModal() {
         projectListContainer.innerHTML = ''; // Pulisci il container
 
         if (projects.length === 0) {
-            projectListContainer.innerHTML = 'No active projects found to clone or merge.';
+            projectListContainer.innerHTML = '<tr><td colspan="6">No active projects found to clone or merge.</td></tr>';
             return;
         }
 
         projects.forEach(project => {
-            const label = document.createElement('label');
+            const row = document.createElement('tr');
+            
+            // Colonna Select
+            const selectCell = document.createElement('td');
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
             checkbox.value = project.id;
-             checkbox.dataset.projectName = `${project.client} - ${project.modelNumber}`; // Salva nome per riferimento
-
-             label.appendChild(checkbox);
-             // Rimosso (ID: ${project.id}) dal testo visualizzato
-             label.appendChild(document.createTextNode(` ${project.client} - ${project.modelNumber}`)); 
-             projectListContainer.appendChild(label);
-         });
+            checkbox.dataset.projectName = `${project.client} - ${project.modelNumber}`; // Salva nome per riferimento
+            selectCell.appendChild(checkbox);
+            row.appendChild(selectCell);
+            
+            // Colonna Client
+            const clientCell = document.createElement('td');
+            clientCell.textContent = project.client || '-';
+            row.appendChild(clientCell);
+            
+            // Colonna Product Kind
+            const productKindCell = document.createElement('td');
+            productKindCell.textContent = project.productKind || '-';
+            row.appendChild(productKindCell);
+            
+            // Colonna Factory
+            const factoryCell = document.createElement('td');
+            factoryCell.textContent = project.factory || '-';
+            row.appendChild(factoryCell);
+            
+            // Colonna Brand
+            const brandCell = document.createElement('td');
+            brandCell.textContent = project.brand || '-';
+            row.appendChild(brandCell);
+            
+            // Colonna Model Number
+            const modelNumberCell = document.createElement('td');
+            modelNumberCell.textContent = project.modelNumber || '-';
+            row.appendChild(modelNumberCell);
+            
+            projectListContainer.appendChild(row);
+        });
 
     } catch (error) {
         handleNetworkError(error);
-        projectListContainer.innerHTML = 'Error loading projects. Please try again.';
+        projectListContainer.innerHTML = '<tr><td colspan="6">Error loading projects. Please try again.</td></tr>';
     }
 }
 
@@ -470,33 +513,48 @@ async function handleCloneMergeConfirm() {
      }
  }
  
- // Funzione per filtrare i progetti nella modale (aggiornata per due filtri)
- function filterModalProjects() {
-     const clientFilterInput = document.getElementById('modal-client-filter');
-     const modelFilterInput = document.getElementById('modal-model-filter');
-     const clientFilterText = clientFilterInput ? clientFilterInput.value.toLowerCase().trim() : '';
-     const modelFilterText = modelFilterInput ? modelFilterInput.value.toLowerCase().trim() : '';
-     
-     const projectListContainer = document.getElementById('modal-project-list');
-     const projectLabels = projectListContainer.getElementsByTagName('label');
- 
-     Array.from(projectLabels).forEach(label => {
-         const checkbox = label.querySelector('input[type="checkbox"]');
-         // Usa il dataset che contiene "Client - ModelNumber"
-         const projectDataText = checkbox && checkbox.dataset.projectName ? checkbox.dataset.projectName.toLowerCase() : ''; 
- 
-         // Verifica la corrispondenza con entrambi i filtri
-         const clientMatch = clientFilterText === '' || projectDataText.includes(clientFilterText);
-          const modelMatch = modelFilterText === '' || projectDataText.includes(modelFilterText);
-  
-          // Mostra l'elemento solo se corrisponde ad ALMENO UNO dei filtri (o se entrambi i filtri sono vuoti)
-          if (clientMatch || modelMatch) {
-              label.style.display = 'block'; // Usa block per coerenza con CSS
-          } else {
-              label.style.display = 'none'; // Nascondi l'elemento
-         }
-     });
- }
+ // Funzione per filtrare i progetti nella modale (aggiornata per cinque filtri)
+function filterModalProjects() {
+    const clientFilterInput = document.getElementById('modal-client-filter');
+    const productKindFilterInput = document.getElementById('modal-product-kind-filter');
+    const factoryFilterInput = document.getElementById('modal-factory-filter');
+    const brandFilterInput = document.getElementById('modal-brand-filter');
+    const modelFilterInput = document.getElementById('modal-model-filter');
+    
+    const clientFilterText = clientFilterInput ? clientFilterInput.value.toLowerCase().trim() : '';
+    const productKindFilterText = productKindFilterInput ? productKindFilterInput.value.toLowerCase().trim() : '';
+    const factoryFilterText = factoryFilterInput ? factoryFilterInput.value.toLowerCase().trim() : '';
+    const brandFilterText = brandFilterInput ? brandFilterInput.value.toLowerCase().trim() : '';
+    const modelFilterText = modelFilterInput ? modelFilterInput.value.toLowerCase().trim() : '';
+    
+    const projectListContainer = document.getElementById('modal-project-list');
+    const projectRows = projectListContainer.getElementsByTagName('tr');
+
+    Array.from(projectRows).forEach(row => {
+        const cells = row.getElementsByTagName('td');
+        if (cells.length < 6) return; // Ignora righe incomplete
+        
+        const clientText = cells[1].textContent.toLowerCase().trim();
+        const productKindText = cells[2].textContent.toLowerCase().trim();
+        const factoryText = cells[3].textContent.toLowerCase().trim();
+        const brandText = cells[4].textContent.toLowerCase().trim();
+        const modelText = cells[5].textContent.toLowerCase().trim();
+        
+        // Verifica la corrispondenza con tutti i filtri
+        const clientMatch = clientFilterText === '' || clientText.includes(clientFilterText);
+        const productKindMatch = productKindFilterText === '' || productKindText.includes(productKindFilterText);
+        const factoryMatch = factoryFilterText === '' || factoryText.includes(factoryFilterText);
+        const brandMatch = brandFilterText === '' || brandText.includes(brandFilterText);
+        const modelMatch = modelFilterText === '' || modelText.includes(modelFilterText);
+        
+        // Mostra la riga solo se corrisponde a tutti i filtri (o se i filtri sono vuoti)
+        if (clientMatch && productKindMatch && factoryMatch && brandMatch && modelMatch) {
+            row.style.display = ''; // Mostra la riga
+        } else {
+            row.style.display = 'none'; // Nascondi la riga
+        }
+    });
+}
  
  // --- Fine Funzioni per Clone/Merge ---
 
