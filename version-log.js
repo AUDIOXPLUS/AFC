@@ -1,5 +1,21 @@
 // Dati del version log (ristrutturati per leggibilità)
 const versionLogData = [
+    // 14/06/25 - V4.3
+    { 
+        date: '14/06/25', 
+        version: 'V4.3', 
+        description: 'fixed clone merge function'
+    },
+    { 
+        date: '14/06/25', 
+        version: 'V4.3', 
+        description: 'implemented Speaker Database menu section. now it\'s possible to compare speakers all together'
+    },
+    { 
+        date: '14/06/25', 
+        version: 'V4.3', 
+        description: 'implemented "CC" when replying or forwarding tasks. use the CC button in "assigned to" column'
+    },
     // 12/06/25 - V4.2
     { 
         date: '12/06/25', 
@@ -265,9 +281,9 @@ function updateVersionText() {
         }
     }
 
-    // Get the most recent version (V4.2)
-    const currentVersion = 'V4.2';
-    versionTextElement.textContent = `${currentVersion} - ${userName}`;
+    // Get the most recent version (V4.3)
+    const currentVersion = 'V4.3';
+    versionTextElement.textContent = `${currentVersion} BIG NEWS !!! - ${userName}`;
 }
 
 // Inizializza il version log

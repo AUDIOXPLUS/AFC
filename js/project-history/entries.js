@@ -637,6 +637,18 @@ export function displayProjectHistory(history, projectId) {
         const memberName = (window.teamMembersMap && window.teamMembersMap[assignedToName]) ? window.teamMembersMap[assignedToName].name : (assignedToName || '-');
         assignedToCell.textContent = memberName;
 
+        // Aggiungi "CC" se ci sono membri in copia conoscenza
+        if (entry.cc_members && entry.cc_members.length > 0) {
+            const ccSpan = document.createElement('span');
+            ccSpan.textContent = ' CC';
+            ccSpan.style.cursor = 'pointer';
+            ccSpan.style.color = '#007bff';
+            ccSpan.addEventListener('click', () => {
+                showCCModal(row);
+            });
+            assignedToCell.appendChild(ccSpan);
+        }
+
         // --- Cella Stato ---
         const statusCell = row.insertCell(4);
         statusCell.textContent = entry.status || '-';
@@ -702,6 +714,18 @@ export function displayProjectHistory(history, projectId) {
         forwardBtn.textContent = 'Forward';
         forwardBtn.addEventListener('click', () => { /* ... logica forward ... */ handleForwardClick(entry, projectId); });
         actionsCell.appendChild(forwardBtn);
+
+        // Pulsante Set Completed per record con descrizione che inizia con "CC"
+        if (entry.description && entry.description.startsWith('CC')) {
+            const setCompletedBtn = document.createElement('button');
+            setCompletedBtn.className = 'set-completed-btn';
+            setCompletedBtn.textContent = 'Set Completed';
+            setCompletedBtn.addEventListener('click', async () => {
+                // Imposta il record come completato
+                await markParentEntryComplete(entry.id, projectId);
+            });
+            actionsCell.appendChild(setCompletedBtn);
+        }
 
 
         // --- Applica classe colore/completato ---
@@ -914,6 +938,19 @@ function createInputRow(parentEntry, projectId, isForwardAction) {
             cell.appendChild(textarea);
             setTimeout(() => textarea.focus(), 50); // Focus sulla descrizione
         } else if (field === 'assigned_to') {
+            const container = document.createElement('div');
+            container.style.display = 'flex';
+            container.style.flexDirection = 'column';
+            container.style.alignItems = 'flex-start';
+
+            const ccButton = document.createElement('button');
+            ccButton.textContent = 'CC';
+            ccButton.style.marginBottom = '5px';
+            ccButton.addEventListener('click', () => {
+                showCCModal(newRow);
+            });
+            container.appendChild(ccButton);
+
             const select = document.createElement('select');
             const emptyOption = document.createElement('option');
             emptyOption.value = '';
@@ -932,7 +969,9 @@ function createInputRow(parentEntry, projectId, isForwardAction) {
                     select.appendChild(option);
                 });
             }
-            cell.appendChild(select);
+            container.appendChild(select);
+
+            cell.appendChild(container);
             if (isForwardAction) {
                  select.style.border = '2px solid #ff9900'; // Evidenzia per forward
                  setTimeout(() => select.focus(), 50); // Focus sull'assegnatario per forward
@@ -1089,6 +1128,95 @@ async function markParentEntryComplete(parentId, projectId) {
          console.error(`Errore di rete durante l'operazione:`, error);
          alert(`Errore di rete: ${error.message}`);
      }
+}
+
+// Funzione per mostrare la finestra modale per la selezione dei membri in CC
+function showCCModal(row) {
+    const modal = document.createElement('div');
+    modal.style.position = 'fixed';
+    modal.style.top = '0';
+    modal.style.left = '0';
+    modal.style.width = '100%';
+    modal.style.height = '100%';
+    modal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+    modal.style.display = 'flex';
+    modal.style.justifyContent = 'center';
+    modal.style.alignItems = 'center';
+    modal.style.zIndex = '1000';
+    modal.id = 'cc-modal';
+
+    const modalContent = document.createElement('div');
+    modalContent.style.backgroundColor = 'white';
+    modalContent.style.padding = '20px';
+    modalContent.style.borderRadius = '5px';
+    modalContent.style.width = '300px';
+    modalContent.style.maxHeight = '400px';
+    modalContent.style.overflowY = 'auto';
+
+    const title = document.createElement('h3');
+    title.textContent = 'Select Team Members for CC';
+    modalContent.appendChild(title);
+
+    const memberList = document.createElement('div');
+    if (Array.isArray(window.teamMembers)) {
+        window.teamMembers.forEach(member => {
+            const memberItem = document.createElement('div');
+            memberItem.style.marginBottom = '10px';
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.value = member.name;
+            checkbox.id = `cc-${member.id}`;
+
+            const label = document.createElement('label');
+            label.htmlFor = `cc-${member.id}`;
+            label.textContent = member.name;
+            label.style.marginLeft = '5px';
+
+            memberItem.appendChild(checkbox);
+            memberItem.appendChild(label);
+            memberList.appendChild(memberItem);
+        });
+    }
+    modalContent.appendChild(memberList);
+
+    const saveButton = document.createElement('button');
+    saveButton.textContent = 'Save';
+    saveButton.style.marginTop = '10px';
+    saveButton.style.marginRight = '5px';
+    saveButton.addEventListener('click', () => {
+        const selectedMembers = Array.from(memberList.querySelectorAll('input[type="checkbox"]:checked'))
+            .map(checkbox => checkbox.value);
+        row.setAttribute('data-cc-members', JSON.stringify(selectedMembers));
+        
+        // Aggiorna l'interfaccia utente per mostrare gli utenti selezionati accanto al pulsante CC
+        const assignedToCell = row.cells[3];
+        if (assignedToCell) {
+            let ccIndicator = assignedToCell.querySelector('.cc-indicator');
+            if (!ccIndicator) {
+                ccIndicator = document.createElement('span');
+                ccIndicator.className = 'cc-indicator';
+                ccIndicator.style.marginLeft = '5px';
+                ccIndicator.style.color = '#007bff';
+                assignedToCell.appendChild(ccIndicator);
+            }
+            ccIndicator.textContent = selectedMembers.length > 0 ? `CC: ${selectedMembers.join(', ')}` : '';
+        }
+        
+        modal.remove();
+    });
+    modalContent.appendChild(saveButton);
+
+    const cancelButton = document.createElement('button');
+    cancelButton.textContent = 'Cancel';
+    cancelButton.style.marginTop = '10px';
+    cancelButton.addEventListener('click', () => {
+        modal.remove();
+    });
+    modalContent.appendChild(cancelButton);
+
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
 }
 
 
@@ -1276,6 +1404,14 @@ export async function saveNewHistoryEntry(projectId, row, entryId = null) {
         createdBy: isEditing ? undefined : window.currentUserId, // Alternativa camelCase
     };
 
+    // Aggiungi membri in CC se selezionati
+    if (row.hasAttribute('data-cc-members')) {
+        const ccMembers = JSON.parse(row.getAttribute('data-cc-members') || '[]');
+        // Non assegnare cc_members a entryData, salveremo record separati per ogni utente in CC
+        // entryData.cc_members = ccMembers;
+    }
+
+
     // Aggiungi campi specifici per reply/forward solo se è una NUOVA entry
     if (!isEditing && (isReply || isForward)) {
         const parentId = row.getAttribute('data-reply-to');
@@ -1362,43 +1498,79 @@ export async function saveNewHistoryEntry(projectId, row, entryId = null) {
              window.updatePhaseSummary(historyData.latestEntries);
         }
 
-        // Gestione upload file DOPO aver salvato e ottenuto l'ID (solo per nuove entry)
-        if (!isEditing && savedEntry && savedEntry.id) {
-            const fileInput = row.cells[5].querySelector('input[type="file"]');
-            if (fileInput && fileInput.files && fileInput.files.length > 0) {
-                console.log(`Tentativo di upload di ${fileInput.files.length} file per la nuova entry ${savedEntry.id}`);
-                const formData = new FormData();
-                for (const file of fileInput.files) {
-                    formData.append('files', file);
-                }
-                // Aggiungi altri dati se necessario dal backend
-                // formData.append('userId', window.currentUserId);
+    // Gestione upload file DOPO aver salvato e ottenuto l'ID (solo per nuove entry)
+    if (!isEditing && savedEntry && savedEntry.id) {
+        const fileInput = row.cells[5].querySelector('input[type="file"]');
+        if (fileInput && fileInput.files && fileInput.files.length > 0) {
+            console.log(`Tentativo di upload di ${fileInput.files.length} file per la nuova entry ${savedEntry.id}`);
+            const formData = new FormData();
+            for (const file of fileInput.files) {
+                formData.append('files', file);
+            }
+            // Aggiungi altri dati se necessario dal backend
+            // formData.append('userId', window.currentUserId);
 
-                try {
-                    const uploadResponse = await fetch(`/api/projects/${projectId}/history/${savedEntry.id}/files`, {
-                        method: 'POST',
-                        body: formData,
-                        // Non impostare Content-Type, il browser lo fa per FormData
-                    });
-                    if (!uploadResponse.ok) {
-                        const uploadError = await uploadResponse.text();
-                        throw new Error(`Errore upload file: ${uploadResponse.statusText} - ${uploadError}`);
+            try {
+                const uploadResponse = await fetch(`/api/projects/${projectId}/history/${savedEntry.id}/files`, {
+                    method: 'POST',
+                    body: formData,
+                    // Non impostare Content-Type, il browser lo fa per FormData
+                });
+                if (!uploadResponse.ok) {
+                    const uploadError = await uploadResponse.text();
+                    throw new Error(`Errore upload file: ${uploadResponse.statusText} - ${uploadError}`);
+                }
+                console.log(`File caricati con successo per l'entry ${savedEntry.id}`);
+                // Aggiorna la cella dei file specifica per la nuova riga (ora che è stata sostituita)
+                const newRowInTable = document.querySelector(`tr[data-entry-id='${savedEntry.id}']`);
+                if (newRowInTable) {
+                    updateFilesCell(savedEntry.id, projectId, newRowInTable.cells[5]);
+                }
+            } catch (uploadError) {
+                console.error("Errore durante l'upload dei file:", uploadError);
+                alert(`Entry saved, but failed to upload files: ${uploadError.message}`);
+            }
+        }
+
+        // Salva record separati per ogni utente in CC (solo per nuove entry)
+        if (row.hasAttribute('data-cc-members')) {
+            const ccMembers = JSON.parse(row.getAttribute('data-cc-members') || '[]');
+            if (ccMembers.length > 0) {
+                console.log(`Salvataggio di record separati per ${ccMembers.length} utenti in CC`);
+                for (const ccMember of ccMembers) {
+                    const ccEntryData = { ...entryData, assigned_to: ccMember, assignedTo: ccMember, description: `CC: ${entryData.description}` };
+                    console.log(`Salvataggio record per utente in CC: ${ccMember}`);
+                    try {
+                        const ccResponse = await fetch(`/api/projects/${projectId}/history`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(ccEntryData),
+                        });
+                        if (!ccResponse.ok) {
+                            const errorData = await ccResponse.text();
+                            console.error(`Errore durante il salvataggio per ${ccMember}:`, errorData);
+                            alert(`Errore durante il salvataggio per ${ccMember}: ${errorData}`);
+                        } else {
+                            console.log(`Record salvato con successo per ${ccMember}`);
+                        }
+                    } catch (error) {
+                        console.error(`Errore di rete durante il salvataggio per ${ccMember}:`, error);
+                        alert(`Errore di rete durante il salvataggio per ${ccMember}: ${error.message}`);
                     }
-                    console.log(`File caricati con successo per l'entry ${savedEntry.id}`);
-                    // Aggiorna la cella dei file specifica per la nuova riga (ora che è stata sostituita)
-                    const newRowInTable = document.querySelector(`tr[data-entry-id='${savedEntry.id}']`);
-                    if (newRowInTable) {
-                         updateFilesCell(savedEntry.id, projectId, newRowInTable.cells[5]);
-                    }
-                } catch (uploadError) {
-                    console.error("Errore durante l'upload dei file:", uploadError);
-                    alert(`Entry saved, but failed to upload files: ${uploadError.message}`);
+                }
+                // Ricarica la cronologia per mostrare i nuovi record per gli utenti in CC
+                const historyDataAfterCC = await fetchProjectHistory(projectId);
+                if (window.updatePhaseSummary && historyDataAfterCC && historyDataAfterCC.latestEntries) {
+                    window.updatePhaseSummary(historyDataAfterCC.latestEntries);
                 }
             }
-        } else if (isEditing) {
-             // Se stiamo modificando, aggiorniamo la cella dei file della riga esistente
-             updateFilesCell(entryId, projectId, row.cells[5]);
         }
+    } else if (isEditing) {
+        // Se stiamo modificando, aggiorniamo la cella dei file della riga esistente
+        updateFilesCell(entryId, projectId, row.cells[5]);
+    }
 
 
         return savedEntry; // Restituisce la entry salvata
