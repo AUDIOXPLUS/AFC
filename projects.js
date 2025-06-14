@@ -783,8 +783,83 @@ function createPhaseProgressBar(projectHistorySummary, phases, projectId) {
             tooltipText += '\n(UPDATED)';
         }
 
-        // Imposta il tooltip (ora più semplice, senza dettagli dell'ultimo record)
+        // Inizialmente, imposta un tooltip di base senza dettagli
+        tooltipText += `\n\nAdding details...`;
+
+        // Imposta il tooltip iniziale
         phaseItem.title = tooltipText;
+
+        // Aggiungi un evento mouseover per caricare i dettagli dinamicamente
+        phaseItem.addEventListener('mouseover', async () => {
+            // Controlla se i dettagli sono già stati caricati
+            if (!phaseItem.dataset.detailsLoaded || phaseItem.dataset.detailsLoaded === 'false') {
+                try {
+                    // Carica i dettagli dell'ultimo entry per questa fase
+                    const response = await fetch(`/api/projects/${projectId}/history?phaseId=${phase.id}&limit=1`);
+                    if (response.ok) {
+                        const historyData = await response.json();
+                        let detailedTooltip = `${phase.name}: `;
+                        
+                        if (hasInProgress) {
+                            detailedTooltip += 'In Progress';
+                        } else if (hasCompleted) {
+                            detailedTooltip += 'Completed';
+                        } else if (hasLaterPhaseActive) {
+                            detailedTooltip += 'Not Started (subsequent phases active)';
+                        } else {
+                            detailedTooltip += 'Not Started';
+                        }
+                        
+                        if (hasNewEntries) {
+                            detailedTooltip += '\n(UPDATED)';
+                        }
+                        
+                        if (historyData && historyData.length > 0) {
+                            const entry = historyData[0];
+                            detailedTooltip += `\n\nLAST ENTRY DETAILS:`;
+                            if (entry.created_at) {
+                                detailedTooltip += `\n• Date: ${entry.created_at}`;
+                            }
+                            if (entry.status) {
+                                detailedTooltip += `\n• Status: ${entry.status}`;
+                            }
+                            if (entry.assigned_to) {
+                                detailedTooltip += `\n• Assigned to: ${entry.assigned_to}`;
+                            }
+                            if (entry.description) {
+                                detailedTooltip += `\n• Description: ${entry.description}`;
+                            }
+                            phaseItem.dataset.detailsLoaded = 'true';
+                        } else {
+                            detailedTooltip += `\n\nNo details available for this phase`;
+                            phaseItem.dataset.detailsLoaded = 'false';
+                        }
+                        
+                        // Aggiorna il tooltip con i dettagli caricati
+                        phaseItem.title = detailedTooltip;
+                        // Log in italiano per i commenti nel codice
+                        console.log(`Dettagli caricati per fase ${phase.name} del progetto ${projectId}:`, historyData);
+                    } else {
+                        phaseItem.title = tooltipText + `\n\nError loading details`;
+                        // Log in italiano per i commenti nel codice
+                        console.error(`Errore nel caricamento dei dettagli per fase ${phase.name}:`, response.status);
+                    }
+                } catch (error) {
+                    phaseItem.title = tooltipText + `\n\nError loading details`;
+                    // Log in italiano per i commenti nel codice
+                    console.error(`Errore nel caricamento dei dettagli per fase ${phase.name}:`, error);
+                }
+            }
+        });
+
+        // DEBUG: Log della struttura completa del summary
+        console.log(`Dati per fase ${phase.name}:`, {
+            summary,
+            lastEntry: summary?.lastEntry,
+            hasInProgress,
+            hasCompleted,
+            hasNewEntries
+        });
 
         // Aggiungi l'event listener per il click
         phaseItem.addEventListener('click', () => {
