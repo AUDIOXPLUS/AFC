@@ -457,7 +457,7 @@
                         
                         if (mouseX > chart.chartArea.left && mouseX < chart.chartArea.right) {
                             const xValue = chart.scales.x.getValueForPixel(mouseX);
-                            const points = chart.getElementsAtEventForMode(event, 'nearest', { intersect: true }, false);
+                            const points = chart.getElementsAtEventForMode(event, 'nearest', { intersect: false }, false);
                             let hoveredDatasetIndex = -1;
                             if (points.length > 0) {
                                 hoveredDatasetIndex = points[0].datasetIndex;
@@ -599,8 +599,8 @@
                             enabled: false
                         }
                     },
-                    elements: { point: { radius: 0, hoverRadius: 4 }, line: { tension: 0.1 }},
-                    interaction: { intersect: false, mode: 'index' }
+                    elements: { point: { radius: 0, hoverRadius: 6 }, line: { tension: 0.1 }},
+                    interaction: { intersect: false, mode: 'nearest', axis: 'x' }
                 }
             });
             chartReady = true;
