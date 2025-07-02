@@ -20,7 +20,7 @@ function updateLoadingProgress(percentage) {
         setTimeout(() => {
             progressBar.style.width = `${clampedPercentage}%`; // Imposta la larghezza della barra interna
             percentageText.textContent = `${Math.round(clampedPercentage)}%`; // Aggiorna il testo della percentuale
-            console.log(`Loading progress updated to ${clampedPercentage}%`); // Log progresso
+            // Log progresso rimosso
         }, 0); // Ritardo minimo per mettere in coda l'aggiornamento
     } else {
         console.warn('Progress bar or percentage element not found in the DOM.');
@@ -207,7 +207,7 @@ function applyLastSorting() {
 }
 
 async function fetchTasks() {
-    console.log(`fetchTasks called. Timestamp: ${Date.now()}`); // Add timestamp log
+        // Log timestamp rimosso
     const loadingPopup = document.getElementById('loading-popup');
 
     // Mostra il popup e imposta progresso a 0%
@@ -217,15 +217,21 @@ async function fetchTasks() {
     }
 
     try {
-        console.log('Fetching tasks from API...');
+        // Log fetching tasks rimosso
         const statusCheckboxes = document.querySelectorAll('#status-filter input[type="checkbox"]');
         const includeCompleted = Array.from(statusCheckboxes).some(cb => cb.value === 'Completed' && cb.checked);
         const apiUrl = `/api/tasks${includeCompleted ? '?includeCompleted=true' : ''}`;
 
-        const response = await fetch(apiUrl);
-        console.log(`Response status from ${apiUrl}:`, response.status);
+        const response = await fetch(apiUrl, {
+            headers: {
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            },
+            timeout: 30000 // Imposta un timeout di 30 secondi per la richiesta
+        });
+        // Log response status rimosso
         const tasks = await handleResponse(response);
-        console.log('Fetched tasks:', tasks);
+        // Log fetched tasks rimosso
 
         // Aggiorna progresso dopo fetch (es. 50%)
         updateLoadingProgress(50);
@@ -249,7 +255,7 @@ async function fetchTasks() {
 async function displayTasks(tasks) {
     // NON aggiornare a 100% qui, ma alla fine
 
-    console.log(`displayTasks called with ${tasks.length} tasks. Timestamp: ${Date.now()}`);
+    // Log displayTasks rimosso
     const tableBody = document.getElementById('task-table').getElementsByTagName('tbody')[0];
     const loadingPopup = document.getElementById('loading-popup'); // Riferimento al popup
 
@@ -308,7 +314,7 @@ async function displayTasks(tasks) {
         filteringApi.applyFilters();
     }
 
-    console.log('Tasks displayed successfully');
+        // Log tasks displayed rimosso
 
     // Nascondi il popup di caricamento DOPO che i dati sono stati visualizzati
     // Aggiorna a 100% PRIMA di nascondere il popup
@@ -427,6 +433,7 @@ function enableLiveFiltering() {
         try {
             // Ottieni i permessi dell'utente
             const response = await fetch('/api/tasks');
+            if (!response.ok) throw new Error('Errore nella risposta del server /api/tasks');
             const tasks = await response.json();
 
             // Se non ci sono task, significa che l'utente non ha permessi
@@ -458,21 +465,25 @@ function enableLiveFiltering() {
 
             // Resetta i filtri non compatibili
             if (newFilters.assignedTo && !allowedValues.assignedTo.has(newFilters.assignedTo)) {
-                console.log('Filtro utente non compatibile con i permessi, reset');
                 newFilters.assignedTo = '';
             }
             if (newFilters.factory && !allowedValues.factory.has(newFilters.factory)) {
-                console.log('Filtro factory non compatibile con i permessi, reset');
                 newFilters.factory = '';
             }
             if (newFilters.modelNumber && !allowedValues.modelNumber.has(newFilters.modelNumber)) {
-                console.log('Filtro model number non compatibile con i permessi, reset');
                 newFilters.modelNumber = '';
             }
 
             return newFilters;
         } catch (error) {
             console.error('Errore nella verifica dei permessi:', error);
+
+            // Mostra errore utente in interfaccia per evitare pagina bianca
+            const container = document.getElementById('main-content') || document.body;
+            const errorMsg = document.createElement('div');
+            errorMsg.innerHTML = '<p style="color:red; padding:10px;">Connection Error, please refresh the page or use a VPN.</p>';
+            container.appendChild(errorMsg);
+
             return {
                 assignedTo: '',
                 factory: '',
@@ -507,9 +518,13 @@ function enableLiveFiltering() {
         textFilterInputs[2].value = validatedFilters.modelNumber || '';
         textFilterInputs[3].value = validatedFilters.priority || '';
         
-        // Applica i filtri di stato
+        // Applica i filtri di stato, ma non includere "Completed" per impostazione predefinita
         statusCheckboxes.forEach(checkbox => {
-            checkbox.checked = filters.status.includes(checkbox.value);
+            if (checkbox.value === 'Completed') {
+                checkbox.checked = false; // Non caricare i task completati per default
+            } else {
+                checkbox.checked = filters.status.includes(checkbox.value);
+            }
         });
         
         // Applica i filtri
@@ -599,7 +614,7 @@ function saveColumnWidths() {
     const table = document.getElementById('task-table');
     const headerCells = table.getElementsByTagName('th');
     const columnWidths = Array.from(headerCells).map(cell => cell.style.width);
-    console.log('Saving column widths:', columnWidths);
+    // Log saving column widths rimosso
     localStorage.setItem('taskColumnWidths', JSON.stringify(columnWidths));
 }
 
@@ -614,9 +629,9 @@ function restoreColumnWidths() {
                 headerCells[index].style.width = width;
             }
         });
-        console.log('Restored column widths:', columnWidths);
+        // Log restored column widths rimosso
     } else {
-        console.log('No column widths found in local storage.');
+        // Log no column widths found rimosso
     }
 }
 
@@ -711,7 +726,7 @@ function initializeGroupClicks() {
     groupLabels.forEach(label => {
         label.addEventListener('click', function() {
             const role = this.getAttribute('data-role');
-            console.log(`Cliccato sul gruppo: ${role}`);
+            // Log cliccato sul gruppo rimosso
             
             // Filtra i task per mostrare solo quelli del ruolo selezionato
             filterTasksByRole(role);
@@ -738,11 +753,11 @@ function filterTasksByRole(role) {
     
     // Se non ci sono membri con questo ruolo, non fare nulla
     if (membersWithRole.length === 0) {
-        console.log(`Nessun membro trovato con ruolo ${role}`);
+        // Log nessun membro trovato rimosso
         return;
     }
     
-    console.log(`Membri con ruolo ${role}:`, membersWithRole);
+    // Log membri con ruolo rimosso
     
     // Calcola il numero di task per ciascun membro
     const memberTaskCounts = {};
@@ -830,7 +845,7 @@ function filterTasksByRole(role) {
     memberItems.forEach(item => {
         item.addEventListener('click', function() {
             const memberName = this.getAttribute('data-member-name');
-            console.log(`Cliccato sull'utente: ${memberName}`);
+            // Log cliccato sull'utente rimosso
             
             // Imposta il valore del campo di filtro "User" al nome dell'utente selezionato
             const userFilter = document.getElementById('filter-input');
@@ -888,6 +903,25 @@ function initializePriorityToggle() {
     });
 }
 
+async function fetchWithRetry(url, options, retries = 1, delay = 5000) {
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000); // timeout 10s
+        const response = await fetch(url, { ...options, signal: controller.signal });
+        clearTimeout(timeout);
+        if (!response.ok) throw new Error(`Errore ${response.status}`);
+        return response;
+    } catch (err) {
+        if (retries > 0) {
+            console.warn('Retry fetch:', url);
+            await new Promise(res => setTimeout(res, delay));
+            return fetchWithRetry(url, options, retries - 1, delay);
+        } else {
+            throw err;
+        }
+    }
+}
+
 async function calculateGroupings() {
     try {
         const tasksResponse = await fetch('/api/tasks');
@@ -896,11 +930,11 @@ async function calculateGroupings() {
         const teamMembersResponse = await fetch('/api/team-members');
         const teamMembers = await handleResponse(teamMembersResponse);
 
-        console.log('Team members:', teamMembers);
+        // Log team members rimosso
         
         // Log dei ruoli disponibili
         const roles = [...new Set(teamMembers.map(member => member.role))];
-        console.log('Ruoli disponibili:', roles);
+        // Log ruoli disponibili rimosso
 
         const groupings = {
             'R&D China': 0,
@@ -915,8 +949,8 @@ async function calculateGroupings() {
             'Factories': 0,
             'Factory': 0
         };
-        console.log('Gruppi inizializzati:', groupings);
-        console.log('Gruppi auto-assegnati inizializzati:', selfAssignedGroupings);
+        // Log gruppi inizializzati rimosso
+        // Log gruppi auto-assegnati rimosso
 
         // Verifica se currentUser è disponibile prima di procedere
         if (!currentUser || !currentUser.name) {
@@ -924,7 +958,7 @@ async function calculateGroupings() {
             return; // Esci se l'utente non è definito
         }
         const currentUserName = currentUser.name;
-        console.log(`Calcolo raggruppamenti per utente: ${currentUserName}`);
+        // Log calcolo raggruppamenti rimosso
 
         // Filtra i task "In Progress"
         let inProgressTasks = tasks.filter(task => task.status === 'In Progress');
@@ -932,13 +966,13 @@ async function calculateGroupings() {
         // Se il toggle "Priority Only" è attivo, filtra ulteriormente per mostrare solo i task con priorità
         if (priorityOnlyEnabled) {
             inProgressTasks = inProgressTasks.filter(task => task.priority && task.priority !== '-');
-            console.log('Task in progress con priorità:', inProgressTasks);
+            // Log task con priorità rimosso
         } else {
-            console.log('Task in progress (tutti):', inProgressTasks);
+            // Log task tutti rimosso
         }
 
         inProgressTasks.forEach(task => {
-            console.log(`Elaborazione task: ${task.id}, assignedTo: ${task.assignedTo}, priority: ${task.priority || 'nessuna'}`);
+            // Log elaborazione task rimosso
             
             // Prova prima con name
             let user = teamMembers.find(member => member.name === task.assignedTo);
@@ -948,7 +982,7 @@ async function calculateGroupings() {
             }
             
             if (user) {
-                console.log(`Utente trovato: ${user.name}, ruolo: ${user.role}`);
+                // Log utente trovato rimosso
                 
                 switch (user.role) {
                     case 'R&D China':
@@ -986,15 +1020,15 @@ async function calculateGroupings() {
                         }
                         break;
                     default:
-                        console.log(`Ruolo non riconosciuto: ${user.role}`);
+                        // Log ruolo non riconosciuto rimosso
                 }
             } else {
-                console.log(`Nessun utente trovato per task.assignedTo: ${task.assignedTo}`);
+                // Log nessun utente trovato rimosso
             }
         });
         
-        console.log('Conteggi totali (prima della combinazione):', groupings);
-        console.log('Conteggi auto-assegnati (prima della combinazione):', selfAssignedGroupings);
+        // Log conteggi totali prima combinazione rimosso
+        // Log conteggi auto-assegnati prima combinazione rimosso
 
         // Combina i conteggi di Factory e Factories per totali e auto-assegnati
         if (groupings['Factory'] > 0 || selfAssignedGroupings['Factory'] > 0) {
@@ -1005,8 +1039,8 @@ async function calculateGroupings() {
         delete groupings['Factory'];
         delete selfAssignedGroupings['Factory'];
 
-        console.log('Conteggi totali finali (combinati):', groupings);
-        console.log('Conteggi auto-assegnati finali (combinati):', selfAssignedGroupings);
+        // Log conteggi totali finali rimosso
+        // Log conteggi auto-assegnati finali rimosso
 
         // Aggiorna i conteggi nell'UI, aggiungendo i task auto-assegnati tra parentesi
         const rdChinaElement = document.getElementById('grouping-rd-china');

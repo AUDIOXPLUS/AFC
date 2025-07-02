@@ -143,32 +143,37 @@ td:last-child {
     right: -3px;
     top: 0;
     height: 100%;
-    width: 6px;
+    width: 8px; /* Aumentata la larghezza per fare spazio all'icona */
     background: transparent;
-    cursor: col-resize;
+    cursor: col-resize; /* Cursore standard per il ridimensionamento */
     user-select: none;
-    -ms-user-select: none; /* Per Edge */
+    -ms-user-select: none;
     touch-action: none;
-    z-index: 5; /* Aumentato z-index per assicurarsi che sia sopra altri elementi */
-    display: block !important; /* Forzato a essere sempre visibile */
-    opacity: 1 !important; /* Forzato a essere sempre visibile */
-    pointer-events: auto !important; /* Assicura che possa sempre ricevere eventi del mouse */
+    z-index: 5;
+    display: flex !important; /* Uso flex per centrare l'icona */
+    align-items: center;
+    justify-content: center;
+    opacity: 0.5 !important; /* Leggermente visibile di default */
+    transition: background-color 0.2s ease, opacity 0.2s ease;
+}
+
+/* Icona grip per il resizer */
+.resizer::after {
+    content: '⋮'; /* Carattere unicode per i puntini verticali */
+    color: #888;
+    font-size: 14px;
+    font-weight: bold;
+    line-height: 0; /* Allinea verticalmente l'icona */
+    transition: color 0.2s ease;
 }
 
 .resizer:hover, .resizer.resizing {
-    background: #2196f3;
-    width: 8px; /* Aumentato per facilitare l'uso */
+    background-color: #e0e0e0; /* Sfondo grigio chiaro al passaggio del mouse */
+    opacity: 1 !important;
 }
 
-/* Un segno visibile sul resizer quando attivo o al passaggio del mouse */
-.resizer:hover:after, .resizer.resizing:after {
-    content: "";
-    position: absolute;
-    top: 0;
-    right: 2px;
-    height: 100%;
-    width: 2px;
-    background: #2196f3;
+.resizer:hover::after, .resizer.resizing::after {
+    color: #333; /* Colore più scuro per l'icona al passaggio del mouse */
 }
 
 /* Stile per il body durante il ridimensionamento */

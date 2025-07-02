@@ -8,6 +8,7 @@ const path = require('path');
 const jwt = require('jsonwebtoken');
 const morgan = require('morgan');
 const session = require('express-session');
+const SQLiteStore = require('connect-sqlite3')(session);
 const fs = require('fs');
 const http = require('http');
 const app = express();
@@ -160,13 +161,22 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 
-// Configurazione delle sessioni
+// Configurazione delle sessioni con SQLiteStore
 app.use(session({
+    store: new SQLiteStore({
+        db: 'sessions.sqlite', // File del database per le sessioni
+        dir: './database',     // Directory dove salvare il file del database
+        table: 'sessions'      // Nome della tabella per le sessioni
+    }),
     secret: 'your-secret-key',
     resave: false,
     saveUninitialized: true,
-    cookie: { secure: false }
+    cookie: { 
+        secure: false, // Imposta a true se utilizzi HTTPS
+        maxAge: 24 * 60 * 60 * 1000 // 24 ore
+    }
 }));
+console.log('Sessioni configurate con SQLiteStore');
 
 // Funzione per verificare e configurare la directory uploads
 function setupUploadsDirectory() {
@@ -240,6 +250,16 @@ app.use((req, res, next) => {
 app.use((req, res, next) => {
     console.log('Richiesta ricevuta:', req.method, req.path);
     req.db = db;
+    // Log dettagliato per monitorare la sessione
+    if (req.session) {
+        console.log('Dettagli sessione:', {
+            sessionId: req.session.id,
+            user: req.session.user ? req.session.user : 'non presente',
+            cookie: req.session.cookie ? req.session.cookie : 'non presente'
+        });
+    } else {
+        console.log('Sessione non presente per la richiesta:', req.method, req.path);
+    }
     next();
 });
 

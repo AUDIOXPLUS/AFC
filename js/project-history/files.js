@@ -904,7 +904,8 @@ async function previewAllFiles(files) {
     if (otherFiles.length > 0) {
         const fileIds = otherFiles.map(file => file.id);
         const url = `all-files-preview.html?ids=${fileIds.join(',')}`;
-        const previewWindowName = 'allFilesPreview';
+        // Crea un nome univoco per ogni finestra usando timestamp per aprire sempre una nuova finestra
+        const previewWindowName = `allFilesPreview_${Date.now()}`;
         let previewWindow = window.open(url, previewWindowName);
         if (previewWindow && !previewWindow.closed) {
             previewWindow.focus();

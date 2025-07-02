@@ -283,7 +283,7 @@ function updateVersionText() {
 
     // Get the most recent version (V4.3)
     const currentVersion = 'V4.3';
-    versionTextElement.textContent = `${currentVersion} BIG NEWS !!! - ${userName}`;
+    versionTextElement.textContent = `${currentVersion} - ${userName}`;
 }
 
 // Inizializza il version log
@@ -308,10 +308,10 @@ function initializeVersionLog() {
 
     updateVersionText();
     
-    // Aggiungi classe per effetto lampeggiante
-    if (versionText) {
-        versionText.classList.add('new-version');
-    }
+    // Rimossa classe per effetto lampeggiante come richiesto
+    // if (versionText) {
+    //     versionText.classList.add('new-version');
+    // }
     
     createVersionLogPopup();
     const overlay = document.getElementById('version-overlay');

@@ -208,37 +208,39 @@ router.get('/speaker-files', checkAuthentication, async (req, res) => {
         const projectIds = projectsResponse;
         const placeholders = projectIds.map(() => '?').join(',');
 
-        const filesQuery = `
-            SELECT pf.*, 
-                   p.client,
-                   p.productKind,
-                   p.brand,
-                   p.range,
-                   p.line,
-                   p.modelNumber,
-                   CASE 
-                       WHEN p.client IS NOT NULL AND p.modelNumber IS NOT NULL 
-                       THEN p.client || ' - ' || p.modelNumber
-                       WHEN p.client IS NOT NULL 
-                       Then p.client
-                       ELSE 'Progetto senza nome'
-                   END as project_name,
-                   CASE 
-                       WHEN p.brand IS NOT NULL OR p.range IS NOT NULL OR p.line IS NOT NULL OR p.productKind IS NOT NULL OR p.status IS NOT NULL
-                       THEN 
-                           COALESCE(p.brand, '') ||
-                           CASE WHEN p.brand IS NOT NULL AND (p.range IS NOT NULL OR p.line IS NOT NULL OR p.productKind IS NOT NULL OR p.status IS NOT NULL) THEN ' | ' ELSE '' END ||
-                           COALESCE(p.range, '') ||
-                           CASE WHEN p.range IS NOT NULL AND (p.line IS NOT NULL OR p.productKind IS NOT NULL OR p.status IS NOT NULL) THEN ' | ' ELSE '' END ||
-                           COALESCE(p.line, '') ||
-                           CASE WHEN p.line IS NOT NULL AND (p.productKind IS NOT NULL OR p.status IS NOT NULL) THEN ' | ' ELSE '' END ||
-                           COALESCE(p.productKind, '') ||
-                           CASE WHEN p.productKind IS NOT NULL AND p.status IS NOT NULL THEN ' | ' ELSE '' END ||
-                           COALESCE(p.status, '')
-                       ELSE 'Nessuna descrizione disponibile'
-                   END as project_description
+            const filesQuery = `
+                SELECT pf.*, 
+                       p.client,
+                       p.productKind,
+                       p.brand,
+                       p.range,
+                       p.line,
+                       p.modelNumber,
+                       ph.description,
+                       CASE 
+                           WHEN p.client IS NOT NULL AND p.modelNumber IS NOT NULL 
+                           THEN p.client || ' - ' || p.modelNumber
+                           WHEN p.client IS NOT NULL 
+                           Then p.client
+                           ELSE 'Progetto senza nome'
+                       END as project_name,
+                       CASE 
+                           WHEN p.brand IS NOT NULL OR p.range IS NOT NULL OR p.line IS NOT NULL OR p.productKind IS NOT NULL OR p.status IS NOT NULL
+                           THEN 
+                               COALESCE(p.brand, '') ||
+                               CASE WHEN p.brand IS NOT NULL AND (p.range IS NOT NULL OR p.line IS NOT NULL OR p.productKind IS NOT NULL OR p.status IS NOT NULL) THEN ' | ' ELSE '' END ||
+                               COALESCE(p.range, '') ||
+                               CASE WHEN p.range IS NOT NULL AND (p.line IS NOT NULL OR p.productKind IS NOT NULL OR p.status IS NOT NULL) THEN ' | ' ELSE '' END ||
+                               COALESCE(p.line, '') ||
+                               CASE WHEN p.line IS NOT NULL AND (p.productKind IS NOT NULL OR p.status IS NOT NULL) THEN ' | ' ELSE '' END ||
+                               COALESCE(p.productKind, '') ||
+                               CASE WHEN p.productKind IS NOT NULL AND p.status IS NOT NULL THEN ' | ' ELSE '' END ||
+                               COALESCE(p.status, '')
+                           ELSE 'Nessuna descrizione disponibile'
+                       END as project_description
             FROM project_files pf
             LEFT JOIN projects p ON pf.project_id = p.id
+            LEFT JOIN project_history ph ON pf.history_id = ph.id
             WHERE pf.filename LIKE '%.txt'
             AND pf.project_id IN (${placeholders})
             ORDER BY pf.upload_date DESC

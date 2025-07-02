@@ -16,6 +16,15 @@
         tr.selected {
             background-color: #ffcccb;
         }
+        .lock-icon {
+            margin-left: 5px;
+            cursor: pointer;
+            color: #ccc;
+            transition: color 0.3s;
+        }
+        .lock-icon.locked {
+            color: #007bff;
+        }
     </style>
 </head>
 <body>
@@ -76,29 +85,39 @@
                     <label class="column-visibility"><input type="checkbox" data-column="7" checked></label>
                 </div>
                 <div class="filter-group">
+                    <input type="text" id="description-filter" placeholder="Description" data-translate-placeholder="Description">
                     <label class="column-visibility"><input type="checkbox" data-column="8" checked></label>
-                    <span data-translate="Actions">Actions</span>
+                </div>
+                <div class="filter-group">
+                    <button id="view-selected" title="View Selected"><i class="fas fa-eye"></i></button>
+                    <button id="download-selected" title="Download Selected"><i class="fas fa-download"></i></button>
                 </div>
             </div>
             <div class="table-wrapper">
                 <table id="speaker-files-table" class="data-table">
                     <thead>
-                        <tr>
-                            <th data-translate="Client">Client</th>
-                            <th data-translate="Product Kind">Product Kind</th>
-                            <th data-translate="Brand">Brand</th>
-                            <th data-translate="Range">Range</th>
-                            <th data-translate="Line">Line</th>
-                            <th data-translate="Model N">Model N</th>
-                            <th data-translate="File Name">File Name</th>
-                            <th data-translate="File Kind">File Kind</th>
-                            <th data-translate="Actions">Actions</th>
-                        </tr>
+                    <tr>
+                        <th data-translate="Client">Client <i class="fas fa-lock lock-icon" data-column="0"></i></th>
+                        <th data-translate="Product Kind">Product Kind <i class="fas fa-lock lock-icon" data-column="1"></i></th>
+                        <th data-translate="Brand">Brand <i class="fas fa-lock lock-icon" data-column="2"></i></th>
+                        <th data-translate="Range">Range <i class="fas fa-lock lock-icon" data-column="3"></i></th>
+                        <th data-translate="Line">Line <i class="fas fa-lock lock-icon" data-column="4"></i></th>
+                        <th data-translate="Model N">Model N <i class="fas fa-lock lock-icon" data-column="5"></i></th>
+                        <th data-translate="File Name">File Name <i class="fas fa-lock lock-icon" data-column="6"></i></th>
+                        <th data-translate="Description">Description <i class="fas fa-lock lock-icon" data-column="7"></i></th>
+                        <th data-translate="File Kind">File Kind <i class="fas fa-lock lock-icon" data-column="8"></i></th>
+                        <!-- Colonna Actions rimossa -->
+                    </tr>
                     </thead>
                     <tbody>
                         <!-- I file verranno inseriti qui dinamicamente -->
                     </tbody>
                 </table>
+                <p id="filter-message" style="text-align: center; margin-top: 20px; color: #888;" data-translate="Write something in filters to display data">Write something in filters to display data</p>
+                <div id="loading-animation" style="display: none; text-align: center; margin-top: 20px;">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 24px; color: #888;"></i>
+                    <p style="color: #888;">Loading data...</p>
+                </div>
             </div>
         </section>
     </main>
@@ -110,18 +129,130 @@
     <script src="menu-utils.js"></script>
     <script>
         let allFiles = []; // Array globale per memorizzare tutti i file
+        let lockedColumns = []; // Array per tracciare le colonne bloccate
+        let lockedColumnsDirection = {}; // Oggetto per tracciare la direzione di ordinamento delle colonne bloccate
         
         document.addEventListener('DOMContentLoaded', async function() {
+            // Inizializza gli event listener per i lucchetti
+            document.querySelectorAll('.lock-icon').forEach(icon => {
+                icon.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const columnIndex = parseInt(this.getAttribute('data-column'));
+                    this.classList.toggle('locked');
+                    
+                    if (this.classList.contains('locked')) {
+                        if (!lockedColumns.includes(columnIndex)) {
+                            lockedColumns.push(columnIndex);
+                            // Salva la direzione corrente di ordinamento per questa colonna
+                            lockedColumnsDirection[columnIndex] = sortDirection[columnIndex];
+                        }
+                    } else {
+                        lockedColumns = lockedColumns.filter(col => col !== columnIndex);
+                        delete lockedColumnsDirection[columnIndex];
+                    }
+                    // Salva lo stato dei lucchetti e le direzioni nel localStorage
+                    localStorage.setItem('lockedColumns', JSON.stringify(lockedColumns));
+                    localStorage.setItem('lockedColumnsDirection', JSON.stringify(lockedColumnsDirection));
+                });
+            });
             displayLoggedInUser();
             initializeNotifications();
-            await loadSpeakerFiles();
             initializeFilters();
             applyDefaultSorting();
-            adjustColumnWidths();
+            enableColumnResizing(); // Abilita il ridimensionamento delle colonne
         });
+
+        // Funzione per salvare le larghezze delle colonne
+        function saveColumnWidths() {
+            const table = document.getElementById('speaker-files-table');
+            const headerCells = table.getElementsByTagName('th');
+            const widths = Array.from(headerCells).map(cell => cell.style.width);
+            localStorage.setItem('speakerFilesColumnWidths', JSON.stringify(widths));
+        }
+
+        // Funzione per ripristinare le larghezze delle colonne
+        function restoreColumnWidths() {
+            const savedWidths = localStorage.getItem('speakerFilesColumnWidths');
+            if (savedWidths) {
+                const widths = JSON.parse(savedWidths);
+                const table = document.getElementById('speaker-files-table');
+                const headerCells = table.getElementsByTagName('th');
+
+                widths.forEach((width, index) => {
+                    if (headerCells[index] && width) {
+                        headerCells[index].style.width = width;
+                        // Aggiorna anche le celle del corpo della tabella
+                        const tableRows = table.getElementsByTagName('tr');
+                        for (let row of tableRows) {
+                            if (row.cells[index]) {
+                                row.cells[index].style.width = width;
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function enableColumnResizing() {
+            const table = document.getElementById('speaker-files-table');
+            if (!table) return;
+            
+            const headerCells = table.getElementsByTagName('th');
+            if (!headerCells || headerCells.length === 0) return;
+
+            restoreColumnWidths();
+
+            for (let i = 0; i < headerCells.length; i++) {
+                const headerCell = headerCells[i];
+                const resizer = document.createElement('div');
+                resizer.className = 'resizer';
+                headerCell.appendChild(resizer);
+
+                let startX, startWidth;
+
+                resizer.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    startX = e.clientX;
+                    startWidth = headerCell.offsetWidth;
+
+                    document.addEventListener('mousemove', resizeColumn);
+                    document.addEventListener('mouseup', stopResize);
+                    document.body.classList.add('column-resizing');
+                });
+
+                function resizeColumn(e) {
+                    const widthChange = e.clientX - startX;
+                    const newWidth = Math.max(50, startWidth + widthChange);
+                    headerCell.style.width = `${newWidth}px`;
+
+                    const tableRows = table.getElementsByTagName('tr');
+                    for (let row of tableRows) {
+                        if (row.cells[i]) {
+                            row.cells[i].style.width = `${newWidth}px`;
+                        }
+                    }
+                }
+
+                function stopResize() {
+                    document.removeEventListener('mousemove', resizeColumn);
+                    document.removeEventListener('mouseup', stopResize);
+                    document.body.classList.remove('column-resizing');
+                    saveColumnWidths();
+                }
+            }
+        }
 
         async function loadSpeakerFiles() {
             try {
+                // Mostra l'animazione di caricamento
+                const loadingAnimation = document.getElementById('loading-animation');
+                loadingAnimation.style.display = 'block';
+                
+                // Garantire un ritardo minimo per mostrare l'animazione
+                const minLoadingTime = new Promise(resolve => setTimeout(resolve, 1000));
+                
                 const response = await fetch('/api/files/speaker-files');
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
@@ -159,53 +290,17 @@
                 displayFiles(filteredFiles);
                 
                 console.log(`Caricati ${filteredFiles.length} file rilevanti su ${files.length} totali`);
+                
+                // Aspetta il tempo minimo prima di nascondere l'animazione
+                await minLoadingTime;
+                
+                // Nascondi l'animazione di caricamento
+                loadingAnimation.style.display = 'none';
             } catch (error) {
                 console.error('Errore nel caricamento dei file speaker:', error);
                 alert('Errore nel caricamento dei file. Riprova più tardi.');
-            }
-        }
-        async function loadSpeakerFiles() {
-            try {
-                const response = await fetch('/api/files/speaker-files');
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                const files = await response.json();
-                
-                // Carica il contenuto dei file per poterli filtrare
-                const filesWithContent = await Promise.all(files.map(async (file) => {
-                    try {
-                        const contentResponse = await fetch(`/api/files/${file.id}/content`);
-                        if (contentResponse.ok) {
-                            const content = await contentResponse.text();
-                            return { ...file, content: content };
-                        }
-                    } catch (err) {
-                        console.warn(`Impossibile caricare il contenuto del file ${file.filename}:`, err);
-                    }
-                    return { ...file, content: '' };
-                }));
-                
-                // Filtra solo i file con parametri TS, risposte in frequenza e impedenza
-                const filteredFiles = filesWithContent.filter(file => {
-                    if (!file.content) return false;
-                    
-                    // Verifica se contiene parametri TS
-                    const hasTS = checkForTSParameters(file.content);
-                    if (hasTS) return true;
-                    
-                    // Verifica se contiene dati di risposta in frequenza o impedenza
-                    const { dataType } = analyzeFileContent(file.content);
-                    return dataType === 'db' || dataType === 'ohm';
-                });
-                
-                allFiles = filteredFiles; // Memorizza solo i file filtrati
-                displayFiles(filteredFiles);
-                
-                console.log(`Caricati ${filteredFiles.length} file rilevanti su ${files.length} totali`);
-            } catch (error) {
-                console.error('Errore nel caricamento dei file speaker:', error);
-                alert('Errore nel caricamento dei file. Riprova più tardi.');
+                // Nascondi l'animazione di caricamento in caso di errore
+                document.getElementById('loading-animation').style.display = 'none';
             }
         }
 
@@ -214,15 +309,39 @@
             const textFilters = [
                 'client-filter', 'product-kind-filter', 'brand-filter', 
                 'range-filter', 'line-filter', 'model-filter', 
-                'filename-filter', 'filekind-filter'
+                'filename-filter', 'filekind-filter', 'description-filter'
             ];
             
+            // Ripristina i filtri salvati
+            const savedFilters = JSON.parse(localStorage.getItem('speakerFilesFilters'));
             textFilters.forEach(filterId => {
                 const filterElement = document.getElementById(filterId);
                 if (filterElement) {
-                    filterElement.addEventListener('input', applyFilters);
+                    // Imposta il valore salvato se presente
+                    if (savedFilters && savedFilters[filterId]) {
+                        filterElement.value = savedFilters[filterId];
+                    }
+                    // Aggiungi event listener per salvare i filtri
+                    filterElement.addEventListener('input', function() {
+                        applyFilters();
+                        saveFilters();
+                    });
                 }
             });
+            
+            // Applica i filtri se sono stati ripristinati
+            if (savedFilters) {
+                // Controlla se almeno un filtro ha un valore
+                const hasActiveFilter = Object.values(savedFilters).some(value => value && value.trim() !== '');
+                if (hasActiveFilter) {
+                    // Carica automaticamente i dati se ci sono filtri attivi
+                    loadSpeakerFiles().then(() => {
+                        applyFilters();
+                    });
+                } else {
+                    applyFilters();
+                }
+            }
 
             // Aggiungi event listener per le checkbox di visibilità colonne
             const columnCheckboxes = document.querySelectorAll('.column-visibility input[type="checkbox"]');
@@ -232,10 +351,71 @@
 
             // Aggiungi event listener per il raggruppamento tramite click sull'intestazione della colonna
             enableColumnSorting();
+            
+            // Aggiungi event listener per i pulsanti "View Selected" e "Download Selected"
+            const viewSelectedButton = document.getElementById('view-selected');
+            if (viewSelectedButton) {
+                viewSelectedButton.addEventListener('click', viewSelectedFiles);
+            }
+            
+            const downloadSelectedButton = document.getElementById('download-selected');
+            if (downloadSelectedButton) {
+                downloadSelectedButton.addEventListener('click', downloadSelectedFiles);
+            }
+        }
+
+        // Funzione per salvare i filtri nel localStorage
+        function saveFilters() {
+            const filters = {
+                'client-filter': document.getElementById('client-filter')?.value || '',
+                'product-kind-filter': document.getElementById('product-kind-filter')?.value || '',
+                'brand-filter': document.getElementById('brand-filter')?.value || '',
+                'range-filter': document.getElementById('range-filter')?.value || '',
+                'line-filter': document.getElementById('line-filter')?.value || '',
+                'model-filter': document.getElementById('model-filter')?.value || '',
+                'filename-filter': document.getElementById('filename-filter')?.value || '',
+                'filekind-filter': document.getElementById('filekind-filter')?.value || '',
+                'description-filter': document.getElementById('description-filter')?.value || ''
+            };
+            localStorage.setItem('speakerFilesFilters', JSON.stringify(filters));
+        }
+        
+        // Funzione per visualizzare i file selezionati
+        function viewSelectedFiles() {
+            const selectedRows = document.querySelectorAll('#speaker-files-table tbody tr.selected');
+            if (selectedRows.length === 0) {
+                alert('No files selected. Please select at least one file.');
+                return;
+            }
+            
+            const graphWindowName = 'graphViewer';
+            let graphWindow = window.open('', graphWindowName);
+            
+            if (!graphWindow || graphWindow.closed || !graphWindow.location || !graphWindow.location.href.includes('graph-viewer.html')) {
+                graphWindow = window.open('graph-viewer.html', graphWindowName);
+                graphWindow.onload = () => sendSelectedFilesToGraphWindow(graphWindow);
+            } else {
+                graphWindow.focus();
+                sendSelectedFilesToGraphWindow(graphWindow);
+            }
+        }
+        
+        // Funzione per scaricare i file selezionati
+        function downloadSelectedFiles() {
+            const selectedRows = document.querySelectorAll('#speaker-files-table tbody tr.selected');
+            if (selectedRows.length === 0) {
+                alert('No files selected. Please select at least one file.');
+                return;
+            }
+            
+            selectedRows.forEach(row => {
+                const fileId = row.dataset.fileId;
+                window.open(`/api/files/${fileId}/download`, '_blank');
+            });
         }
 
         function applyFilters() {
-            const filters = {
+                const filters = {
                 client: document.getElementById('client-filter')?.value.toLowerCase() || '',
                 productKind: document.getElementById('product-kind-filter')?.value.toLowerCase() || '',
                 brand: document.getElementById('brand-filter')?.value.toLowerCase() || '',
@@ -243,24 +423,34 @@
                 line: document.getElementById('line-filter')?.value.toLowerCase() || '',
                 model: document.getElementById('model-filter')?.value.toLowerCase() || '',
                 filename: document.getElementById('filename-filter')?.value.toLowerCase() || '',
-                filekind: document.getElementById('filekind-filter')?.value.toLowerCase() || ''
+                filekind: document.getElementById('filekind-filter')?.value.toLowerCase() || '',
+                description: document.getElementById('description-filter')?.value.toLowerCase() || ''
             };
 
-            const filteredFiles = allFiles.filter(file => {
-                return (
-                    (!filters.client || (file.client || '').toLowerCase().includes(filters.client)) &&
-                    (!filters.productKind || (file.productKind || '').toLowerCase().includes(filters.productKind)) &&
-                    (!filters.brand || (file.brand || '').toLowerCase().includes(filters.brand)) &&
-                    (!filters.range || (file.range || '').toLowerCase().includes(filters.range)) &&
-                    (!filters.line || (file.line || '').toLowerCase().includes(filters.line)) &&
-                    (!filters.model || (file.modelNumber || '').toLowerCase().includes(filters.model)) &&
-                    (!filters.filename || (file.filename || '').toLowerCase().includes(filters.filename)) &&
-                    (!filters.filekind || determineFileType(file.filename, file.content).toLowerCase().includes(filters.filekind))
-                );
-            });
+            // Controlla se almeno un filtro è impostato
+            const isFilterSet = filters.client || filters.productKind || filters.brand || filters.range || filters.line || filters.model || filters.filename || filters.filekind;
 
-            displayFiles(filteredFiles);
-            applyLastSorting(); // Applica l'ultimo ordinamento salvato dopo il filtraggio
+            if (isFilterSet && allFiles.length === 0) {
+                // Carica i dati solo se un filtro è impostato e i dati non sono ancora stati caricati
+                loadSpeakerFiles();
+            } else {
+                const filteredFiles = allFiles.filter(file => {
+                    return (
+                        (!filters.client || (file.client || '').toLowerCase().includes(filters.client)) &&
+                        (!filters.productKind || (file.productKind || '').toLowerCase().includes(filters.productKind)) &&
+                        (!filters.brand || (file.brand || '').toLowerCase().includes(filters.brand)) &&
+                        (!filters.range || (file.range || '').toLowerCase().includes(filters.range)) &&
+                        (!filters.line || (file.line || '').toLowerCase().includes(filters.line)) &&
+                        (!filters.model || (file.modelNumber || '').toLowerCase().includes(filters.model)) &&
+                        (!filters.filename || (file.filename || '').toLowerCase().includes(filters.filename)) &&
+                        (!filters.filekind || determineFileType(file.filename, file.content).toLowerCase().includes(filters.filekind)) &&
+                        (!filters.description || (file.description || '').toLowerCase().includes(filters.description))
+                    );
+                });
+
+                displayFiles(filteredFiles);
+                applyLastSorting(); // Applica l'ultimo ordinamento salvato dopo il filtraggio
+            }
         }
 
         function toggleColumnVisibility() {
@@ -288,6 +478,12 @@
         function displayFiles(files) {
             const tbody = document.querySelector('#speaker-files-table tbody');
             tbody.innerHTML = '';
+            const filterMessage = document.getElementById('filter-message');
+            if (files.length === 0) {
+                filterMessage.style.display = 'block';
+            } else {
+                filterMessage.style.display = 'none';
+            }
 
             files.forEach(file => {
                 const row = document.createElement('tr');
@@ -326,9 +522,27 @@
                 lineCell.textContent = file.line || '-';
                 row.appendChild(lineCell);
                 
-                // Colonna Model N
+                // Colonna Model N - con link al progetto
                 const modelCell = document.createElement('td');
-                modelCell.textContent = file.modelNumber || '-';
+                if (file.modelNumber && file.modelNumber !== '-' && file.project_id) {
+                    // Crea un link cliccabile per il model number usando il project_id
+                    const modelLink = document.createElement('a');
+                    modelLink.href = `project-details.html?id=${encodeURIComponent(file.project_id)}`;
+                    modelLink.textContent = file.modelNumber;
+                    modelLink.style.color = '#007bff';
+                    modelLink.style.textDecoration = 'underline';
+                    modelLink.style.cursor = 'pointer';
+                    modelLink.title = `Visualizza dettagli progetto per ${file.modelNumber}`;
+                    
+                    // Previeni la selezione della riga quando si clicca sul link
+                    modelLink.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                    });
+                    
+                    modelCell.appendChild(modelLink);
+                } else {
+                    modelCell.textContent = file.modelNumber || '-';
+                }
                 row.appendChild(modelCell);
                 
                 // Colonna File Name
@@ -336,44 +550,40 @@
                 nameCell.textContent = file.filename;
                 row.appendChild(nameCell);
                 
+                // Colonna Description
+                const descriptionCell = document.createElement('td');
+                descriptionCell.textContent = file.description || '-';
+                row.appendChild(descriptionCell);
+                
                 // Colonna File Kind
                 const fileKindCell = document.createElement('td');
                 fileKindCell.textContent = determineFileType(file.filename, file.content);
                 row.appendChild(fileKindCell);
                 
-                // Colonna Actions
-                const actionsCell = document.createElement('td');
-                const viewButton = document.createElement('button');
-                viewButton.innerHTML = '<i class="fas fa-eye"></i>';
-                viewButton.title = 'View';
-                viewButton.addEventListener('click', () => viewFile(file));
-                actionsCell.appendChild(viewButton);
-                
-                const downloadButton = document.createElement('button');
-                downloadButton.innerHTML = '<i class="fas fa-download"></i>';
-                downloadButton.title = 'Download';
-                downloadButton.addEventListener('click', () => downloadFile(file.id));
-                actionsCell.appendChild(downloadButton);
-                
-                row.appendChild(actionsCell);
+                // Colonna Actions rimossa
                 tbody.appendChild(row);
             });
+
+            restoreColumnWidths();
         }
 
         function determineFileType(filename, content) {
-            if (filename.toLowerCase().endsWith('.txt') && content) {
-                // Verifica se contiene parametri TS
-                if (checkForTSParameters(content)) {
-                    return 'TS Parameters';
+            if (filename.toLowerCase().endsWith('.txt')) {
+                if (content) {
+                    // Verifica se contiene parametri TS
+                    if (checkForTSParameters(content)) {
+                        return 'TS Parameters';
+                    }
+                    
+                    // Verifica se contiene dati di risposta in frequenza o impedenza
+                    const { dataType } = analyzeFileContent(content);
+                    if (dataType === 'db') {
+                        return 'Frequency Response';
+                    } else if (dataType === 'ohm') {
+                        return 'Impedance';
+                    }
                 }
-                
-                // Verifica se contiene dati di risposta in frequenza o impedenza
-                const { dataType } = analyzeFileContent(content);
-                if (dataType === 'db') {
-                    return 'Frequency Response';
-                } else if (dataType === 'ohm') {
-                    return 'Impedance';
-                }
+                return 'Text File (content not loaded)';
             }
             return 'Other';
         }
@@ -446,7 +656,7 @@
             return points;
         }
 
-        function viewFile(file) {
+        async function viewFile(file) {
             // Controlla se ci sono righe selezionate
             const selectedRows = document.querySelectorAll('#speaker-files-table tbody tr.selected');
             if (selectedRows.length > 0) {
@@ -462,17 +672,22 @@
                 }
             } else {
                 // Se non ci sono righe selezionate, visualizza solo il file corrente
+                await loadFileContent(file.id);
                 openSingleFile(file);
             }
         }
 
-        function sendSelectedFilesToGraphWindow(targetWindow) {
+        async function sendSelectedFilesToGraphWindow(targetWindow) {
             const selectedRows = document.querySelectorAll('#speaker-files-table tbody tr.selected');
-            selectedRows.forEach(row => {
+            for (const row of selectedRows) {
                 const fileId = row.dataset.fileId;
                 const file = allFiles.find(f => f.id == fileId);
                 if (file && file.filename.toLowerCase().endsWith('.txt')) {
                     try {
+                        // Assicurati che il contenuto sia caricato
+                        if (!file.content) {
+                            await loadFileContent(file.id);
+                        }
                         const content = file.content || '';
                         const { dataType, startIndex } = analyzeFileContent(content);
                         const points = extractDataPoints(content, startIndex);
@@ -495,12 +710,16 @@
                         console.error(`Error processing "${file.filename}" as graph:`, error);
                     }
                 }
-            });
+            }
         }
 
-        function openSingleFile(file) {
+        async function openSingleFile(file) {
             if (file.filename.toLowerCase().endsWith('.txt')) {
                 try {
+                    // Assicurati che il contenuto sia caricato
+                    if (!file.content) {
+                        await loadFileContent(file.id);
+                    }
                     const content = file.content || '';
                     const { dataType, startIndex } = analyzeFileContent(content);
                     const points = extractDataPoints(content, startIndex);
@@ -568,9 +787,33 @@
                 sortDirection[lastSorting.columnIndex] = lastSorting.direction;
             }
 
-            for (let i = 0; i < headers.length - 1; i++) { // Esclude l'ultima colonna (Actions)
+            // Carica lo stato dei lucchetti salvato e le direzioni
+            const savedLocks = JSON.parse(localStorage.getItem('lockedColumns'));
+            const savedDirections = JSON.parse(localStorage.getItem('lockedColumnsDirection'));
+            if (savedLocks) {
+                lockedColumns = savedLocks;
+                document.querySelectorAll('.lock-icon').forEach(icon => {
+                    const colIndex = parseInt(icon.getAttribute('data-column'));
+                    if (lockedColumns.includes(colIndex)) {
+                        icon.classList.add('locked');
+                        // Ripristina la direzione di ordinamento se salvata
+                        if (savedDirections && savedDirections[colIndex] !== undefined) {
+                            lockedColumnsDirection[colIndex] = savedDirections[colIndex];
+                            sortDirection[colIndex] = savedDirections[colIndex];
+                        }
+                    }
+                });
+            }
+
+            for (let i = 0; i < headers.length; i++) { // Itera su tutte le colonne
                 headers[i].addEventListener('click', function() {
                     const columnIndex = i;
+                    
+                    // Se la colonna è bloccata, non fare nulla
+                    if (lockedColumns.includes(columnIndex)) {
+                        return;
+                    }
+
                     const rows = Array.from(table.getElementsByTagName('tbody')[0].rows);
                     const isAscending = sortDirection[columnIndex];
 
@@ -590,11 +833,33 @@
                     // Aggiungi la classe sorted all'header corrente
                     headers[columnIndex].classList.add('sorted');
 
-                    rows.sort((a, b) => {
-                        const aText = a.cells[columnIndex].textContent.trim();
-                        const bText = b.cells[columnIndex].textContent.trim();
-                        return isAscending ? aText.localeCompare(bText) : bText.localeCompare(aText);
-                    });
+                    // Funzione di confronto per l'ordinamento
+                    const compareFn = (a, b) => {
+                        // Prima verifica tutte le colonne bloccate in ordine
+                        for (const lockedCol of lockedColumns.sort((a, b) => a - b)) {
+                            const aLocked = a.cells[lockedCol].textContent.trim();
+                            const bLocked = b.cells[lockedCol].textContent.trim();
+                            const compareResult = aLocked.localeCompare(bLocked);
+                            if (compareResult !== 0) {
+                                // Usa la direzione salvata per questa colonna bloccata
+                                const direction = lockedColumnsDirection[lockedCol];
+                                return direction ? compareResult : -compareResult;
+                            }
+                        }
+                        
+                        // Se tutte le colonne bloccate sono uguali, ordina per la colonna corrente
+                        // Solo se la colonna corrente non è bloccata
+                        if (!lockedColumns.includes(columnIndex)) {
+                            const aText = a.cells[columnIndex].textContent.trim();
+                            const bText = b.cells[columnIndex].textContent.trim();
+                            return isAscending ? aText.localeCompare(bText) : bText.localeCompare(aText);
+                        }
+                        
+                        // Se la colonna corrente è bloccata, mantieni l'ordine attuale
+                        return 0;
+                    };
+
+                    rows.sort(compareFn);
 
                     // Raggruppa le righe con lo stesso valore
                     let currentValue = '';
@@ -651,41 +916,26 @@
             }
         }
 
-        // Funzione per adattare la larghezza delle colonne al contenuto
-        function adjustColumnWidths() {
-            const table = document.getElementById('speaker-files-table');
-            const rows = table.rows;
-            if (rows.length === 0) return;
-
-            // Itera su tutte le colonne
-            for (let col = 0; col < table.rows[0].cells.length; col++) {
-                let maxWidth = 0;
-                // Itera su tutte le righe per trovare la larghezza massima del contenuto
-                for (let row = 0; row < rows.length; row++) {
-                    const cell = rows[row].cells[col];
-                    if (cell) {
-                        const cellText = cell.textContent;
-                        const tempSpan = document.createElement('span');
-                        tempSpan.style.visibility = 'hidden';
-                        tempSpan.style.whiteSpace = 'nowrap';
-                        tempSpan.style.font = window.getComputedStyle(cell).font;
-                        tempSpan.textContent = cellText;
-                        document.body.appendChild(tempSpan);
-                        const width = tempSpan.offsetWidth;
-                        document.body.removeChild(tempSpan);
-                        maxWidth = Math.max(maxWidth, width);
+        // La funzione adjustColumnWidths non è più necessaria, il ridimensionamento manuale la sostituisce.
+        
+        // Funzione per caricare il contenuto di un file specifico
+        async function loadFileContent(fileId) {
+            try {
+                const contentResponse = await fetch(`/api/files/${fileId}/content`);
+                if (contentResponse.ok) {
+                    const content = await contentResponse.text();
+                    // Aggiorna il contenuto nel array allFiles
+                    const fileIndex = allFiles.findIndex(f => f.id == fileId);
+                    if (fileIndex !== -1) {
+                        allFiles[fileIndex].content = content;
                     }
+                    return content;
+                } else {
+                    throw new Error(`HTTP error! status: ${contentResponse.status}`);
                 }
-                // Imposta la larghezza della colonna con un piccolo margine
-                const headerCell = table.querySelector(`thead tr th:nth-child(${col + 1})`);
-                if (headerCell) {
-                    headerCell.style.width = `${maxWidth + 20}px`; // Aggiungi un margine di 20px
-                }
-                // Applica la larghezza anche alle celle del corpo
-                const bodyCells = table.querySelectorAll(`tbody tr td:nth-child(${col + 1})`);
-                bodyCells.forEach(cell => {
-                    cell.style.width = `${maxWidth + 20}px`;
-                });
+            } catch (err) {
+                console.warn(`Impossibile caricare il contenuto del file con ID ${fileId}:`, err);
+                return '';
             }
         }
     </script>
