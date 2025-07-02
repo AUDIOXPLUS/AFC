@@ -242,4 +242,9 @@ router.post('/backup/settings', checkAuthentication, (req, res) => {
     }
 });
 
+// Rotta per la pagina degli ordini
+router.get('/orders', checkAuthentication, (req, res) => {
+    res.sendFile(path.join(__dirname, 'orders.html'));
+});
+
 module.exports = router;

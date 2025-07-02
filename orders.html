@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Order & Shipment Manager</title>
+<style>
+  body{margin:0;height:100vh;font-family:Arial,Helvetica,sans-serif;display:grid;grid-template-columns:320px 1fr;grid-template-areas:"stock board"; transition: grid-template-columns 0.3s ease;}
+  #stock-list{grid-area:stock;margin:0;padding:1rem;border-right:1px solid #ddd;overflow-y:auto;overflow-x:auto}
+  #stock-list table{min-width:100%;border-collapse:collapse;background:#f7f7f7;border:1px solid #ccc;border-radius:4px;overflow:hidden}
+  #stock-list th, #stock-list td{padding:8px;text-align:left;border-bottom:1px solid #ddd;font-size:0.8rem;white-space:nowrap;}
+  .detail-column{display:none;}
+  /* Colori diversi per le colonne Weight/Size */
+  .detail-column:nth-child(5), .detail-column:nth-child(5) ~ .detail-column {background-color: #f0f8ff; color: #2c3e50;}
+  #stock-list th{background:#e0e0e0;font-weight:bold}
+  #stock-list tr{cursor:grab}
+  #stock-list td[data-type="stock"]:hover .qty-stock,
+  #stock-list td[data-type="produced"]:hover .qty-produced,
+  #stock-list td[data-type="neworder"]:hover .qty-neworder {
+    background: #eef;
+    display: inline-block;
+    padding: 0 2px;
+    border-radius: 3px;
+    font-weight: bold;
+  }
+  
+  /* Stili per le righe espandibili */
+  .expandable-row {
+    cursor: pointer;
+    position: relative;
+  }
+  .expandable-row:hover {
+    background: #e8f4fd !important;
+  }
+  .expand-indicator {
+    position: absolute;
+    left: -12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    color: #666;
+    transition: transform 0.2s ease;
+  }
+  .expand-indicator.expanded {
+    transform: translateY(-50%) rotate(90deg);
+  }
+  .expandable-row td:first-child {
+    padding-left: 10px;
+    position: relative;
+  }
+  
+  /* Stili per le righe delle PO */
+  .po-row {
+    display: none;
+    background: #f8f9fa !important;
+    border-left: 3px solid #007bff;
+  }
+  .po-row.show {
+    display: table-row;
+    animation: slideDown 0.3s ease-out;
+  }
+  .po-row td {
+    padding: 6px 8px;
+    font-size: 0.75rem;
+    color: #555;
+    border-bottom: 1px solid #e9ecef;
+  }
+  .po-row td:first-child {
+    padding-left: 30px;
+    font-style: italic;
+  }
+  
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  #board-wrapper{grid-area:board;display:flex;flex-direction:column;height:100%}
+  #container-toolbar{display:flex;gap:.5rem;padding:.5rem 1rem;border-bottom:1px solid #ddd;background:#fff}
+  #container-toolbar button{padding:6px 12px;border:1px solid #888;border-radius:4px;background:#f0f0f0;cursor:pointer}
+  #containers{flex-grow:1;display:flex;gap:12px;padding:1rem;overflow-x:auto}
+  .container{flex:0 0 300px;min-width:300px;background:#fafafa;border:1px solid #ccc;border-radius:6px;box-shadow:0 0 4px rgba(0,0,0,.1);transition:.3s}
+  .closing{opacity:0}
+  .container-header{display:flex;justify-content:space-between;align-items:center;padding:4px 0 8px;margin:0 8px;border-bottom:1px solid #ddd}
+  .container-meta{font-size:.85rem;margin:8px;}
+  .meta-row{display:flex;gap:6px;margin-bottom:2px;align-items:center}
+  .meta-row span{width:80px;text-align:left;flex-shrink:0;white-space:nowrap;}
+  .meta-row input{flex-grow:1;padding:2px 4px;font-size:.85rem; min-width: 0; max-width: 120px; margin-left: auto;}
+  .meta-row input[type="date"]{font-size:.75rem;}
+  .meta-row .total-ctns, .meta-row .total-net-weight, .meta-row .total-gross-weight, .meta-row .total-cbm {margin-left:auto;text-align:right;}
+  .container-items{list-style:none;min-height:260px;margin:0 8px 8px;padding:8px;background:#eef;border:2px dashed #aac;border-radius:4px;overflow-y:auto}
+  .container-items li{display:flex;flex-direction:column;gap:6px;margin-bottom:12px;padding:8px;background:#fff;border:1px solid #bbb;border-radius:4px}
+  .row-main{display:flex;align-items:center;justify-content:space-between}
+  .row-left{display:flex;gap:4px;align-items:center;flex-grow:1}
+  .sku{font-weight:bold; width: 100px; flex-shrink: 0; font-size: 0.8rem;}
+  .total-display{font-weight:bold; flex-shrink: 0; margin-right: 4px; font-size: 0.8rem;}
+  .edit-btn,.del-btn{width:22px;height:22px;line-height:20px;text-align:center;border:1px solid #666;border-radius:4px;background:#ddd;cursor:pointer;font-size:.8rem}
+  .del-btn{background:#f6c0c0;border-color:#b55}
+  .alloc-editor{display:none;font-size:.8rem;background:#f9f9f9;padding:6px;border:1px solid #ccc;border-radius:4px}
+.details-editor{display:none;font-size:.8rem;background:#f0f0f0;padding:6px;border:1px solid #ccc;border-radius:4px}
+.details-grid{display:grid;grid-template-columns:1fr;gap:4px}
+.details-field{display:flex;flex-direction:column}
+.details-field label{font-size:.75rem;font-weight:bold}
+.details-field span{font-size:.8rem}
+.details-btn{width:22px;height:22px;line-height:20px;text-align:center;border:1px solid #666;border-radius:4px;background:#ddd;cursor:pointer;font-size:.8rem}
+  .alloc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px}
+  .alloc-field{display:flex;flex-direction:column}
+  .alloc-field label{font-size:.75rem;font-weight:bold}
+  .alloc-field input{width:45px;text-align:right}
+  /* Hide spinners from number inputs */
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type=number] {
+    -moz-appearance: textfield;
+  }
+</style>
+</head>
+<body>
+<div id="stock-list">
+  <button id="toggle-details-btn" style="margin-bottom: 10px; padding: 6px 12px; border: 1px solid #888; border-radius: 4px; background: #f0f0f0; cursor: pointer;">Show Weight/Size</button>
+  <table>
+    <thead>
+      <tr>
+        <th>Model n</th>
+        <th>Stock</th>
+        <th>To be pr.</th>
+        <th>New</th>
+        <th class="detail-column">Qty/Ctn</th>
+        <th class="detail-column">Unit Net Weight (kg)</th>
+        <th class="detail-column">Unit Gross Weight (kg)</th>
+        <th class="detail-column">Ctn Size (LxWxH)</th>
+      </tr>
+    </thead>
+    <tbody id="stock-table-body"></tbody>
+  </table>
+</div>
+<div id="board-wrapper">
+  <div id="container-toolbar"><button id="add-container-btn">New Container</button><button id="open-container-btn">Open Existing</button></div>
+  <div id="containers"></div>
+</div>
+<script>
+// Dati dei modelli con le relative PO
+const MODEL_DATA = [
+  {
+    sku: "SLICK 6-V7", 
+    stock: 120, 
+    produced: 30, 
+    qtyPerCtn: 10, 
+    unitNetWeight: 0.5, 
+    unitGrossWeight: 0.6, 
+    ctnSize: {length: 30, width: 20, height: 10},
+    proformaOrders: [
+      {poNumber: "PO-2024-001", customer: "Cliente A", quantity: 50, deliveryDate: "2024-02-15", status: "Completata", type: "stock"},
+      {poNumber: "PO-2024-002", customer: "Cliente B", quantity: 70, deliveryDate: "2024-02-20", status: "Completata", type: "stock"},
+      {poNumber: "PO-2024-003", customer: "Cliente C", quantity: 20, deliveryDate: "2024-03-01", status: "In produzione", type: "produced"},
+      {poNumber: "PO-2024-009", customer: "Cliente I", quantity: 10, deliveryDate: "2024-03-05", status: "Da produrre", type: "produced"}
+    ]
+  },
+  {
+    sku: "SLICKPRO6M-V0", 
+    stock: 80, 
+    produced: 10, 
+    qtyPerCtn: 8, 
+    unitNetWeight: 0.7, 
+    unitGrossWeight: 0.8, 
+    ctnSize: {length: 35, width: 25, height: 15},
+    proformaOrders: [
+      {poNumber: "PO-2024-004", customer: "Cliente D", quantity: 40, deliveryDate: "2024-02-18", status: "Completata", type: "stock"},
+      {poNumber: "PO-2024-005", customer: "Cliente E", quantity: 40, deliveryDate: "2024-02-25", status: "Completata", type: "stock"},
+      {poNumber: "PO-2024-010", customer: "Cliente L", quantity: 10, deliveryDate: "2024-03-10", status: "In produzione", type: "produced"}
+    ]
+  },
+  {
+    sku: "BDPRO4T-V0", 
+    stock: 50, 
+    produced: 0, 
+    qtyPerCtn: 12, 
+    unitNetWeight: 0.4, 
+    unitGrossWeight: 0.5, 
+    ctnSize: {length: 40, width: 30, height: 20},
+    proformaOrders: [
+      {poNumber: "PO-2024-006", customer: "Cliente F", quantity: 30, deliveryDate: "2024-03-05", status: "Completata", type: "stock"},
+      {poNumber: "PO-2024-007", customer: "Cliente G", quantity: 20, deliveryDate: "2024-03-10", status: "Completata", type: "stock"}
+    ]
+  }
+];
+
+const stockTableBody = document.getElementById('stock-table-body');
+
+// Funzione per creare le righe della tabella con funzionalità di espansione
+function createStockTable() {
+  MODEL_DATA.forEach(d => {
+    // Crea la riga principale del modello
+    const tr = document.createElement('tr');
+    tr.dataset.sku = d.sku;
+    tr.draggable = true;
+    tr.className = 'expandable-row';
+    tr.innerHTML = `
+      <td>
+        <span class="expand-indicator">▶</span>
+        ${d.sku}
+      </td>
+      <td data-type="stock" data-avail="${d.stock}"><span class="qty-stock">${d.stock}</span></td>
+      <td data-type="produced" data-avail="${d.produced}"><span class="qty-produced">${d.produced}</span></td>
+      <td data-type="neworder" data-avail="0"><span class="qty-neworder">0</span></td>
+      <td class="detail-column">${d.qtyPerCtn}</td>
+      <td class="detail-column">${d.unitNetWeight}</td>
+      <td class="detail-column">${d.unitGrossWeight}</td>
+      <td class="detail-column">${d.ctnSize.length}x${d.ctnSize.width}x${d.ctnSize.height} cm</td>
+    `;
+    
+    // Aggiungi event listener per l'espansione
+    tr.addEventListener('click', function(e) {
+      // Evita l'espansione se si sta trascinando
+      if (e.target.closest('.expandable-row').draggable && e.type === 'click') {
+        togglePORows(d.sku);
+      }
+    });
+    
+    stockTableBody.appendChild(tr);
+    
+    // Crea le righe delle PO per questo modello
+    d.proformaOrders.forEach(po => {
+      const poTr = document.createElement('tr');
+      poTr.className = 'po-row';
+      poTr.dataset.parentSku = d.sku;
+      
+      // Organizza i dati delle PO nelle colonne appropriate
+      let stockContent = '';
+      let producedContent = '';
+      
+      if (po.type === 'stock') {
+        stockContent = po.quantity;
+      } else if (po.type === 'produced') {
+        producedContent = po.quantity;
+      }
+      
+      poTr.innerHTML = `
+        <td>PO: ${po.poNumber}</td>
+        <td>${stockContent}</td>
+        <td>${producedContent}</td>
+        <td></td>
+        <td class="detail-column">-</td>
+        <td class="detail-column">-</td>
+        <td class="detail-column">-</td>
+        <td class="detail-column">-</td>
+      `;
+      stockTableBody.appendChild(poTr);
+    });
+  });
+}
+
+// Funzione per mostrare/nascondere le righe delle PO
+function togglePORows(sku) {
+  const expandIndicator = document.querySelector(`tr[data-sku="${sku}"] .expand-indicator`);
+  const poRows = document.querySelectorAll(`tr.po-row[data-parent-sku="${sku}"]`);
+  const isExpanded = expandIndicator.classList.contains('expanded');
+  
+  if (isExpanded) {
+    // Chiudi le righe delle PO
+    expandIndicator.classList.remove('expanded');
+    poRows.forEach(row => {
+      row.classList.remove('show');
+      setTimeout(() => {
+        if (!row.classList.contains('show')) {
+          row.style.display = 'none';
+        }
+      }, 300);
+    });
+  } else {
+    // Apri le righe delle PO
+    expandIndicator.classList.add('expanded');
+    poRows.forEach(row => {
+      row.style.display = 'table-row';
+      setTimeout(() => row.classList.add('show'), 10);
+    });
+  }
+}
+
+// Inizializza la tabella
+createStockTable();
+
+const isTouch='ontouchstart'in window||navigator.maxTouchPoints>0;
+let containerCount=0,draggedRow=null,touchRow=null,prodDrag=null;
+
+function addContainer(id) {
+  const today = new Date().toISOString().split('T')[0];
+  const div = document.createElement('div');
+  div.className = 'container';
+  div.dataset.container = id;
+  div.innerHTML = `
+    <div class="container-header">
+      <h3>${id}</h3>
+      <button class="close-container-btn">Close</button>
+    </div>
+    <div class="container-meta">
+      <div class="meta-row"><span>Creation date:</span><input type="date" value="${today}"></div>
+      <div class="meta-row"><span>Estimated shipping date:</span><input type="date"></div>
+      <div class="meta-row"><span>PL #:</span><input type="text"></div>
+      <div class="meta-row"><span>Destination:</span><input type="text"></div>
+      <div class="meta-row"><span>Total Ctns:</span><span class="total-ctns">0</span></div>
+      <div class="meta-row"><span>Total Net Weight:</span><span class="total-net-weight">0 kg</span></div>
+      <div class="meta-row"><span>Total Gross Weight:</span><span class="total-gross-weight">0 kg</span></div>
+      <div class="meta-row"><span>Total CBM:</span><span class="total-cbm">0 m³</span></div>
+    </div>
+    <ul class="container-items"></ul>`;
+  document.getElementById('containers').appendChild(div);
+  div.querySelector('.close-container-btn').onclick = () => {
+    div.classList.add('closing');
+    setTimeout(() => div.remove(), 300);
+  };
+  makeDroppable(div.querySelector('.container-items'));
+  div.scrollIntoView({ behavior: 'smooth', inline: 'end' });
+}
+
+function makeDroppable(list) {
+  list.ondragover = e => e.preventDefault();
+  list.ondrop = e => {
+    e.preventDefault();
+    if (draggedRow) {
+      list.appendChild(draggedRow);
+      draggedRow = null;
+      updateContainerTotals(list.closest('.container'));
+      return;
+    }
+    const data = e.dataTransfer.getData('text/plain');
+    if (data) {
+      const parsedData = JSON.parse(data);
+      createRowWithQuantity(list, parsedData.sku, parsedData.type, parsedData.quantity);
+      updateContainerTotals(list.closest('.container'));
+    }
+  };
+  if (isTouch) {
+    list.ontouchend = () => {
+      if (touchRow) {
+        list.appendChild(touchRow);
+        touchRow = null;
+        updateContainerTotals(list.closest('.container'));
+        return;
+      }
+      if (prodDrag) {
+        createRowWithQuantity(list, prodDrag.sku, prodDrag.type, prodDrag.quantity);
+        prodDrag = null;
+        updateContainerTotals(list.closest('.container'));
+      }
+    };
+  }
+}
+function createRow(list, sku) {
+  let li = [...list.children].find(el => el.dataset.sku === sku);
+  if (!li) {
+    li = document.createElement('li');
+    li.draggable = true;
+    li.dataset.sku = sku;
+    li.dataset.stock = 0;
+    li.dataset.produced = 0;
+    li.dataset.neworder = 0;
+    li.innerHTML = `
+      <div class="row-main">
+        <div class="row-left">
+          <span class="sku">${sku}</span>
+        </div>
+        <div>
+          <span class="total-display">0</span>
+          <button class="edit-btn">🖉</button> 
+          <button class="del-btn">✖</button>
+          <button class="details-btn">▼</button>
+        </div>
+      </div>
+      <div class="alloc-editor" style="display: none;">
+        <div class="alloc-grid">
+          <div class="alloc-field"><label>Stock</label><input class="edit-stock" type="number" min="0" max="9999"></div>
+          <div class="alloc-field"><label>To be pr.</label><input class="edit-produced" type="number" min="0" max="9999"></div>
+          <div class="alloc-field"><label>New</label><input class="edit-neworder" type="number" min="0" max="9999"></div>
+        </div>
+      </div>
+      <div class="details-editor" style="display: none;">
+        <div class="details-grid">
+          <div class="details-field"><span>here will be all PO list</span></div>
+        </div>
+      </div>`;
+    list.appendChild(li);
+    li.querySelector('.edit-btn').onclick = () => toggleEditor(li);
+    li.querySelector('.del-btn').onclick = () => deleteRow(li);
+    li.querySelector('.details-btn').onclick = () => toggleDetails(li);
+    ['edit-stock', 'edit-produced', 'edit-neworder'].forEach(c => li.querySelector('.' + c).oninput = () => apply(li));
+    li.ondragstart = () => draggedRow = li;
+    if (isTouch) {
+      li.ontouchstart = () => touchRow = li;
+    }
+    updateDetails(li);
+  }
+  return li;
+}
+
+function createRowWithQuantity(list, sku, type, quantity) {
+  let li = createRow(list, sku);
+  // Aggiorna la quantità specifica in base al tipo
+  const currentQty = parseInt(li.dataset[type]) || 0;
+  li.dataset[type] = currentQty + parseInt(quantity);
+  li.querySelector('.total-display').textContent = (parseInt(li.dataset.stock) + parseInt(li.dataset.produced) + parseInt(li.dataset.neworder));
+  // Aggiorna la disponibilità centrale sottraendo la quantità trascinata
+  updateCentral(sku, type, -parseInt(quantity));
+}
+
+function toggleEditor(li) {
+  const ed = li.querySelector('.alloc-editor');
+  ed.style.display = ed.style.display === 'block' ? 'none' : 'block';
+  if (ed.style.display === 'block') {
+    ed.querySelector('.edit-stock').value = li.dataset.stock;
+    ed.querySelector('.edit-produced').value = li.dataset.produced;
+    ed.querySelector('.edit-neworder').value = li.dataset.neworder;
+  }
+}
+
+function toggleDetails(li) {
+  const ed = li.querySelector('.details-editor');
+  const btn = li.querySelector('.details-btn');
+  ed.style.display = ed.style.display === 'block' ? 'none' : 'block';
+  btn.textContent = ed.style.display === 'block' ? '▲' : '▼';
+}
+
+function updateDetails(li) {
+  // Non è necessario aggiornare i dettagli del prodotto, viene mostrato solo il testo placeholder
+}
+
+function updateContainerTotals(container) {
+  let totalCtns = 0;
+  let totalNetWeight = 0;
+  let totalGrossWeight = 0;
+  let totalCbm = 0;
+
+  const items = container.querySelectorAll('.container-items li');
+  items.forEach(item => {
+    const sku = item.dataset.sku;
+    const data = MODEL_DATA.find(d => d.sku === sku);
+    if (data) {
+      const qtyStock = +item.dataset.stock || 0;
+      const qtyProduced = +item.dataset.produced || 0;
+      const qtyNewOrder = +item.dataset.neworder || 0;
+      const totalQty = qtyStock + qtyProduced + qtyNewOrder;
+      
+      const ctns = Math.ceil(totalQty / data.qtyPerCtn);
+      totalCtns += ctns;
+      totalNetWeight += totalQty * data.unitNetWeight;
+      totalGrossWeight += totalQty * data.unitGrossWeight;
+      totalCbm += ctns * (data.ctnSize.length * data.ctnSize.width * data.ctnSize.height) / 1000000; // Convert cm³ to m³
+    }
+  });
+
+  container.querySelector('.total-ctns').textContent = totalCtns;
+  container.querySelector('.total-net-weight').textContent = totalNetWeight.toFixed(2) + ' kg';
+  container.querySelector('.total-gross-weight').textContent = totalGrossWeight.toFixed(2) + ' kg';
+  container.querySelector('.total-cbm').textContent = totalCbm.toFixed(2) + ' m³';
+}
+
+function apply(li) {
+  const sku = li.dataset.sku;
+  const ed = li.querySelector('.alloc-editor');
+  const vals = {
+    stock: +ed.querySelector('.edit-stock').value || 0,
+    produced: +ed.querySelector('.edit-produced').value || 0,
+    neworder: +ed.querySelector('.edit-neworder').value || 0
+  };
+  const diff = {
+    stock: vals.stock - (li.dataset.stock ? parseInt(li.dataset.stock) : 0),
+    produced: vals.produced - (li.dataset.produced ? parseInt(li.dataset.produced) : 0),
+    neworder: vals.neworder - (li.dataset.neworder ? parseInt(li.dataset.neworder) : 0)
+  };
+  // Aggiorna la tabella a sinistra con le differenze
+  if (!updateCentral(sku, 'stock', -diff.stock)) {
+    ed.querySelector('.edit-stock').value = li.dataset.stock;
+    return;
+  }
+  if (!updateCentral(sku, 'produced', -diff.produced)) {
+    ed.querySelector('.edit-produced').value = li.dataset.produced;
+    return;
+  }
+  if (!updateCentral(sku, 'neworder', -diff.neworder)) {
+    ed.querySelector('.edit-neworder').value = li.dataset.neworder;
+    return;
+  }
+  Object.assign(li.dataset, vals);
+  li.querySelector('.total-display').textContent = (vals.stock + vals.produced + vals.neworder);
+  updateContainerTotals(li.closest('.container'));
+}
+
+function updateCentral(sku, type, delta) {
+  if (delta === 0) return true;
+  const cell = document.querySelector(`#stock-table-body tr[data-sku="${sku}"] td[data-type="${type}"]`);
+  let avail = +cell.dataset.avail;
+  // Sottrae la quantità trascinata dalla disponibilità
+  avail += delta;
+  if (avail < 0) return false; // Impedisce valori negativi
+  cell.dataset.avail = avail;
+  cell.querySelector(`.qty-${type}`).textContent = avail;
+  return true;
+}
+
+function deleteRow(li) {
+  const sku = li.dataset.sku;
+  // Riaggiungi le quantità alla tabella a sinistra quando elimini una riga dal container
+  updateCentral(sku, 'stock', parseInt(li.dataset.stock) || 0);
+  updateCentral(sku, 'produced', parseInt(li.dataset.produced) || 0);
+  updateCentral(sku, 'neworder', parseInt(li.dataset.neworder) || 0);
+  const container = li.closest('.container');
+  li.remove();
+  updateContainerTotals(container);
+}
+
+function initStockDrag(){
+  document.querySelectorAll('#stock-table-body tr.expandable-row').forEach(tr=>{
+    const sku = tr.dataset.sku;
+    // Rendi trascinabili le singole quantità
+    tr.querySelectorAll('td[data-type] span').forEach(span => {
+      span.draggable = true;
+      span.ondragstart = e => {
+        const type = span.parentElement.dataset.type;
+        const quantity = span.textContent;
+        e.dataTransfer.setData('text/plain', JSON.stringify({ sku, type, quantity }));
+      };
+      if(isTouch){
+        span.ontouchstart = () => {
+          const type = span.parentElement.dataset.type;
+          const quantity = span.textContent;
+          prodDrag = { sku, type, quantity };
+          span.classList.add('dragging');
+        };
+        span.ontouchend = () => span.classList.remove('dragging');
+      }
+    });
+  });
+}
+
+initStockDrag();
+
+document.getElementById('add-container-btn').onclick=()=>addContainer('C'+(++containerCount));
+document.getElementById('open-container-btn').onclick=()=>{const id=prompt('Enter container ID');if(id)addContainer(id);}
+document.getElementById('toggle-details-btn').onclick=()=>{
+  const detailColumns = document.querySelectorAll('.detail-column');
+  const btn = document.getElementById('toggle-details-btn');
+  const body = document.body;
+  if(detailColumns[0].style.display === 'none' || !detailColumns[0].style.display) {
+    detailColumns.forEach(col => col.style.display = 'table-cell');
+    btn.textContent = 'Hide Weight/Size';
+    body.style.gridTemplateColumns = '800px 1fr'; // Espande ulteriormente la colonna della tabella
+  } else {
+    detailColumns.forEach(col => col.style.display = 'none');
+    btn.textContent = 'Show Weight/Size';
+    body.style.gridTemplateColumns = '320px 1fr'; // Ripristina la larghezza originale
+  }
+};	
+</script>
+</body>
+</html>
