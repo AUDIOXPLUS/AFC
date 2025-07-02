@@ -5,6 +5,8 @@ node_modules/
 uploads/
 database/*.db
 database/*.sqbpro
+database/sessions.sqlite
+*.sqlite
 database/backups/
 backups/*
 logs/onlyoffice/
