@@ -82,6 +82,7 @@
   
   #board-wrapper{grid-area:board;display:flex;flex-direction:column;height:100%}
   #container-toolbar{display:flex;gap:.5rem;padding:.5rem 1rem;border-bottom:1px solid #ddd;background:#fff}
+  #stock-list .toolbar-btn{padding:6px 12px;background:#f0f0f0;cursor:default;}
   #container-toolbar button{padding:6px 12px;border:1px solid #888;border-radius:4px;background:#f0f0f0;cursor:pointer}
   #containers{flex-grow:1;display:flex;gap:12px;padding:1rem;overflow-x:auto}
   .container{flex:0 0 300px;min-width:300px;background:#fafafa;border:1px solid #ccc;border-radius:6px;box-shadow:0 0 4px rgba(0,0,0,.1);transition:.3s}
@@ -125,7 +126,10 @@
 </head>
 <body>
 <div id="stock-list">
-  <button id="toggle-details-btn" style="margin-bottom: 10px; padding: 6px 12px; border: 1px solid #888; border-radius: 4px; background: #f0f0f0; cursor: pointer;">Show Weight/Size</button>
+  <div id="custom-toolbar" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+    <button id="toggle-details-btn" class="toolbar-btn">Show Weight/Size</button>
+    <button id="details-btn" class="toolbar-btn">details</button>
+  </div>
   <table>
     <thead>
       <tr>
