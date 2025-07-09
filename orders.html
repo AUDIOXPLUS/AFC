@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <title>Order & Shipment Manager</title>
 <style>
-  body{margin:0;height:100vh;font-family:Arial,Helvetica,sans-serif;display:grid;grid-template-columns:320px 1fr;grid-template-areas:"stock board"; transition: grid-template-columns 0.3s ease;}
+  body{margin:0;height:100vh;font-family:Arial,Helvetica,sans-serif;display:grid;grid-template-columns:352px 1fr;grid-template-areas:"stock board"; transition: grid-template-columns 0.3s ease;}
   #stock-list{grid-area:stock;margin:0;padding:1rem;border-right:1px solid #ddd;overflow-y:auto;overflow-x:auto}
   #stock-list table{min-width:100%;border-collapse:collapse;background:#f7f7f7;border:1px solid #ccc;border-radius:4px;overflow:hidden}
   #stock-list th, #stock-list td{padding:8px;text-align:left;border-bottom:1px solid #ddd;font-size:0.8rem;white-space:nowrap;}
@@ -12,15 +12,40 @@
   /* Colori diversi per le colonne Weight/Size */
   .detail-column:nth-child(5), .detail-column:nth-child(5) ~ .detail-column {background-color: #f0f8ff; color: #2c3e50;}
   #stock-list th{background:#e0e0e0;font-weight:bold}
-  #stock-list tr{cursor:grab}
+  #stock-list tr{cursor:default}
+  #stock-list td[data-type="stock"]:hover,
+  #stock-list td[data-type="produced"]:hover,
+  #stock-list td[data-type="neworder"]:hover,
+  #stock-list tr.expandable-row td:first-child:hover {
+    cursor: grab;
+  }
   #stock-list td[data-type="stock"]:hover .qty-stock,
   #stock-list td[data-type="produced"]:hover .qty-produced,
   #stock-list td[data-type="neworder"]:hover .qty-neworder {
-    background: #eef;
+    background: #d0e0ff;
+    box-shadow: 0 0 8px rgba(0, 123, 255, 0.3);
+    transform: scale(1.02);
+    transition: all 0.3s ease;
+    border-radius: 4px;
     display: inline-block;
-    padding: 0 2px;
-    border-radius: 3px;
+    padding: 2px 8px;
     font-weight: bold;
+  }
+
+  #stock-list tr.expandable-row td:first-child:hover {
+    background: #d0e0ff;
+    box-shadow: 0 0 8px rgba(0, 123, 255, 0.3);
+    transform: scale(1.02);
+    transition: all 0.3s ease;
+    border-radius: 4px;
+    padding-left: 12px;
+  }
+
+  /* Stile per l'elemento in fase di trascinamento */
+  .dragging {
+    opacity: 0.5;
+    background: #d0e0ff;
+    border: 1px dashed #007bff;
   }
   
   /* Stili per le righe espandibili */
@@ -30,6 +55,34 @@
   }
   .expandable-row:hover {
     background: #e8f4fd !important;
+  }
+  
+  /* Separazione tra i modelli */
+  .expandable-row:not(:first-child) {
+    border-top: 3px solid #007bff;
+    margin-top: 2px;
+  }
+  
+  /* Background alternato per i gruppi di modelli */
+  .expandable-row:nth-child(3n+1) {
+    background: #f8f9fa;
+  }
+  .expandable-row:nth-child(3n+1):hover {
+    background: #e8f4fd !important;
+  }
+  
+  /* Assicura che le righe PO ereditino lo stesso background del modello padre */
+  .po-row {
+    background: inherit !important;
+  }
+  
+  /* Stili per identificare visivamente i gruppi di modelli */
+  .expandable-row td:first-child {
+    font-weight: bold;
+    color: #2c3e50;
+    border-left: 4px solid #007bff;
+    padding-left: 16px;
+    position: relative;
   }
   .expand-indicator {
     position: absolute;
@@ -42,10 +95,6 @@
   }
   .expand-indicator.expanded {
     transform: translateY(-50%) rotate(90deg);
-  }
-  .expandable-row td:first-child {
-    padding-left: 10px;
-    position: relative;
   }
   
   /* Stili per le righe delle PO */
@@ -69,6 +118,44 @@
     font-style: italic;
   }
   
+  /* Stili per le PO con quantità nei container */
+  .po-row.has-container-qty {
+    cursor: pointer;
+    position: relative;
+  }
+  .po-row.has-container-qty td:first-child {
+    color: #dc3545 !important;
+    font-weight: bold;
+    padding-left: 20px;
+  }
+  .po-row.has-container-qty:hover {
+    background: #ffe6e6 !important;
+  }
+  
+  /* Stili per le righe dei container sotto le PO */
+  .container-detail-row {
+    display: none;
+    background: #f0f0f0 !important;
+    border-left: 3px solid #dc3545;
+  }
+  .container-detail-row.show {
+    display: table-row;
+    animation: slideDown 0.3s ease-out;
+  }
+  .container-detail-row td {
+    padding: 4px 8px;
+    font-size: 0.7rem;
+    color: #dc3545 !important;
+    border-bottom: 1px solid #ddd;
+    font-weight: 500;
+  }
+  .container-detail-row td:first-child {
+    padding-left: 85px;
+    font-style: italic;
+    color: #dc3545 !important;
+    position: relative;
+  }
+  
   @keyframes slideDown {
     from {
       opacity: 0;
@@ -82,8 +169,8 @@
   
   #board-wrapper{grid-area:board;display:flex;flex-direction:column;height:100%}
   #container-toolbar{display:flex;gap:.5rem;padding:.5rem 1rem;border-bottom:1px solid #ddd;background:#fff}
-  #stock-list .toolbar-btn{padding:6px 12px;background:#f0f0f0;cursor:default;}
-  #container-toolbar button{padding:6px 12px;border:1px solid #888;border-radius:4px;background:#f0f0f0;cursor:pointer}
+  #stock-list .toolbar-btn{padding:6px 12px;border:1px solid #888;border-radius:4px;background:#f0f0f0;cursor:pointer;font-size:0.8rem;}
+  #container-toolbar button{padding:6px 12px;border:1px solid #888;border-radius:4px;background:#f0f0f0;cursor:pointer;font-size:0.8rem;}
   #containers{flex-grow:1;display:flex;gap:12px;padding:1rem;overflow-x:auto}
   .container{flex:0 0 300px;min-width:300px;background:#fafafa;border:1px solid #ccc;border-radius:6px;box-shadow:0 0 4px rgba(0,0,0,.1);transition:.3s}
   .closing{opacity:0}
@@ -100,19 +187,71 @@
   .row-left{display:flex;gap:4px;align-items:center;flex-grow:1}
   .sku{font-weight:bold; width: 100px; flex-shrink: 0; font-size: 0.8rem;}
   .total-display{font-weight:bold; flex-shrink: 0; margin-right: 4px; font-size: 0.8rem;}
-  .edit-btn,.del-btn{width:22px;height:22px;line-height:20px;text-align:center;border:1px solid #666;border-radius:4px;background:#ddd;cursor:pointer;font-size:.8rem}
+  .edit-btn,.del-btn,.details-btn{width:22px;height:22px;line-height:20px;text-align:center;border:1px solid #888;border-radius:4px;background:#f0f0f0;cursor:pointer;font-size:0.8rem}
   .del-btn{background:#f6c0c0;border-color:#b55}
   .alloc-editor{display:none;font-size:.8rem;background:#f9f9f9;padding:6px;border:1px solid #ccc;border-radius:4px}
-.details-editor{display:none;font-size:.8rem;background:#f0f0f0;padding:6px;border:1px solid #ccc;border-radius:4px}
-.details-grid{display:grid;grid-template-columns:1fr;gap:4px}
-.details-field{display:flex;flex-direction:column}
-.details-field label{font-size:.75rem;font-weight:bold}
-.details-field span{font-size:.8rem}
-.details-btn{width:22px;height:22px;line-height:20px;text-align:center;border:1px solid #666;border-radius:4px;background:#ddd;cursor:pointer;font-size:.8rem}
-  .alloc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px}
-  .alloc-field{display:flex;flex-direction:column}
-  .alloc-field label{font-size:.75rem;font-weight:bold}
-  .alloc-field input{width:45px;text-align:right}
+.details-editor {
+  display: none;
+  font-size: .8rem;
+  background: #fff;
+  padding: 8px;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  margin-top: 8px;
+}
+.details-grid {
+  display: table;
+  width: 100%;
+  border-collapse: collapse;
+}
+.details-field {
+  display: table-row;
+}
+.details-field label {
+  display: table-cell;
+  font-size: .75rem;
+  font-weight: bold;
+  padding: 4px 8px;
+  border-bottom: 1px solid #dee2e6;
+  white-space: nowrap;
+}
+.details-header {
+  display: table-row;
+  font-weight: bold;
+  background: #f8f9fa;
+}
+.details-header label,
+.details-header span {
+  display: table-cell;
+  font-size: .75rem;
+  padding: 4px 8px;
+  border-bottom: 2px solid #dee2e6;
+}
+.details-header label {
+  text-align: left;
+}
+.details-header span {
+  text-align: center;
+}
+.details-field label,
+.details-field span {
+  display: table-cell;
+  font-size: .8rem;
+  padding: 4px 8px;
+  border-bottom: 1px solid #dee2e6;
+}
+.details-field label {
+  text-align: left;
+  font-weight: bold;
+}
+.details-field span {
+  text-align: center;
+}
+.details-btn{width:22px;height:22px;line-height:20px;text-align:center;border:1px solid #888;border-radius:4px;background:#f0f0f0;cursor:pointer;font-size:0.8rem}
+  .alloc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;align-items:center;text-align:center;}
+  .alloc-field{display:flex;flex-direction:column;align-items:center;}
+  .alloc-field label{font-size:.75rem;font-weight:bold;margin-bottom:2px;}
+  .alloc-field input{width:50px;text-align:center;padding:2px;}
   /* Hide spinners from number inputs */
   input[type=number]::-webkit-inner-spin-button,
   input[type=number]::-webkit-outer-spin-button {
@@ -127,15 +266,35 @@
 <body>
 <div id="stock-list">
   <div id="custom-toolbar" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-    <button id="toggle-details-btn" class="toolbar-btn">Show Weight/Size</button>
-    <button id="details-btn" class="toolbar-btn">details</button>
+    <button id="toggle-all-btn" class="toolbar-btn" style="width: 40px; padding: 4px; min-width: 40px;">PO</button>
+    <button id="toggle-red-btn" class="toolbar-btn" style="width: 40px; padding: 4px; min-width: 40px;">🚢</button>
+    <button id="toggle-details-btn" class="toolbar-btn" style="width: 40px; padding: 4px; min-width: 40px;">⚖</button>
+    <button id="details-btn" class="toolbar-btn" style="width: 40px; padding: 4px; min-width: 40px;">$</button>
+    <button id="make-order-btn" class="toolbar-btn" style="width: 40px; padding: 4px; min-width: 40px;">📝</button>
+    <style>
+      #custom-toolbar .toolbar-btn {
+        background-color: #e6f2ff;
+        color: #1249ef;
+        border: 1px solid #1249ef;
+      }
+      #make-order-btn {
+        margin-left: auto;
+      }
+      #details-btn.active, #toggle-details-btn.active, #toggle-all-btn.active, #toggle-red-btn.active, #make-order-btn.active {
+        background-color: #1249ef;
+        color: white;
+        font-weight: bold;
+      }
+    </style>
   </div>
   <table>
     <thead>
       <tr>
         <th>Model n</th>
+        <th>Unit</th>
+        <th class="detail-column">Unit Price</th>
         <th>Stock</th>
-        <th>To be pr.</th>
+        <th>TBP</th>
         <th>New</th>
         <th class="detail-column">Qty/Ctn</th>
         <th class="detail-column">Unit Net Weight (kg)</th>
@@ -158,6 +317,8 @@ const MODEL_DATA = [
     stock: 120, 
     produced: 30, 
     qtyPerCtn: 10, 
+    unit: "pcs",
+    unitPrice: 25.50,
     unitNetWeight: 0.5, 
     unitGrossWeight: 0.6, 
     ctnSize: {length: 30, width: 20, height: 10},
@@ -173,6 +334,8 @@ const MODEL_DATA = [
     stock: 80, 
     produced: 10, 
     qtyPerCtn: 8, 
+    unit: "pcs",
+    unitPrice: 35.75,
     unitNetWeight: 0.7, 
     unitGrossWeight: 0.8, 
     ctnSize: {length: 35, width: 25, height: 15},
@@ -187,6 +350,8 @@ const MODEL_DATA = [
     stock: 50, 
     produced: 0, 
     qtyPerCtn: 12, 
+    unit: "pcs",
+    unitPrice: 18.90,
     unitNetWeight: 0.4, 
     unitGrossWeight: 0.5, 
     ctnSize: {length: 40, width: 30, height: 20},
@@ -198,6 +363,202 @@ const MODEL_DATA = [
 ];
 
 const stockTableBody = document.getElementById('stock-table-body');
+
+// Funzione per controllare se una PO ha quantità nei container
+function checkPOHasContainerQuantity(sku, poNumber) {
+  const containers = document.querySelectorAll('.container');
+  for (const container of containers) {
+    const items = container.querySelectorAll('.container-items li');
+    for (const item of items) {
+      if (item.dataset.sku === sku) {
+        const poAllocations = JSON.parse(item.dataset.poAllocations || '{}');
+        for (const key in poAllocations) {
+          if (key.startsWith(`${poNumber}_`) && poAllocations[key] > 0) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+  return false;
+}
+
+// Funzione per ottenere i dettagli dei container per una PO specifica
+function getPOContainerDetails(sku, poNumber) {
+  const containerDetails = [];
+  const containers = document.querySelectorAll('.container');
+  
+  containers.forEach(container => {
+    const containerName = container.dataset.container;
+    const items = container.querySelectorAll('.container-items li');
+    
+    items.forEach(item => {
+      if (item.dataset.sku === sku) {
+        const poAllocations = JSON.parse(item.dataset.poAllocations || '{}');
+        let stockQty = 0;
+        let producedQty = 0;
+        
+        // Cerca le quantità per questa PO
+        for (const key in poAllocations) {
+          if (key.startsWith(`${poNumber}_`)) {
+            const [, type] = key.split('_');
+            if (type === 'stock') stockQty = poAllocations[key];
+            if (type === 'produced') producedQty = poAllocations[key];
+          }
+        }
+        
+        if (stockQty > 0 || producedQty > 0) {
+          containerDetails.push({
+            containerName,
+            stockQty,
+            producedQty,
+            totalQty: stockQty + producedQty
+          });
+        }
+      }
+    });
+  });
+  
+  return containerDetails;
+}
+
+// Funzione per aggiornare lo stato di tutte le PO
+function updatePOStates() {
+  MODEL_DATA.forEach(d => {
+    d.proformaOrders.forEach(po => {
+      // Trova tutte le righe PO per questo SKU
+      const poRows = document.querySelectorAll(`#stock-table-body tr.po-row[data-parent-sku="${d.sku}"]`);
+      
+      // Cerca la riga specifica per questo numero PO
+      let targetPoRow = null;
+      poRows.forEach(row => {
+        if (row.querySelector('td:first-child').textContent.includes(po.poNumber)) {
+          targetPoRow = row;
+        }
+      });
+      
+      if (targetPoRow) {
+        const hasContainerQty = checkPOHasContainerQuantity(d.sku, po.poNumber);
+        
+        if (hasContainerQty) {
+          targetPoRow.classList.add('has-container-qty');
+          
+          // Aggiungi l'indicatore di espansione se non esiste
+          if (!targetPoRow.querySelector('.expand-indicator')) {
+            const firstTd = targetPoRow.querySelector('td:first-child');
+            const expandIndicator = document.createElement('span');
+            expandIndicator.className = 'expand-indicator';
+            expandIndicator.textContent = '▶';
+            firstTd.insertBefore(expandIndicator, firstTd.firstChild);
+          }
+          
+          // Aggiungi event listener per l'espansione dei container
+          targetPoRow.onclick = function(e) {
+            e.stopPropagation();
+            toggleContainerDetailsRows(d.sku, po.poNumber);
+          };
+        } else {
+          // La PO non ha più quantità nei container
+          targetPoRow.classList.remove('has-container-qty');
+          
+          // Rimuovi l'indicatore di espansione se esiste
+          const expandIndicator = targetPoRow.querySelector('.expand-indicator');
+          if (expandIndicator) {
+            expandIndicator.remove();
+          }
+          
+          // Rimuovi automaticamente le righe dei container espanse per questa PO
+          const containerRows = document.querySelectorAll(`#stock-table-body tr.container-detail-row[data-parent-sku="${d.sku}"][data-po-number="${po.poNumber}"]`);
+          containerRows.forEach(row => {
+            row.classList.remove('show');
+            setTimeout(() => row.remove(), 300);
+          });
+          
+          // Rimuovi l'event listener
+          targetPoRow.onclick = null;
+        }
+      }
+    });
+  });
+}
+
+// Funzione per mostrare/nascondere le righe dei dettagli container per una PO
+function toggleContainerDetailsRows(sku, poNumber) {
+  // Trova tutte le righe PO per questo SKU
+  const poRows = document.querySelectorAll(`#stock-table-body tr.po-row[data-parent-sku="${sku}"]`);
+  
+  // Trova la riga specifica per questo numero PO
+  let targetPoRow = null;
+  poRows.forEach(row => {
+    if (row.querySelector('td:first-child').textContent.includes(poNumber)) {
+      targetPoRow = row;
+    }
+  });
+  
+  if (!targetPoRow) return;
+  
+  const expandIndicator = targetPoRow.querySelector('.expand-indicator');
+  const containerRows = document.querySelectorAll(`#stock-table-body tr.container-detail-row[data-parent-sku="${sku}"][data-po-number="${poNumber}"]`);
+  const isExpanded = expandIndicator && expandIndicator.classList.contains('expanded');
+  
+  if (isExpanded) {
+    // Chiudi le righe dei container
+    expandIndicator.classList.remove('expanded');
+    containerRows.forEach(row => {
+      row.classList.remove('show');
+      setTimeout(() => {
+        if (!row.classList.contains('show')) {
+          row.remove();
+        }
+      }, 300);
+    });
+  } else {
+    // Apri le righe dei container
+    if (expandIndicator) {
+      expandIndicator.classList.add('expanded');
+    }
+    
+    // Rimuovi le righe esistenti per evitare duplicati
+    containerRows.forEach(row => row.remove());
+    
+    // Crea nuove righe per i container
+    const containerDetails = getPOContainerDetails(sku, poNumber);
+    containerDetails.forEach(detail => {
+      const containerRow = document.createElement('tr');
+      containerRow.className = 'container-detail-row';
+      containerRow.dataset.parentSku = sku;
+      containerRow.dataset.poNumber = poNumber;
+      
+      // Ottieni la data di spedizione stimata del container
+      const container = document.querySelector(`.container[data-container="${detail.containerName}"]`);
+      let estimatedShippingDate = '-';
+      if (container) {
+        const dateInputs = container.querySelectorAll('input[type="date"]');
+        // Il secondo input è quello della data di spedizione stimata
+        if (dateInputs.length > 1 && dateInputs[1].value) {
+          estimatedShippingDate = dateInputs[1].value;
+        }
+      }
+      
+      containerRow.innerHTML = `
+        <td>├─ ${detail.containerName}</td>
+        <td style="font-size: 0.7rem; color: #dc3545;">${estimatedShippingDate}</td>
+        <td class="detail-column">-</td>
+        <td>${detail.stockQty || ''}</td>
+        <td>${detail.producedQty || ''}</td>
+        <td></td>
+        <td class="detail-column">-</td>
+        <td class="detail-column">-</td>
+        <td class="detail-column">-</td>
+        <td class="detail-column">-</td>
+      `;
+      
+      // Inserisci la riga subito dopo la riga della PO
+      targetPoRow.insertAdjacentElement('afterend', containerRow);
+      setTimeout(() => containerRow.classList.add('show'), 10);
+    });
+  }
+}
 
 // Funzione per creare le righe della tabella con funzionalità di espansione
 function createStockTable() {
@@ -212,6 +573,8 @@ function createStockTable() {
         <span class="expand-indicator">▶</span>
         ${d.sku}
       </td>
+      <td>${d.unit || '-'}</td>
+      <td class="detail-column">${d.unitPrice ? d.unitPrice.toFixed(2) + ' €' : '-'}</td>
       <td data-type="stock" data-avail="${d.stock}"><span class="qty-stock">${d.stock}</span></td>
       <td data-type="produced" data-avail="${d.produced}"><span class="qty-produced">${d.produced}</span></td>
       <td data-type="neworder" data-avail="0"><span class="qty-neworder">0</span></td>
@@ -236,6 +599,7 @@ function createStockTable() {
       const poTr = document.createElement('tr');
       poTr.className = 'po-row';
       poTr.dataset.parentSku = d.sku;
+      poTr.dataset.poNumber = po.poNumber;
       
       // Organizza i dati delle PO nelle colonne appropriate
       let stockContent = '';
@@ -248,7 +612,9 @@ function createStockTable() {
       }
       
       poTr.innerHTML = `
-        <td>PO: ${po.poNumber}</td>
+        <td>${po.poNumber}</td>
+        <td style="font-size: 0.75rem; color: #666;">${po.deliveryDate || '-'}</td>
+        <td class="detail-column">-</td>
         <td>${stockContent}</td>
         <td>${producedContent}</td>
         <td></td>
@@ -260,6 +626,9 @@ function createStockTable() {
       stockTableBody.appendChild(poTr);
     });
   });
+  
+  // Aggiorna lo stato delle PO dopo aver creato la tabella
+  updatePOStates();
 }
 
 // Funzione per mostrare/nascondere le righe delle PO
@@ -293,7 +662,7 @@ function togglePORows(sku) {
 createStockTable();
 
 const isTouch='ontouchstart'in window||navigator.maxTouchPoints>0;
-let containerCount=0,draggedRow=null,touchRow=null,prodDrag=null;
+let containerCount=0,draggedRow=null,touchRow=null,prodDrag=null, sourceContainer = null;
 
 function addContainer(id) {
   const today = new Date().toISOString().split('T')[0];
@@ -302,7 +671,8 @@ function addContainer(id) {
   div.dataset.container = id;
   div.innerHTML = `
     <div class="container-header">
-      <h3>${id}</h3>
+      <!-- Campo editabile per il nome del container -->
+      <input type="text" class="container-name-input" value="${id}" style="font-size: 1.2rem; font-weight: bold; border: 1px solid #ccc; padding: 2px 5px; max-width: 150px;" onchange="updateContainerName(this)">
       <button class="close-container-btn">Close</button>
     </div>
     <div class="container-meta">
@@ -330,16 +700,51 @@ function makeDroppable(list) {
   list.ondrop = e => {
     e.preventDefault();
     if (draggedRow) {
+      const destinationContainer = list.closest('.container');
       list.appendChild(draggedRow);
+      
+      // Aggiorna i totali per entrambi i container (sorgente e destinazione)
+      updateContainerTotals(destinationContainer);
+      if (sourceContainer && sourceContainer !== destinationContainer) {
+        updateContainerTotals(sourceContainer);
+      }
+
+      // Resetta le variabili globali
       draggedRow = null;
-      updateContainerTotals(list.closest('.container'));
+      sourceContainer = null;
+      
+      // Aggiorna lo stato delle PO dopo ogni spostamento
+      updatePOStates();
       return;
     }
     const data = e.dataTransfer.getData('text/plain');
     if (data) {
       const parsedData = JSON.parse(data);
-      createRowWithQuantity(list, parsedData.sku, parsedData.type, parsedData.quantity);
-      updateContainerTotals(list.closest('.container'));
+
+      if (parsedData.dragType === 'full-model') {
+        let li;
+        // Itera su ogni tipo di quantità (stock, produced) nel payload
+        for (const type in parsedData.quantities) {
+          const details = parsedData.quantities[type];
+          li = createRowWithQuantity(list, parsedData.sku, type, details.total, true, '', details.poDetails);
+        }
+        // Aggiorna i totali solo dopo che tutte le quantità sono state aggiunte
+        if (li) {
+          updateContainerTotals(list.closest('.container'));
+          // Aggiorna il display del totale sull'elemento li
+          li.querySelector('.total-display').textContent = (parseInt(li.dataset.stock) + parseInt(li.dataset.produced) + parseInt(li.dataset.neworder));
+          updateDetails(li);
+        }
+      } else {
+        // Logica originale per il trascinamento di singole quantità
+        const li = createRowWithQuantity(list, parsedData.sku, parsedData.type, parsedData.quantity, parsedData.fromPO, parsedData.poNumber, parsedData.poDetails);
+        updateContainerTotals(list.closest('.container'));
+        li.querySelector('.total-display').textContent = (parseInt(li.dataset.stock) + parseInt(li.dataset.produced) + parseInt(li.dataset.neworder));
+        updateDetails(li);
+      }
+      
+      // Aggiorna lo stato delle PO dopo ogni modifica ai container
+      updatePOStates();
     }
   };
   if (isTouch) {
@@ -348,12 +753,17 @@ function makeDroppable(list) {
         list.appendChild(touchRow);
         touchRow = null;
         updateContainerTotals(list.closest('.container'));
+        updatePOStates();
         return;
       }
       if (prodDrag) {
-        createRowWithQuantity(list, prodDrag.sku, prodDrag.type, prodDrag.quantity);
+        const li = createRowWithQuantity(list, prodDrag.sku, prodDrag.type, prodDrag.quantity, prodDrag.fromPO, prodDrag.poNumber);
         prodDrag = null;
         updateContainerTotals(list.closest('.container'));
+        // Aggiorna il totale visualizzato immediatamente
+        li.querySelector('.total-display').textContent = (parseInt(li.dataset.stock) + parseInt(li.dataset.produced) + parseInt(li.dataset.neworder));
+        updateDetails(li);
+        updatePOStates();
       }
     };
   }
@@ -367,6 +777,11 @@ function createRow(list, sku) {
     li.dataset.stock = 0;
     li.dataset.produced = 0;
     li.dataset.neworder = 0;
+    // Oggetto per tracciare le quantità associate alle PO
+    li.dataset.poAllocations = JSON.stringify({});
+    // Traccia l'ultima PO selezionata per questo modello
+    li.dataset.lastPoStock = '';
+    li.dataset.lastPoProduced = '';
     li.innerHTML = `
       <div class="row-main">
         <div class="row-left">
@@ -374,15 +789,15 @@ function createRow(list, sku) {
         </div>
         <div>
           <span class="total-display">0</span>
-          <button class="edit-btn">🖉</button> 
-          <button class="del-btn">✖</button>
+          <button class="edit-btn">🖉</button>
           <button class="details-btn">▼</button>
+          <button class="del-btn">✖</button>
         </div>
       </div>
       <div class="alloc-editor" style="display: none;">
         <div class="alloc-grid">
           <div class="alloc-field"><label>Stock</label><input class="edit-stock" type="number" min="0" max="9999"></div>
-          <div class="alloc-field"><label>To be pr.</label><input class="edit-produced" type="number" min="0" max="9999"></div>
+          <div class="alloc-field"><label>TBP</label><input class="edit-produced" type="number" min="0" max="9999"></div>
           <div class="alloc-field"><label>New</label><input class="edit-neworder" type="number" min="0" max="9999"></div>
         </div>
       </div>
@@ -396,7 +811,10 @@ function createRow(list, sku) {
     li.querySelector('.del-btn').onclick = () => deleteRow(li);
     li.querySelector('.details-btn').onclick = () => toggleDetails(li);
     ['edit-stock', 'edit-produced', 'edit-neworder'].forEach(c => li.querySelector('.' + c).oninput = () => apply(li));
-    li.ondragstart = () => draggedRow = li;
+    li.ondragstart = (e) => {
+      draggedRow = li;
+      sourceContainer = e.target.closest('.container');
+    };
     if (isTouch) {
       li.ontouchstart = () => touchRow = li;
     }
@@ -405,14 +823,54 @@ function createRow(list, sku) {
   return li;
 }
 
-function createRowWithQuantity(list, sku, type, quantity) {
+function createRowWithQuantity(list, sku, type, quantity, fromPO = false, poNumber = '', poDetails = []) {
   let li = createRow(list, sku);
+  
   // Aggiorna la quantità specifica in base al tipo
   const currentQty = parseInt(li.dataset[type]) || 0;
   li.dataset[type] = currentQty + parseInt(quantity);
-  li.querySelector('.total-display').textContent = (parseInt(li.dataset.stock) + parseInt(li.dataset.produced) + parseInt(li.dataset.neworder));
-  // Aggiorna la disponibilità centrale sottraendo la quantità trascinata
-  updateCentral(sku, type, -parseInt(quantity));
+  
+  // Aggiorna il totale visualizzato
+  const total = parseInt(li.dataset.stock) + parseInt(li.dataset.produced) + parseInt(li.dataset.neworder);
+  li.querySelector('.total-display').textContent = total;
+  
+  // Aggiorna la disponibilità centrale (solo se non è un drag aggregato, che viene gestito sotto)
+  if (poDetails.length === 0) {
+    updateCentral(sku, type, -parseInt(quantity));
+  }
+
+  let poAllocations = JSON.parse(li.dataset.poAllocations || '{}');
+
+  // Se proviene da una o più PO, aggiorna le quantità e traccia le associazioni
+  if (fromPO) {
+    if (poDetails.length > 0) {
+      // Caso di trascinamento aggregato (dal totale)
+      poDetails.forEach(po => {
+        updatePOQuantity(sku, po.number, type, -parseInt(po.quantity));
+        const key = `${po.number}_${type}`;
+        poAllocations[key] = (poAllocations[key] || 0) + parseInt(po.quantity);
+      });
+      // Aggiorna la disponibilità centrale una sola volta con il totale
+      updateCentral(sku, type, -parseInt(quantity));
+
+    } else if (poNumber) {
+      // Caso di trascinamento di una singola PO
+      updatePOQuantity(sku, poNumber, type, -parseInt(quantity));
+      const key = `${poNumber}_${type}`;
+      poAllocations[key] = (poAllocations[key] || 0) + parseInt(quantity);
+      
+      // Aggiorna l'ultima PO selezionata per questo tipo
+      if (type === 'stock') {
+        li.dataset.lastPoStock = poNumber;
+      } else if (type === 'produced') {
+        li.dataset.lastPoProduced = poNumber;
+      }
+    }
+  }
+  
+  li.dataset.poAllocations = JSON.stringify(poAllocations);
+  updateDetails(li);
+  return li;
 }
 
 function toggleEditor(li) {
@@ -433,7 +891,45 @@ function toggleDetails(li) {
 }
 
 function updateDetails(li) {
-  // Non è necessario aggiornare i dettagli del prodotto, viene mostrato solo il testo placeholder
+  const detailsGrid = li.querySelector('.details-grid');
+  const poAllocations = JSON.parse(li.dataset.poAllocations || '{}');
+  detailsGrid.innerHTML = '';
+  
+  // Aggiungi intestazioni di colonna
+  detailsGrid.innerHTML = `
+    <div class="details-header">
+      <label>PO Number</label>
+      <span>Stock</span>
+      <span>TBP</span>
+    </div>`;
+  
+  if (Object.keys(poAllocations).length === 0) {
+    detailsGrid.innerHTML += `<div class="details-field"><span colspan="3">No PO allocations associated with this item.</span></div>`;
+  } else {
+    // Raggruppa le PO per numero
+    const poGroups = {};
+    for (const key in poAllocations) {
+      const qty = poAllocations[key];
+      if (qty > 0) {
+        const [poNumber, type] = key.split('_');
+        if (!poGroups[poNumber]) {
+          poGroups[poNumber] = { stock: 0, produced: 0 };
+        }
+        poGroups[poNumber][type] = qty;
+      }
+    }
+    
+    // Genera le righe della tabella
+    for (const poNumber in poGroups) {
+      const { stock, produced } = poGroups[poNumber];
+      detailsGrid.innerHTML += `
+        <div class="details-field">
+          <label>${poNumber}</label>
+          <span>${stock || ''}</span>
+          <span>${produced || ''}</span>
+        </div>`;
+    }
+  }
 }
 
 function updateContainerTotals(container) {
@@ -492,21 +988,172 @@ function apply(li) {
     ed.querySelector('.edit-neworder').value = li.dataset.neworder;
     return;
   }
+  // Aggiorna le quantità delle PO in base alle modifiche
+  updatePOQuantitiesOnChange(li, diff);
   Object.assign(li.dataset, vals);
   li.querySelector('.total-display').textContent = (vals.stock + vals.produced + vals.neworder);
   updateContainerTotals(li.closest('.container'));
+  updateDetails(li);
+  
+  // Aggiorna lo stato delle PO dopo ogni modifica
+  updatePOStates();
 }
 
 function updateCentral(sku, type, delta) {
   if (delta === 0) return true;
   const cell = document.querySelector(`#stock-table-body tr[data-sku="${sku}"] td[data-type="${type}"]`);
   let avail = +cell.dataset.avail;
-  // Sottrae la quantità trascinata dalla disponibilità
-  avail += delta;
-  if (avail < 0) return false; // Impedisce valori negativi
+  
+  // Gestione speciale per 'neworder' che si aggiunge al pool centrale
+  if (type === 'neworder') {
+    // In `apply`, il delta inviato è -diff.neworder. Se aggiungiamo 10 nel container, diff è 10, delta è -10.
+    // Quindi dobbiamo aggiungere -delta per aumentare il totale.
+    avail += -delta;
+  } else {
+    // Logica originale per stock e tbp
+    avail += delta;
+  }
+
+  if (avail < 0) {
+    // Se la modifica non è valida, non fare nulla e restituisci false
+    console.warn(`Attempted to set negative availability for ${sku} - ${type}. Operation aborted.`);
+    return false;
+  }
+  
   cell.dataset.avail = avail;
   cell.querySelector(`.qty-${type}`).textContent = avail;
   return true;
+}
+
+// Funzione helper per ottenere la quantità originale di una PO dal modello dati
+function getOriginalPOQuantity(sku, poNumber, type) {
+    const model = MODEL_DATA.find(d => d.sku === sku);
+    if (!model) return 0;
+    // Cerca la PO specifica e restituisce la sua quantità originale
+    const po = model.proformaOrders.find(p => p.poNumber === poNumber && p.type === type);
+    return po ? po.quantity : 0;
+}
+
+function updatePOQuantity(sku, poNumber, type, delta) {
+  if (delta === 0) return true;
+  const poRows = document.querySelectorAll(`#stock-table-body tr.po-row[data-parent-sku="${sku}"]`);
+  for (const row of poRows) {
+    if (row.querySelector('td:first-child').textContent.includes(poNumber)) {
+      const tdIndex = type === 'stock' ? 3 : 4;
+      const td = row.querySelector(`td:nth-child(${tdIndex + 1})`);
+      const span = td.querySelector('span');
+      if (span) {
+        let currentQty = parseInt(span.textContent) || 0;
+        let newQty = currentQty + delta;
+
+        // Se stiamo ripristinando la quantità (delta > 0), non superare la quantità originale della PO
+        if (delta > 0) {
+          const originalQty = getOriginalPOQuantity(sku, poNumber, type);
+          if (newQty > originalQty) {
+            newQty = originalQty;
+          }
+        }
+
+        if (newQty < 0) return false; // Non dovrebbe accadere con la logica corretta
+        
+        span.textContent = newQty;
+        span.draggable = newQty > 0;
+        span.style.cursor = newQty > 0 ? 'grab' : 'not-allowed';
+      }
+      break;
+    }
+  }
+  return true;
+}
+
+function updatePOQuantitiesOnChange(li, diff) {
+  const sku = li.dataset.sku;
+  let poAllocations = JSON.parse(li.dataset.poAllocations || '{}');
+  
+  for (const type in diff) {
+    let change = diff[type];
+    if (change !== 0) {
+      if (change < 0) {
+        // Riduciamo le quantità nel container, quindi restituiamo alle PO
+        let remainingChange = -change;
+        // Prima restituiamo alle PO già allocate, in ordine inverso di allocazione (ultima prima)
+        const keys = Object.keys(poAllocations).filter(k => k.endsWith(`_${type}`)).reverse();
+        for (const key of keys) {
+          if (remainingChange > 0) {
+            const allocated = poAllocations[key];
+            if (allocated > 0) {
+              const toRestore = Math.min(allocated, remainingChange);
+              const [poNumber] = key.split('_');
+              updatePOQuantity(sku, poNumber, type, toRestore);
+              poAllocations[key] -= toRestore;
+              remainingChange -= toRestore;
+              if (poAllocations[key] <= 0) {
+                delete poAllocations[key];
+              }
+            }
+          }
+        }
+      } else if (change > 0) {
+        // Aumentiamo le quantità nel container, quindi prendiamo dalle PO
+        let remainingChange = change;
+        // Prima proviamo dall'ultima PO selezionata
+        const lastPoKey = type === 'stock' ? 'lastPoStock' : (type === 'produced' ? 'lastPoProduced' : '');
+        if (lastPoKey && li.dataset[lastPoKey]) {
+          const lastPoNumber = li.dataset[lastPoKey];
+          const availableQty = getPOAvailableQuantity(sku, lastPoNumber, type);
+          if (availableQty > 0) {
+            const toTake = Math.min(availableQty, remainingChange);
+            updatePOQuantity(sku, lastPoNumber, type, -toTake);
+            const key = `${lastPoNumber}_${type}`;
+            poAllocations[key] = (poAllocations[key] || 0) + toTake;
+            remainingChange -= toTake;
+          }
+        }
+        // Se rimane ancora quantità da prendere, cerchiamo nelle PO successive
+        if (remainingChange > 0) {
+          const availablePOs = getAvailablePOs(sku, type);
+          for (const po of availablePOs) {
+            if (remainingChange <= 0) break;
+            const availableQty = getPOAvailableQuantity(sku, po.poNumber, type);
+            if (availableQty > 0) {
+              const toTake = Math.min(availableQty, remainingChange);
+              updatePOQuantity(sku, po.poNumber, type, -toTake);
+              const key = `${po.poNumber}_${type}`;
+              poAllocations[key] = (poAllocations[key] || 0) + toTake;
+              remainingChange -= toTake;
+              // Aggiorna l'ultima PO selezionata
+              if (type === 'stock') {
+                li.dataset.lastPoStock = po.poNumber;
+              } else if (type === 'produced') {
+                li.dataset.lastPoProduced = po.poNumber;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  li.dataset.poAllocations = JSON.stringify(poAllocations);
+}
+
+function getPOAvailableQuantity(sku, poNumber, type) {
+  const poRows = document.querySelectorAll(`#stock-table-body tr.po-row[data-parent-sku="${sku}"]`);
+  for (const row of poRows) {
+    if (row.querySelector('td:first-child').textContent.includes(poNumber)) {
+      // Correzione: gli indici delle colonne devono essere 3 per 'stock' e 4 per 'produced'
+      const tdIndex = type === 'stock' ? 3 : 4;
+      const td = row.querySelector(`td:nth-child(${tdIndex + 1})`);
+      const span = td.querySelector('span');
+      return span ? parseInt(span.textContent) || 0 : 0;
+    }
+  }
+  return 0;
+}
+
+function getAvailablePOs(sku, type) {
+  const modelData = MODEL_DATA.find(d => d.sku === sku);
+  if (!modelData) return [];
+  return modelData.proformaOrders.filter(po => po.type === type);
 }
 
 function deleteRow(li) {
@@ -515,30 +1162,165 @@ function deleteRow(li) {
   updateCentral(sku, 'stock', parseInt(li.dataset.stock) || 0);
   updateCentral(sku, 'produced', parseInt(li.dataset.produced) || 0);
   updateCentral(sku, 'neworder', parseInt(li.dataset.neworder) || 0);
+  // Riaggiungi le quantità alle PO in base al tracciamento
+  const poAllocations = JSON.parse(li.dataset.poAllocations || '{}');
+  for (const key in poAllocations) {
+    const [poNumber, type] = key.split('_');
+    const qty = poAllocations[key];
+    if (qty > 0) {
+      updatePOQuantity(sku, poNumber, type, qty);
+    }
+  }
   const container = li.closest('.container');
   li.remove();
   updateContainerTotals(container);
+  
+  // Aggiorna lo stato delle PO dopo l'eliminazione
+  updatePOStates();
 }
 
-function initStockDrag(){
-  document.querySelectorAll('#stock-table-body tr.expandable-row').forEach(tr=>{
+function initStockDrag() {
+  // Rendi trascinabili le righe intere dei modelli
+  document.querySelectorAll('#stock-table-body tr.expandable-row').forEach(tr => {
+    // Gestore per il trascinamento dell'intera riga del modello
+    tr.ondragstart = e => {
+      // Se il drag inizia su uno span, lascia che il suo gestore specifico faccia il lavoro
+      if (e.target.tagName === 'SPAN') return;
+
+      const sku = tr.dataset.sku;
+      const model = MODEL_DATA.find(d => d.sku === sku);
+      if (!model) return;
+
+      const quantities = {};
+      
+      // Itera sui tipi di quantità e aggrega i dati
+      ['stock', 'produced'].forEach(type => {
+        const poDetails = [];
+        let totalQuantity = 0;
+
+        model.proformaOrders.forEach(po => {
+          if (po.type === type) {
+            const availableQty = getPOAvailableQuantity(sku, po.poNumber, type);
+            if (availableQty > 0) {
+              poDetails.push({ number: po.poNumber, quantity: availableQty });
+              totalQuantity += availableQty;
+            }
+          }
+        });
+
+        if (totalQuantity > 0) {
+          quantities[type] = {
+            total: totalQuantity,
+            poDetails: poDetails
+          };
+        }
+      });
+
+      if (Object.keys(quantities).length > 0) {
+        e.dataTransfer.setData('text/plain', JSON.stringify({
+          sku,
+          dragType: 'full-model',
+          quantities
+        }));
+        e.target.classList.add('dragging');
+      } else {
+        e.preventDefault();
+      }
+    };
+    tr.ondragend = e => e.target.classList.remove('dragging');
+
     const sku = tr.dataset.sku;
-    // Rendi trascinabili le singole quantità
+    // Rendi trascinabili le singole quantità totali
     tr.querySelectorAll('td[data-type] span').forEach(span => {
       span.draggable = true;
       span.ondragstart = e => {
+        e.stopPropagation(); // Impedisce al gestore della riga TR di attivarsi
         const type = span.parentElement.dataset.type;
-        const quantity = span.textContent;
-        e.dataTransfer.setData('text/plain', JSON.stringify({ sku, type, quantity }));
-      };
-      if(isTouch){
-        span.ontouchstart = () => {
-          const type = span.parentElement.dataset.type;
+        
+        // Nuova logica: Leggi le quantità correnti dalle righe delle PO visibili
+        const poDetails = [];
+        let totalQuantity = 0;
+        
+        const poRows = document.querySelectorAll(`#stock-table-body tr.po-row[data-parent-sku="${sku}"]`);
+        const tdIndex = type === 'stock' ? 3 : 4;
+
+        poRows.forEach(poRow => {
+          const poNumber = poRow.querySelector('td:first-child').textContent.trim();
+          if (!poNumber) return; // Salta se la cella è vuota
+            
+          const model = MODEL_DATA.find(d => d.sku === sku);
+          const modelPo = model ? model.proformaOrders.find(p => p.poNumber === poNumber) : null;
+
+          if (modelPo && modelPo.type === type) {
+            const qtyCell = poRow.querySelector(`td:nth-child(${tdIndex + 1})`);
+            // Legge la quantità sia che si trovi in uno span (se già interagito) sia direttamente nel td
+            const qtyText = qtyCell ? (qtyCell.querySelector('span') ? qtyCell.querySelector('span').textContent : qtyCell.textContent) : '0';
+            const currentQty = parseInt(qtyText.trim()) || 0;
+
+            if (currentQty > 0) {
+              poDetails.push({ number: poNumber, quantity: currentQty });
+              totalQuantity += currentQty;
+            }
+          }
+        });
+
+        // Se non ci sono PO o la quantità è zero, gestisci il caso
+        if (type === 'neworder' || poDetails.length === 0) {
           const quantity = span.textContent;
-          prodDrag = { sku, type, quantity };
-          span.classList.add('dragging');
-        };
-        span.ontouchend = () => span.classList.remove('dragging');
+          e.dataTransfer.setData('text/plain', JSON.stringify({ sku, type, quantity, fromPO: false, poDetails: [] }));
+        } else {
+          e.dataTransfer.setData('text/plain', JSON.stringify({
+            sku,
+            type,
+            quantity: totalQuantity,
+            fromPO: true,
+            poDetails: poDetails
+          }));
+        }
+        e.target.classList.add('dragging');
+      };
+      span.ondragend = e => e.target.classList.remove('dragging');
+    });
+  });
+
+  // Rendi trascinabili le quantità delle righe delle PO
+  document.querySelectorAll('#stock-table-body tr.po-row').forEach(poTr => {
+    const parentSku = poTr.dataset.parentSku;
+    const poNumber = poTr.querySelector('td:first-child').textContent.trim();
+    poTr.querySelectorAll('td').forEach((td, index) => {
+      if (index === 3 || index === 4) {
+        const quantityText = td.textContent.trim();
+        if (quantityText && quantityText !== '-' && parseInt(quantityText) > 0) {
+          const type = index === 3 ? 'stock' : 'produced';
+          td.dataset.type = type;
+
+          // Se non c'è già uno span, crealo
+          if (!td.querySelector('span')) {
+            const span = document.createElement('span');
+            span.textContent = quantityText;
+            span.className = `qty-${type}`;
+            td.textContent = '';
+            td.appendChild(span);
+          }
+          
+          const span = td.querySelector('span');
+          span.draggable = true;
+
+          span.ondragstart = e => {
+            e.stopPropagation(); // Impedisce al gestore della riga TR di attivarsi
+            // Usa sempre il valore corrente dello span
+            e.dataTransfer.setData('text/plain', JSON.stringify({
+              sku: parentSku,
+              type,
+              quantity: span.textContent,
+              poNumber: poNumber,
+              fromPO: true,
+              poDetails: []
+            }));
+            e.target.classList.add('dragging');
+          };
+          span.ondragend = e => e.target.classList.remove('dragging');
+        }
       }
     });
   });
@@ -548,18 +1330,97 @@ initStockDrag();
 
 document.getElementById('add-container-btn').onclick=()=>addContainer('C'+(++containerCount));
 document.getElementById('open-container-btn').onclick=()=>{const id=prompt('Enter container ID');if(id)addContainer(id);}
+
+// Funzione per aggiornare il nome del container
+function updateContainerName(input) {
+  const container = input.closest('.container');
+  if (container) {
+    container.dataset.container = input.value;
+  }
+}
 document.getElementById('toggle-details-btn').onclick=()=>{
-  const detailColumns = document.querySelectorAll('.detail-column');
+  const detailColumns = document.querySelectorAll('.detail-column:not(:nth-child(3))');
   const btn = document.getElementById('toggle-details-btn');
   const body = document.body;
   if(detailColumns[0].style.display === 'none' || !detailColumns[0].style.display) {
     detailColumns.forEach(col => col.style.display = 'table-cell');
-    btn.textContent = 'Hide Weight/Size';
     body.style.gridTemplateColumns = '800px 1fr'; // Espande ulteriormente la colonna della tabella
+    btn.classList.add('active');
   } else {
     detailColumns.forEach(col => col.style.display = 'none');
-    btn.textContent = 'Show Weight/Size';
-    body.style.gridTemplateColumns = '320px 1fr'; // Ripristina la larghezza originale
+    body.style.gridTemplateColumns = '352px 1fr'; // Ripristina la larghezza originale
+    btn.classList.remove('active');
+  }
+};
+
+// Funzione per espandere/controllare tutte le righe dei modelli
+function toggleAllModels(expand) {
+  const modelRows = document.querySelectorAll('#stock-table-body tr.expandable-row');
+  modelRows.forEach(row => {
+    const expandIndicator = row.querySelector('.expand-indicator');
+    const isExpanded = expandIndicator.classList.contains('expanded');
+    
+    if ((expand && !isExpanded) || (!expand && isExpanded)) {
+      row.click(); // Simula il click per attivare l'espansione/controllo
+    }
+  });
+}
+
+// Funzione per espandere solo le PO con container allocati
+function toggleRedPOs(expand) {
+  const redPORows = document.querySelectorAll('#stock-table-body tr.po-row.has-container-qty');
+  redPORows.forEach(row => {
+    const expandIndicator = row.querySelector('.expand-indicator');
+    const isExpanded = expandIndicator && expandIndicator.classList.contains('expanded');
+    
+    if ((expand && !isExpanded) || (!expand && isExpanded)) {
+      row.click(); // Simula il click per attivare l'espansione/controllo
+    }
+  });
+}
+
+document.getElementById('toggle-red-btn').onclick=()=>{
+  const btn = document.getElementById('toggle-red-btn');
+  const isActive = btn.classList.contains('active');
+  
+  if (isActive) {
+    toggleRedPOs(false);
+    btn.classList.remove('active');
+  } else {
+    toggleRedPOs(true);
+    btn.classList.add('active');
+  }
+};
+
+document.getElementById('toggle-all-btn').onclick=()=>{
+  const btn = document.getElementById('toggle-all-btn');
+  const isActive = btn.classList.contains('active');
+  
+  if (isActive) {
+    toggleAllModels(false);
+    btn.classList.remove('active');
+  } else {
+    toggleAllModels(true);
+    btn.classList.add('active');
+  }
+};
+
+document.getElementById('make-order-btn').onclick=()=>{
+  alert('Make order functionality will be implemented here');
+};
+
+document.getElementById('details-btn').onclick=()=>{
+  const unitPriceColumns = document.querySelectorAll('th.detail-column:nth-child(3), td.detail-column:nth-child(3)');
+  const body = document.body;
+  const btn = document.getElementById('details-btn');
+  if(unitPriceColumns[0].style.display === 'none' || !unitPriceColumns[0].style.display) {
+    unitPriceColumns.forEach(col => col.style.display = 'table-cell');
+    body.style.gridTemplateColumns = '400px 1fr';
+    btn.classList.add('active');
+  } else {
+    unitPriceColumns.forEach(col => col.style.display = 'none');
+    body.style.gridTemplateColumns = '352px 1fr';
+    btn.classList.remove('active');
   }
 };	
 </script>

@@ -200,8 +200,12 @@ function setupUploadsDirectory() {
             fs.mkdirSync(uploadsDir, { recursive: true, mode: 0o777 });
             console.log('Directory uploads creata con permessi:', uploadsDir);
         } else {
-            fs.chmodSync(uploadsDir, 0o777);
-            console.log('Permessi directory uploads aggiornati:', uploadsDir);
+            try {
+                fs.chmodSync(uploadsDir, 0o777);
+                console.log('Permessi directory uploads aggiornati:', uploadsDir);
+            } catch (e) {
+                console.warn(`Impossibile aggiornare i permessi per la directory uploads (questo è normale in ambienti Docker): ${e.message}`);
+            }
         }
 
         // Verifica che la directory sia scrivibile
