@@ -260,9 +260,63 @@ document.addEventListener('DOMContentLoaded', async function() {
         console.error("Elemento add-entry-btn non trovato nel DOM");
     }
 
-    // Gestione del pulsante urge tasks
+    // Aggiunta campo di ricerca "search project history" accanto al pulsante urge tasks
     const urgeTasksBtn = document.getElementById('urge-tasks-btn');
     if (urgeTasksBtn) {
+        // Crea input di ricerca
+        const historySearchInput = document.createElement('input');
+        historySearchInput.type = 'text';
+        historySearchInput.placeholder = 'Search project history';
+        historySearchInput.id = 'global-history-search';
+        historySearchInput.style.marginLeft = '10px';
+        historySearchInput.style.padding = '3px 6px';
+        historySearchInput.style.fontSize = '0.9em';
+
+        // Inserisci l'input subito dopo il pulsante
+        urgeTasksBtn.parentNode.insertBefore(historySearchInput, urgeTasksBtn.nextSibling);
+
+        // Controlla se c'è un valore salvato in localStorage e impostalo
+        const savedHistorySearch = localStorage.getItem('historySearchValue');
+        if (savedHistorySearch) {
+            setTimeout(() => {
+                historySearchInput.value = savedHistorySearch;
+                historySearchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                localStorage.removeItem('historySearchValue');
+            }, 100);
+        }
+
+        // Listener per ricerca
+        historySearchInput.addEventListener('input', async function() {
+            const keyword = this.value.toLowerCase().trim();
+            if (!keyword) {
+                // Mostra tutte le righe se campo vuoto
+                Array.from(document.getElementById('history-table').getElementsByTagName('tbody')[0].rows)
+                    .forEach(row => row.style.display = '');
+                return;
+            }
+            try {
+                // Chiama endpoint per cercare nella cronologia progetti
+                const response = await fetch(`/api/projects/history/search?keyword=${encodeURIComponent(keyword)}`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const matchingProjectIds = await response.json(); // array di ID progetto
+                const rows = document.getElementById('history-table').getElementsByTagName('tbody')[0].rows;
+                Array.from(rows).forEach(row => {
+                    // Ogni riga ha un attributo data-entry-id, dobbiamo verificare se appartiene al progetto corrente
+                    // Se l'ID progetto corrente è incluso nei matchingProjectIds, allora filtriamo per testo nella riga
+                    if (matchingProjectIds.includes(parseInt(window.projectId))) {
+                        const rowText = row.textContent.toLowerCase();
+                        row.style.display = rowText.includes(keyword) ? '' : 'none';
+                    } else {
+                        // Progetto non incluso nei risultati: nasconde tutte le righe
+                        row.style.display = 'none';
+                    }
+                });
+            } catch (error) {
+                console.error('Errore nella ricerca cronologia progetti:', error);
+            }
+        });
+
+        // Listener per urge tasks
         urgeTasksBtn.addEventListener('click', async () => {
             try {
                 // Disabilita il pulsante durante l'operazione

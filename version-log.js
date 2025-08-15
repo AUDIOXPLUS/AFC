@@ -1,5 +1,11 @@
 // Dati del version log (ristrutturati per leggibilità)
 const versionLogData = [
+    // 15/08/25 - V4.4
+    { 
+        date: '15/08/25', 
+        version: 'V4.4', 
+        description: 'implemented global search'
+    },
     // 14/06/25 - V4.3
     { 
         date: '14/06/25', 
@@ -281,8 +287,8 @@ function updateVersionText() {
         }
     }
 
-    // Get the most recent version (V4.3)
-    const currentVersion = 'V4.3';
+    // Get the most recent version (V4.4)
+    const currentVersion = 'V4.4';
     versionTextElement.textContent = `${currentVersion} - ${userName}`;
 }
 

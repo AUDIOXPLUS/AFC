@@ -1073,6 +1073,17 @@ async function displayProjects(projects) {
         // Status - Aggiungi la progress bar
         const statusCell = row.insertCell(10);
 
+        // Aggiungi click listener per passare il valore di ricerca history se presente
+        row.addEventListener('click', (e) => {
+            const historySearchField = document.getElementById('global-history-search');
+            if (historySearchField && historySearchField.value.trim() !== '') {
+                // Memorizza in localStorage
+                localStorage.setItem('historySearchValue', historySearchField.value.trim());
+            } else {
+                localStorage.removeItem('historySearchValue');
+            }
+        });
+
         // Usa il sommario della cronologia pre-caricato per creare la progress bar
         if (window.projectPhases && window.projectPhases.length > 0 && projectHistorySummary && projectHistorySummary.length > 0) {
             // Rimuovi eventuale contenuto precedente (anche se la riga è nuova, per sicurezza)
