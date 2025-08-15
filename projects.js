@@ -2430,5 +2430,55 @@ function enableLiveFiltering() {
     // Salva il riferimento globale
     filteringApi = publicApi;
 
+    // --- Ricerca globale ---
+    const globalSearchInput = document.getElementById('global-project-search');
+    if (globalSearchInput) {
+        globalSearchInput.addEventListener('input', function() {
+            const keyword = this.value.toLowerCase().trim();
+            const rows = document.getElementById('projects-table').getElementsByTagName('tbody')[0].rows;
+            Array.from(rows).forEach(row => {
+                let match = false;
+                Array.from(row.cells).forEach(cell => {
+                    if (cell.textContent.toLowerCase().includes(keyword)) {
+                        match = true;
+                    }
+                });
+                row.style.display = match ? '' : 'none';
+            });
+        });
+    }
+    // --- Fine ricerca globale ---
+
+    // --- Ricerca nella cronologia progetti ---
+    const globalHistorySearch = document.getElementById('global-history-search');
+    if (globalHistorySearch) {
+        globalHistorySearch.addEventListener('input', async function() {
+            const keyword = this.value.toLowerCase().trim();
+            if (!keyword) {
+                // Se il campo è vuoto, mostra tutte le righe
+                Array.from(document.getElementById('projects-table').getElementsByTagName('tbody')[0].rows)
+                    .forEach(row => row.style.display = '');
+                return;
+            }
+            try {
+                // Chiama un endpoint per cercare nella cronologia dei progetti visibili per l'utente in base ai permessi CRUD
+                const response = await fetch(`/api/projects/history/search?keyword=${encodeURIComponent(keyword)}`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const matchingProjectIds = await response.json(); // Atteso array di ID progetto
+                const rows = document.getElementById('projects-table').getElementsByTagName('tbody')[0].rows;
+                Array.from(rows).forEach(row => {
+                    const link = row.cells[6]?.querySelector('a');
+                    if (link) {
+                        const url = new URL(link.href, window.location.origin);
+                        const pid = url.searchParams.get('id');
+                        row.style.display = matchingProjectIds.includes(parseInt(pid)) ? '' : 'none';
+                    }
+                });
+            } catch (error) {
+                console.error('Errore nella ricerca cronologia progetti:', error);
+            }
+        });
+    }
+    // --- Fine ricerca nella cronologia progetti ---
     return publicApi;
 }

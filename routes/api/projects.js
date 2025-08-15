@@ -1357,4 +1357,152 @@ router.post('/merge', checkAuthentication, async (req, res) => {
 });
 
 
+/**
+ * Endpoint per cercare nella cronologia dei progetti in base a una keyword, restituendo solo gli ID dei progetti
+ * visibili all'utente loggato in base ai permessi CRUD.
+ */
+router.get('/history/search', checkAuthentication, async (req, res) => {
+    try {
+        const keyword = (req.query.keyword || '').trim().toLowerCase();
+        if (!keyword) {
+            return res.json([]);
+        }
+
+        // Recupera i permessi CRUD dell'utente per la pagina projects
+        const permissionsQuery = `
+            SELECT c.properties, uc.properties as user_properties
+            FROM crud c
+            LEFT JOIN user_crud uc ON uc.crud_id = c.id AND uc.user_id = ?
+            WHERE c.page = 'Projects' AND c.action = 'Read'
+        `;
+        const user = await new Promise((resolve, reject) => {
+            req.db.get(permissionsQuery, [req.session.user.id], (err, row) => {
+                if (err) reject(err); else resolve(row);
+            });
+        });
+
+        if (!user || !user.user_properties) {
+            return res.status(403).json({ error: 'Permesso di lettura negato' });
+        }
+
+        let permissions;
+        try {
+            permissions = JSON.parse(user.user_properties);
+            if (!permissions.enabled) {
+                return res.status(403).json({ error: 'Permessi non abilitati' });
+            }
+        } catch (err) {
+            return res.status(403).json({ error: 'Permessi non validi' });
+        }
+
+        const level = permissions.level || permissions.scope;
+        const queryParams = [];
+        let permissionsFilter = '';
+
+        switch (level) {
+            case 'own':
+                permissionsFilter = ` AND EXISTS (
+                    SELECT 1 FROM project_history ph
+                    WHERE ph.project_id = p.id AND ph.assigned_to = ?
+                )`;
+                queryParams.push(req.session.user.name);
+                break;
+            case 'own-factory':
+                permissionsFilter = ` AND factory = (SELECT factory FROM users WHERE id = ?)`;
+                queryParams.push(req.session.user.id);
+                break;
+            case 'all-factories':
+                permissionsFilter = ` AND factory IS NOT NULL`;
+                break;
+            case 'own-client':
+                permissionsFilter = ` AND client = (SELECT client_company_name FROM users WHERE id = ?)`;
+                queryParams.push(req.session.user.id);
+                break;
+            case 'all-clients':
+                permissionsFilter = ` AND client IS NOT NULL`;
+                break;
+            case 'user-projects':
+                const userPermsQuery = `
+                    SELECT uc.properties
+                    FROM crud c
+                    JOIN user_crud uc ON c.id = uc.crud_id
+                    WHERE c.page = 'Users' AND c.action = 'Read'
+                    AND uc.user_id = ? AND uc.properties IS NOT NULL
+                `;
+                const userPerms = await new Promise((resolve, reject) => {
+                    req.db.get(userPermsQuery, [req.session.user.id], (err, row) => {
+                        if (err) reject(err); else resolve(row);
+                    });
+                });
+
+                if (userPerms && userPerms.properties) {
+                    try {
+                        const userProps = JSON.parse(userPerms.properties);
+                        if (Array.isArray(userProps.userIds) && userProps.userIds.length > 0) {
+                            permissionsFilter = ` AND EXISTS (
+                                SELECT 1 FROM project_history ph
+                                JOIN users u ON ph.assigned_to = u.name
+                                WHERE ph.project_id = p.id
+                                AND u.id IN (${userProps.userIds.map(() => '?').join(',')})
+                            )`;
+                            queryParams.push(...userProps.userIds);
+                        } else {
+                            return res.status(403).json({ error: 'Nessun utente specifico definito nei permessi' });
+                        }
+                    } catch (e) {
+                        return res.status(403).json({ error: 'Permessi non validi' });
+                    }
+                } else {
+                    return res.status(403).json({ error: 'Nessun utente specifico definito nei permessi' });
+                }
+                break;
+            case 'all':
+                break;
+            default:
+                return res.status(403).json({ error: 'Scope non valido' });
+        }
+
+        // Costruisci la query per cercare nei progetti e nella loro cronologia
+        const searchQuery = `
+            SELECT DISTINCT p.id
+            FROM projects p
+            JOIN project_history ph ON ph.project_id = p.id
+            WHERE (
+                LOWER(p.client) LIKE ? OR
+                LOWER(p.productKind) LIKE ? OR
+                LOWER(p.factory) LIKE ? OR
+                LOWER(p.brand) LIKE ? OR
+                LOWER(p.range) LIKE ? OR
+                LOWER(p.line) LIKE ? OR
+                LOWER(p.modelNumber) LIKE ? OR
+                LOWER(p.factoryModelNumber) LIKE ? OR
+                LOWER(ph.description) LIKE ? OR
+                LOWER(ph.status) LIKE ? OR
+                LOWER(ph.assigned_to) LIKE ?
+            )
+            ${permissionsFilter}
+        `;
+
+        const likeParam = `%${keyword}%`;
+        const params = [
+            likeParam, likeParam, likeParam, likeParam, likeParam,
+            likeParam, likeParam, likeParam, likeParam, likeParam, likeParam,
+            ...queryParams
+        ];
+
+        req.db.all(searchQuery, params, (err, rows) => {
+            if (err) {
+                console.error('Errore nella ricerca cronologia progetti:', err);
+                return res.status(500).json({ error: 'Errore del server' });
+            }
+            const ids = rows.map(r => r.id);
+            res.json(ids);
+        });
+
+    } catch (error) {
+        console.error('Errore generale nella ricerca cronologia progetti:', error);
+        res.status(500).json({ error: 'Errore del server' });
+    }
+});
+
 module.exports = router;
