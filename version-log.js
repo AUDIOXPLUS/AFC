@@ -294,9 +294,9 @@ function updateVersionText() {
 
 // Inizializza il version log
 function initializeVersionLog() {
-    const nav = document.querySelector('nav');
-    if (!nav) {
-        console.error("Elemento <nav> non trovato nel DOM.");
+    const userInfo = document.querySelector('.user-info');
+    if (!userInfo) {
+        console.error("Elemento .user-info non trovato nel DOM.");
         return; 
     }
     
@@ -304,12 +304,13 @@ function initializeVersionLog() {
     versionText.id = 'version-text';
     versionText.className = 'version-text';
     
-    const logo = nav.querySelector('.logo');
-    if (logo && logo.parentNode) {
-        logo.parentNode.insertBefore(versionText, logo.nextSibling);
+    // Inserisci il link versione come primo elemento nella user-info (prima della campanellina)
+    const notificationBell = userInfo.querySelector('.notification-bell');
+    if (notificationBell) {
+        userInfo.insertBefore(versionText, notificationBell);
     } else {
-        console.error("Logo o suo parent non trovato, impossibile inserire #version-text.");
-        return; 
+        // Se non c'è la campanellina, inseriscilo come primo figlio
+        userInfo.insertBefore(versionText, userInfo.firstChild);
     }
 
     updateVersionText();

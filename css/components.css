@@ -46,20 +46,6 @@
     pointer-events: none;
 }
 
-/* Stile per la versione nel menu */
-.version-text {
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    color: #a0b3c6;
-    font-size: 14px;
-    cursor: pointer;
-    transition: color 0.3s ease;
-}
-
-.version-text:hover {
-    color: white;
-}
 
 /* Stile per la campanella delle notifiche */
 .notification-bell {

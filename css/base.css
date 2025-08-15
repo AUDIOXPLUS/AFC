@@ -83,6 +83,20 @@ nav ul li a:hover, nav ul li a.active {
     color: #2980b9;
 }
 
+/* Stili per il link versione-utente */
+.version-text {
+    color: #3498db;
+    cursor: pointer;
+    margin-right: 15px; /* Spazio a destra della campanellina */
+    font-size: 13px;
+    white-space: nowrap; /* Evita che il testo vada a capo */
+    transition: color 0.3s ease;
+}
+
+.version-text:hover {
+    color: #2980b9;
+}
+
 main {
     padding: 10px 20px; /* Ridotto padding superiore da 20px a 10px */
 }
