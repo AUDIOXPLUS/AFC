@@ -14,7 +14,7 @@ function handleNetworkError(error) {
     }
 }
 
-document.addEventListener('DOMContentLoaded', async function() {
+document.addEventListener('DOMContentLoaded', async function () {
     console.log('DOM content loaded, initializing dashboard...');
     await initializeDashboard();
 });
@@ -25,7 +25,7 @@ let currentHighlightedPhase = null;
 // Funzione per inizializzare la taskbar esplicativa delle fasi
 async function initializePhaseTaskbar() {
     console.log('Inizializzazione taskbar esplicativa delle fasi...');
-    
+
     // Verifica se le fasi sono già state caricate
     if (!window.projectPhases) {
         try {
@@ -42,20 +42,20 @@ async function initializePhaseTaskbar() {
             return;
         }
     }
-    
+
     // Ordina le fasi per order_num
     const sortedPhases = [...window.projectPhases].sort((a, b) => a.order_num - b.order_num);
-    
+
     // Riferimento alla taskbar
     const phaseTaskbar = document.getElementById('phase-taskbar');
     if (!phaseTaskbar) {
         console.error('Elemento taskbar non trovato nel DOM');
         return;
     }
-    
+
     // Pulisci la taskbar
     phaseTaskbar.innerHTML = '';
-    
+
     // Popola la taskbar con i mattoncini delle fasi
     sortedPhases.forEach(phase => {
         const phaseItem = document.createElement('div');
@@ -65,7 +65,7 @@ async function initializePhaseTaskbar() {
         phaseItem.dataset.translate = phase.name; // Aggiungi data-translate per supportare la traduzione
         phaseItem.title = phase.name; // Tooltip con il nome completo
         phaseItem.dataset.translateTitle = phase.name; // Aggiungi data-translate-title per il tooltip
-        
+
         // Aggiungi stili per separare visivamente i pulsanti e adattarli alla lunghezza del testo
         phaseItem.style.margin = '0 1px'; // Riduco ulteriormente i margini laterali
         phaseItem.style.padding = '0 3px'; // Riduco il padding orizzontale
@@ -80,14 +80,14 @@ async function initializePhaseTaskbar() {
         phaseItem.style.fontSize = '0.55rem'; // Dimensione testo ancora più piccola
         phaseItem.style.lineHeight = '0.6'; // Riduco ulteriormente l'altezza di riga
         phaseItem.style.fontWeight = 'normal'; // Mantieni il testo senza grassetto
-        
+
         // Event listener per il click sul mattoncino
         phaseItem.addEventListener('click', () => {
             // Se questa fase è già selezionata, deseleziona
             if (currentHighlightedPhase === phase.id) {
                 removePhaseColumnHighlight();
                 currentHighlightedPhase = null;
-                
+
                 // Rimuovi la classe active da tutti i mattoncini
                 document.querySelectorAll('.phase-taskbar-item').forEach(item => {
                     item.classList.remove('active');
@@ -96,20 +96,20 @@ async function initializePhaseTaskbar() {
                 // Altrimenti, seleziona questa fase
                 highlightPhaseColumn(phase.id);
                 currentHighlightedPhase = phase.id;
-                
+
                 // Rimuovi la classe active da tutti i mattoncini
                 document.querySelectorAll('.phase-taskbar-item').forEach(item => {
                     item.classList.remove('active');
                 });
-                
+
                 // Aggiungi la classe active solo al mattoncino corrente
                 phaseItem.classList.add('active');
             }
         });
-        
+
         phaseTaskbar.appendChild(phaseItem);
     });
-    
+
     console.log('Taskbar esplicativa inizializzata con successo');
 }
 
@@ -117,7 +117,7 @@ async function initializePhaseTaskbar() {
 function highlightPhaseColumn(phaseId) {
     // Rimuovi l'evidenziazione precedente
     removePhaseColumnHighlight();
-    
+
     // Ottieni tutte le celle nella tabella
     const table = document.getElementById('projects-table');
     const rows = table.getElementsByTagName('tr');
@@ -125,23 +125,23 @@ function highlightPhaseColumn(phaseId) {
         console.warn('Nessuna riga trovata nella tabella');
         return;
     }
-    
+
     // Per ogni riga, trova i mattoncini della phase-progress-bar che corrispondono alla fase selezionata
     // La colonna dello status è la 10 (indice)
     const statusColumnIndex = 10;
-    
+
     // Crea l'elemento di evidenziazione
     const highlightElement = document.createElement('div');
     highlightElement.className = 'phase-column-highlight';
     highlightElement.id = 'phase-column-highlight';
-    
+
     // Aggiungi l'elemento al contenitore della tabella
     const tableWrapper = document.querySelector('.table-wrapper');
     if (!tableWrapper) {
         console.error('Table wrapper non trovato');
         return;
     }
-    
+
     // Calcola la posizione dell'evidenziazione
     const firstRow = rows[0];
     const headerCell = firstRow.cells[statusColumnIndex];
@@ -149,33 +149,33 @@ function highlightPhaseColumn(phaseId) {
         console.error('Cella header non trovata');
         return;
     }
-    
+
     // Posizione basata sul target clickato (ogni quadratino nella phase-progress-bar)
     const phaseIndex = window.projectPhases.findIndex(phase => String(phase.id) === String(phaseId));
     if (phaseIndex === -1) {
         console.error('Fase non trovata:', phaseId);
         return;
     }
-    
+
     // Misure totali per il calcolo
     const tableRect = table.getBoundingClientRect();
     const headerCellRect = headerCell.getBoundingClientRect();
     const cellWidth = headerCellRect.width;
     const phaseItemWidth = cellWidth / window.projectPhases.length;
-    
+
     // Calcola la posizione X all'interno della cella di status
     const offsetX = headerCellRect.left - tableRect.left + (phaseItemWidth * phaseIndex);
-    
+
     // Imposta posizione e dimensioni dell'evidenziazione
     highlightElement.style.left = `${offsetX}px`;
     highlightElement.style.width = `${phaseItemWidth}px`;
     highlightElement.style.top = '0';
     highlightElement.style.height = `${tableRect.height}px`;
-    
+
     // Aggiungi l'elemento al wrapper
     tableWrapper.appendChild(highlightElement);
     tableWrapper.style.position = 'relative';
-    
+
     console.log(`Evidenziazione colonna per fase ID ${phaseId} (indice ${phaseIndex}) applicata`);
 }
 
@@ -194,10 +194,10 @@ window.clients = [];
 
 async function initializeDashboard() {
     console.log(`initializeDashboard called. Timestamp: ${Date.now()}`); // Log start of initialization
-    document.getElementById('logout').addEventListener('click', function() {
+    document.getElementById('logout').addEventListener('click', function () {
         window.location.href = 'login.html';
     });
-    
+
     // Inizializza la taskbar esplicativa delle fasi
     await initializePhaseTaskbar();
 
@@ -239,11 +239,11 @@ async function initializeDashboard() {
     // Add event listener for the "Clone/Merge Project" button
     document.getElementById('clone-merge-project-btn').addEventListener('click', openCloneMergeModal);
 
-        // Initial fetch of projects (includerà il sorting, l'aggiornamento dei conteggi e il popolamento delle factory permesse)
-        await fetchProjects();
+    // Initial fetch of projects (includerà il sorting, l'aggiornamento dei conteggi e il popolamento delle factory permesse)
+    await fetchProjects();
 
-        // Restituisce l'API di filtraggio per poterla usare esternamente se necessario
-        return filteringApi;
+    // Restituisce l'API di filtraggio per poterla usare esternamente se necessario
+    return filteringApi;
 }
 
 // --- Funzione per recuperare i conteggi totali dei progetti ---
@@ -251,7 +251,7 @@ async function fetchProjectCounts() {
     console.log('Fetching project counts...'); // Log in italiano: Recupero conteggi progetti...
     try {
         // Chiama l'endpoint principale con il parametro countOnly=true
-        const response = await fetch('/api/projects?countOnly=true'); 
+        const response = await fetch('/api/projects?countOnly=true');
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -301,7 +301,7 @@ function openCloneMergeModal() {
         const factoryFilterInput = document.getElementById('modal-factory-filter');
         const brandFilterInput = document.getElementById('modal-brand-filter');
         const modelFilterInput = document.getElementById('modal-model-filter');
-        
+
         if (clientFilterInput) {
             clientFilterInput.removeEventListener('input', filterModalProjects); // Rimuovi listener precedenti
             clientFilterInput.addEventListener('input', filterModalProjects);
@@ -333,20 +333,20 @@ function openCloneMergeModal() {
     }
 }
 
- // Funzione per chiudere la modale Clone/Merge
- function closeCloneMergeModal() {
-     // Pulisci anche i NUOVI filtri quando si chiude
-     const clientFilterInput = document.getElementById('modal-client-filter');
-     const modelFilterInput = document.getElementById('modal-model-filter');
-     if (clientFilterInput) {
-         clientFilterInput.value = '';
-     }
-      if (modelFilterInput) {
-         modelFilterInput.value = '';
-     }
-     const modal = document.getElementById('clone-merge-modal');
-     if (modal) {
-         modal.style.display = 'none';
+// Funzione per chiudere la modale Clone/Merge
+function closeCloneMergeModal() {
+    // Pulisci anche i NUOVI filtri quando si chiude
+    const clientFilterInput = document.getElementById('modal-client-filter');
+    const modelFilterInput = document.getElementById('modal-model-filter');
+    if (clientFilterInput) {
+        clientFilterInput.value = '';
+    }
+    if (modelFilterInput) {
+        modelFilterInput.value = '';
+    }
+    const modal = document.getElementById('clone-merge-modal');
+    if (modal) {
+        modal.style.display = 'none';
         // Opzionale: pulire la lista dei progetti nella modale
         const projectListContainer = document.getElementById('modal-project-list');
         if (projectListContainer) {
@@ -354,9 +354,9 @@ function openCloneMergeModal() {
         }
         // Rimuovi l'event listener dal pulsante Confirm quando la modale si chiude
         const confirmBtn = document.getElementById('confirm-clone-merge-btn');
-         if (confirmBtn) {
-             confirmBtn.removeEventListener('click', handleCloneMergeConfirm);
-         }
+        if (confirmBtn) {
+            confirmBtn.removeEventListener('click', handleCloneMergeConfirm);
+        }
     }
 }
 
@@ -389,7 +389,7 @@ async function populateCloneMergeModal() {
 
         projects.forEach(project => {
             const row = document.createElement('tr');
-            
+
             // Colonna Select
             const selectCell = document.createElement('td');
             const checkbox = document.createElement('input');
@@ -398,32 +398,32 @@ async function populateCloneMergeModal() {
             checkbox.dataset.projectName = `${project.client} - ${project.modelNumber}`; // Salva nome per riferimento
             selectCell.appendChild(checkbox);
             row.appendChild(selectCell);
-            
+
             // Colonna Client
             const clientCell = document.createElement('td');
             clientCell.textContent = project.client || '-';
             row.appendChild(clientCell);
-            
+
             // Colonna Product Kind
             const productKindCell = document.createElement('td');
             productKindCell.textContent = project.productKind || '-';
             row.appendChild(productKindCell);
-            
+
             // Colonna Factory
             const factoryCell = document.createElement('td');
             factoryCell.textContent = project.factory || '-';
             row.appendChild(factoryCell);
-            
+
             // Colonna Brand
             const brandCell = document.createElement('td');
             brandCell.textContent = project.brand || '-';
             row.appendChild(brandCell);
-            
+
             // Colonna Model Number
             const modelNumberCell = document.createElement('td');
             modelNumberCell.textContent = project.modelNumber || '-';
             row.appendChild(modelNumberCell);
-            
+
             projectListContainer.appendChild(row);
         });
 
@@ -482,11 +482,11 @@ async function handleCloneMergeConfirm() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ projectIds: selectedProjectIds }),
             });
-             if (!response.ok) {
-                 const errorData = await response.json().catch(() => ({ error: 'Failed to merge projects.' }));
-                 throw new Error(errorData.error || `Merge failed with status: ${response.status}`);
-             }
-             console.log('Projects merged successfully.'); // Log successo
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ error: 'Failed to merge projects.' }));
+                throw new Error(errorData.error || `Merge failed with status: ${response.status}`);
+            }
+            console.log('Projects merged successfully.'); // Log successo
         }
 
         // Operazione completata con successo
@@ -498,55 +498,55 @@ async function handleCloneMergeConfirm() {
         // Nascondi popup in caso di errore
         if (loadingPopup) loadingPopup.style.display = 'none';
     } finally {
-         // Assicurati che il popup di caricamento sia nascosto alla fine,
-         // fetchProjects() lo nasconderà se ha successo, ma lo nascondiamo qui
-         // per sicurezza in caso di errori non gestiti da fetchProjects
-         if (loadingPopup && loadingPopup.style.display !== 'none') {
-             // Ripristina testo e barra di progresso originali per usi futuri
-             loadingPopup.querySelector('h2').textContent = 'Loading...';
-             loadingPopup.querySelector('p').textContent = 'Please wait while the projects are being loaded.';
-             const progressContainer = loadingPopup.querySelector('.loading-progress-container');
-             if (progressContainer) progressContainer.style.display = 'flex'; // Mostra di nuovo
-             updateLoadingProgress(0); // Resetta progresso
-             loadingPopup.style.display = 'none';
-         }
-     }
- }
- 
- // Funzione per filtrare i progetti nella modale (aggiornata per cinque filtri)
+        // Assicurati che il popup di caricamento sia nascosto alla fine,
+        // fetchProjects() lo nasconderà se ha successo, ma lo nascondiamo qui
+        // per sicurezza in caso di errori non gestiti da fetchProjects
+        if (loadingPopup && loadingPopup.style.display !== 'none') {
+            // Ripristina testo e barra di progresso originali per usi futuri
+            loadingPopup.querySelector('h2').textContent = 'Loading...';
+            loadingPopup.querySelector('p').textContent = 'Please wait while the projects are being loaded.';
+            const progressContainer = loadingPopup.querySelector('.loading-progress-container');
+            if (progressContainer) progressContainer.style.display = 'flex'; // Mostra di nuovo
+            updateLoadingProgress(0); // Resetta progresso
+            loadingPopup.style.display = 'none';
+        }
+    }
+}
+
+// Funzione per filtrare i progetti nella modale (aggiornata per cinque filtri)
 function filterModalProjects() {
     const clientFilterInput = document.getElementById('modal-client-filter');
     const productKindFilterInput = document.getElementById('modal-product-kind-filter');
     const factoryFilterInput = document.getElementById('modal-factory-filter');
     const brandFilterInput = document.getElementById('modal-brand-filter');
     const modelFilterInput = document.getElementById('modal-model-filter');
-    
+
     const clientFilterText = clientFilterInput ? clientFilterInput.value.toLowerCase().trim() : '';
     const productKindFilterText = productKindFilterInput ? productKindFilterInput.value.toLowerCase().trim() : '';
     const factoryFilterText = factoryFilterInput ? factoryFilterInput.value.toLowerCase().trim() : '';
     const brandFilterText = brandFilterInput ? brandFilterInput.value.toLowerCase().trim() : '';
     const modelFilterText = modelFilterInput ? modelFilterInput.value.toLowerCase().trim() : '';
-    
+
     const projectListContainer = document.getElementById('modal-project-list');
     const projectRows = projectListContainer.getElementsByTagName('tr');
 
     Array.from(projectRows).forEach(row => {
         const cells = row.getElementsByTagName('td');
         if (cells.length < 6) return; // Ignora righe incomplete
-        
+
         const clientText = cells[1].textContent.toLowerCase().trim();
         const productKindText = cells[2].textContent.toLowerCase().trim();
         const factoryText = cells[3].textContent.toLowerCase().trim();
         const brandText = cells[4].textContent.toLowerCase().trim();
         const modelText = cells[5].textContent.toLowerCase().trim();
-        
+
         // Verifica la corrispondenza con tutti i filtri
         const clientMatch = clientFilterText === '' || clientText.includes(clientFilterText);
         const productKindMatch = productKindFilterText === '' || productKindText.includes(productKindFilterText);
         const factoryMatch = factoryFilterText === '' || factoryText.includes(factoryFilterText);
         const brandMatch = brandFilterText === '' || brandText.includes(brandFilterText);
         const modelMatch = modelFilterText === '' || modelText.includes(modelFilterText);
-        
+
         // Mostra la riga solo se corrisponde a tutti i filtri (o se i filtri sono vuoti)
         if (clientMatch && productKindMatch && factoryMatch && brandMatch && modelMatch) {
             row.style.display = ''; // Mostra la riga
@@ -555,8 +555,8 @@ function filterModalProjects() {
         }
     });
 }
- 
- // --- Fine Funzioni per Clone/Merge ---
+
+// --- Fine Funzioni per Clone/Merge ---
 
 // Funzione per inizializzare la gestione della visibilità delle colonne
 function initializeColumnVisibility() {
@@ -687,94 +687,124 @@ function updateLoadingProgress(percentage) {
     }
 }
 
-// Function to fetch project data from the backend
-async function fetchProjects() {
+// Stato globale paginazione
+window._projectsServerPagination = {
+    currentPage: 1,
+    totalItems: 0,
+    totalPages: 1,
+    pageSize: 20, // 20 progetti per pagina
+};
+
+// Funzione per fetch con paginazione
+async function fetchProjects(page = 1) {
     console.log(`[PROGRESS] Inizio fetchProjects - Timestamp: ${Date.now()}`);
     const loadingPopup = document.getElementById('loading-popup');
-    console.log('[PROGRESS] Mostro loading popup');
 
-    // Mostra il popup e imposta progresso a 0%
+    // Mostra il popup e resetta il progresso
     if (loadingPopup) {
-        loadingPopup.style.display = 'flex'; // Usa flex per centrare il contenuto
-        updateLoadingProgress(0); // Inizia da 0%
+        loadingPopup.style.display = 'flex';
+        updateLoadingProgress(0);
     }
 
-    // Aggiorna sempre i conteggi totali prima di caricare i progetti filtrati
-    await fetchProjectCounts();
+    await fetchProjectCounts(); // aggiorna i conteggi totali
 
     try {
-        // Fase 1: Fetch elenco progetti
         const showArchived = document.getElementById('show-archived').checked;
         const showOnHold = document.getElementById('show-on-hold').checked;
-        console.log(`[PROGRESS] Fetch progetti con parametri: showArchived=${showArchived}, showOnHold=${showOnHold}`);
-        const response = await fetch(`/api/projects?showArchived=${showArchived}&showOnHold=${showOnHold}`);
-        console.log('[PROGRESS] Ricevuta risposta API progetti');
+
+        console.log(`[PROGRESS] Fetch progetti con parametri: showArchived=${showArchived}, showOnHold=${showOnHold}, page=${page}`);
+
+        // Pagina e dimensione pagina lato server
+        const pageSize = window._projectsServerPagination.pageSize;
+        const response = await fetch(`/api/projects?showArchived=${showArchived}&showOnHold=${showOnHold}&page=${page}&pageSize=${pageSize}`);
+
         if (!response.ok) {
-            // Nascondi popup in caso di errore fetch iniziale
             if (loadingPopup) loadingPopup.style.display = 'none';
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        const projects = await response.json();
-        console.log('Projects fetched from API:', projects); // Log the raw data
 
-        // --- NUOVA LOGICA: Estrai factory e client permessi dai progetti caricati ---
-        if (Array.isArray(projects)) {
-            // Factory
-            const allowedFactories = [...new Set(projects.map(p => p.factory).filter(Boolean))].sort();
-            window.factories = allowedFactories;
-            console.log('Factory permesse (derivate dai progetti):', window.factories); // Log in italiano
+        const payload = await response.json(); // { items: [...], total: 100 }
 
-            // Client
-            const allowedClients = [...new Set(projects.map(p => p.client).filter(Boolean))].sort();
-            window.clients = allowedClients;
-            console.log('Client permessi (derivati dai progetti):', window.clients); // Log in italiano
+        // Aggiorna stato globale paginazione
+        window._projectsServerPagination.currentPage = page;
+        window._projectsServerPagination.totalItems = payload.total || 0;
+        window._projectsServerPagination.totalPages = Math.ceil(window._projectsServerPagination.totalItems / pageSize);
 
+        console.log(`[PROGRESS] Totale progetti: ${window._projectsServerPagination.totalItems}, totale pagine: ${window._projectsServerPagination.totalPages}`);
+
+        updateLoadingProgress(50); // metà percorso per caricamento
+
+        // Mostra i progetti della pagina corrente
+        if (typeof displayProjectsPage === 'function') {
+            await displayProjectsPage(payload.items || []); // progetti della pagina
         } else {
-            console.warn('Nessun progetto accessibile trovato o formato dati inatteso, le liste factory e client potrebbero essere vuote.');
-            window.factories = [];
-            window.clients = [];
-        }
-        // --- FINE NUOVA LOGICA ---
-
-        // Aggiorna progresso dopo fetch elenco progetti (es. 20%)
-        updateLoadingProgress(20);
-
-        // Check for duplicates based on ID right here
-        const projectIds = projects.map(p => p.id);
-        const uniqueProjectIds = new Set(projectIds);
-        if (projectIds.length !== uniqueProjectIds.size) {
-            console.warn('Duplicate project IDs received from API!');
-            // Log the duplicate IDs
-            const duplicateCounts = {};
-            projectIds.forEach(id => { duplicateCounts[id] = (duplicateCounts[id] || 0) + 1; });
-            const duplicates = Object.entries(duplicateCounts).filter(([id, count]) => count > 1);
-            console.warn('Duplicate IDs and counts:', duplicates);
-        } else {
-            console.log('No duplicate project IDs received from API.'); // Confirm no duplicates
+            await displayProjects(payload.items || []);
         }
 
-        // Aggiorna progresso prima della visualizzazione (es. 90%)
-        updateLoadingProgress(90);
-
-        // Fase 2: Visualizzazione (le cronologie sono ora incluse nei dati dei progetti)
-        await displayProjects(projects); // Non serve più passare 'histories'
-
-        // Riapplica i filtri dopo aver caricato i progetti
+        // Applica filtri e sorting come prima
         if (filteringApi && typeof filteringApi.applyFilters === 'function') {
             filteringApi.applyFilters();
         }
-
-        // Applica l'ultimo sorting dopo che i dati sono stati caricati e filtrati
         applyLastSorting();
+
+        updateLoadingProgress(100); // caricamento completato
+
+        // Nascondi popup
+        if (loadingPopup) loadingPopup.style.display = 'none';
+
+        // Aggiorna UI paginazione (pulsanti)
+        renderPaginationControls(); // funzione da creare separatamente
     } catch (error) {
+        console.error('Errore fetchProjects:', error);
+        if (loadingPopup) loadingPopup.style.display = 'none';
         handleNetworkError(error);
-        // Assicura che il popup sia nascosto in caso di errore
-        if (loadingPopup) {
-            loadingPopup.style.display = 'none';
-        }
     }
-    // Il finally block non è più necessario qui, il popup viene nascosto da displayProjects o dal catch
-} // <-- Aggiunta parentesi graffa mancante per chiudere fetchProjects
+}
+
+function renderPaginationControls() {
+    const paginationWrapperId = 'projects-pagination';
+    let wrapper = document.getElementById(paginationWrapperId);
+
+    // Se non esiste ancora, crealo sotto la tabella
+    if (!wrapper) {
+        wrapper = document.createElement('div');
+        wrapper.id = paginationWrapperId;
+        wrapper.className = 'pagination-wrapper';
+        const tableWrapper = document.querySelector('.table-wrapper');
+        tableWrapper.parentNode.insertBefore(wrapper, tableWrapper.nextSibling);
+    }
+
+    // Svuota contenuto precedente
+    wrapper.innerHTML = '';
+
+    const { currentPage, totalPages } = window._projectsServerPagination;
+
+    if (totalPages <= 1) return; // niente paginazione se una sola pagina
+
+    // Pulsante "Prev"
+    const prevBtn = document.createElement('button');
+    prevBtn.textContent = 'Prev';
+    prevBtn.disabled = currentPage === 1;
+    prevBtn.addEventListener('click', () => fetchProjects(currentPage - 1));
+    wrapper.appendChild(prevBtn);
+
+    // Pulsanti numerici
+    for (let i = 1; i <= totalPages; i++) {
+        const pageBtn = document.createElement('button');
+        pageBtn.textContent = i;
+        pageBtn.disabled = i === currentPage;
+        pageBtn.addEventListener('click', () => fetchProjects(i));
+        wrapper.appendChild(pageBtn);
+    }
+
+    // Pulsante "Next"
+    const nextBtn = document.createElement('button');
+    nextBtn.textContent = 'Next';
+    nextBtn.disabled = currentPage === totalPages;
+    nextBtn.addEventListener('click', () => fetchProjects(currentPage + 1));
+    wrapper.appendChild(nextBtn);
+}
+
 
 // Rimossa funzione fetchAllHistories - non più necessaria
 // Rimossa funzione getProjectStatus - non più necessaria
@@ -857,7 +887,7 @@ function createPhaseProgressBar(projectHistorySummary, phases, projectId) {
                     if (response.ok) {
                         const historyData = await response.json();
                         let detailedTooltip = `${phase.name}: `;
-                        
+
                         if (hasInProgress) {
                             detailedTooltip += 'In Progress';
                         } else if (hasCompleted) {
@@ -867,11 +897,11 @@ function createPhaseProgressBar(projectHistorySummary, phases, projectId) {
                         } else {
                             detailedTooltip += 'Not Started';
                         }
-                        
+
                         if (hasNewEntries) {
                             detailedTooltip += '\n(UPDATED)';
                         }
-                        
+
                         if (historyData && historyData.length > 0) {
                             const entry = historyData[0];
                             detailedTooltip += `\n\nLAST ENTRY DETAILS:`;
@@ -892,7 +922,7 @@ function createPhaseProgressBar(projectHistorySummary, phases, projectId) {
                             detailedTooltip += `\n\nNo details available for this phase`;
                             phaseItem.dataset.detailsLoaded = 'false';
                         }
-                        
+
                         // Aggiorna il tooltip con i dettagli caricati
                         phaseItem.title = detailedTooltip;
                         // Log in italiano per i commenti nel codice
@@ -941,12 +971,12 @@ function createPhaseProgressBar(projectHistorySummary, phases, projectId) {
 // Function to display projects in the table
 // Modificata per usare la cronologia inclusa nell'oggetto project
 async function displayProjects(projects) {
-        // Aggiorna progresso a 100% prima di iniziare il rendering pesante
-        console.log('[PROGRESS] Aggiorno progresso al 100%');
-        updateLoadingProgress(100);
+    // Aggiorna progresso a 100% prima di iniziare il rendering pesante
+    console.log('[PROGRESS] Aggiorno progresso al 100%');
+    updateLoadingProgress(100);
 
     console.log(`displayProjects called with ${projects.length} projects. Timestamp: ${Date.now()}`);
-    
+
     // Aggiorna il conteggio dei progetti *visibili* (filtrati)
     const activeProjectCountSpan = document.getElementById('active-project-count');
     if (activeProjectCountSpan) activeProjectCountSpan.textContent = projects.length;
@@ -1092,10 +1122,10 @@ async function displayProjects(projects) {
             // Crea e aggiungi la progress bar, passando anche l'ID del progetto
             const progressBar = createPhaseProgressBar(projectHistorySummary, window.projectPhases, project.id);
             if (progressBar) { // createPhaseProgressBar potrebbe restituire null
-                 statusCell.appendChild(progressBar);
+                statusCell.appendChild(progressBar);
             } else {
-                 // Fallback se la progress bar non può essere creata
-                 statusCell.textContent = statusText;
+                // Fallback se la progress bar non può essere creata
+                statusCell.textContent = statusText;
             }
         } else {
             // Fallback al testo originale se non ci sono dati sufficienti
@@ -1221,63 +1251,63 @@ function addProject() {
         if (!field.editable) {
             cell.textContent = field.defaultValue;
         } else {
-             if (field.name === 'client') {
-                 // Crea un dropdown per i client
-                 const select = document.createElement('select');
-                 select.name = field.name;
-                 select.classList.add('new-entry-input');
+            if (field.name === 'client') {
+                // Crea un dropdown per i client
+                const select = document.createElement('select');
+                select.name = field.name;
+                select.classList.add('new-entry-input');
 
-                 const defaultOption = document.createElement('option');
-                 defaultOption.value = '';
-                 defaultOption.textContent = 'Select Client'; // Testo in inglese
-                 select.appendChild(defaultOption);
+                const defaultOption = document.createElement('option');
+                defaultOption.value = '';
+                defaultOption.textContent = 'Select Client'; // Testo in inglese
+                select.appendChild(defaultOption);
 
-                 if (window.clients && window.clients.length > 0) {
-                     window.clients.forEach(clientName => {
-                         const option = document.createElement('option');
-                         option.value = clientName;
-                         option.textContent = clientName;
-                         select.appendChild(option);
-                     });
-                 } else {
-                     console.warn('Nessun client disponibile per popolare il dropdown.'); // Log in italiano
-                 }
-                 
-                 // Aggiungi l'opzione "add new client"
-                 const addNewClientOption = document.createElement('option');
-                 addNewClientOption.value = "__add_new_client__"; // Valore speciale per identificare questa opzione
-                 addNewClientOption.textContent = "Add new client";
-                 select.appendChild(addNewClientOption);
-                 
-                 // Aggiungi evento change per gestire la selezione di "add new client"
-                 select.addEventListener('change', function(e) {
-                     if (e.target.value === "__add_new_client__") {
-                         // Chiedi all'utente di inserire il nome del nuovo cliente
-                         const newClientName = prompt("Enter new client name:");
-                         if (newClientName && newClientName.trim() !== '') {
-                             // Aggiungi il nuovo cliente alla lista client globale se non esiste già
-                             if (!window.clients.includes(newClientName)) {
-                                 window.clients.push(newClientName);
-                                 console.log(`Nuovo cliente "${newClientName}" aggiunto alla lista.`); // Log in italiano
-                             }
-                             
-                             // Aggiungi il nuovo cliente come opzione della dropdown
-                             const newOption = document.createElement('option');
-                             newOption.value = newClientName;
-                             newOption.textContent = newClientName;
-                             
-                             // Inserisci prima dell'opzione "add new client"
-                             select.insertBefore(newOption, addNewClientOption);
-                             
-                             // Seleziona il nuovo cliente
-                             select.value = newClientName;
-                         } else {
-                             // Se l'utente annulla, ripristina la selezione di default
-                             select.value = '';
-                         }
-                     }
-                 });
-                 cell.appendChild(select);
+                if (window.clients && window.clients.length > 0) {
+                    window.clients.forEach(clientName => {
+                        const option = document.createElement('option');
+                        option.value = clientName;
+                        option.textContent = clientName;
+                        select.appendChild(option);
+                    });
+                } else {
+                    console.warn('Nessun client disponibile per popolare il dropdown.'); // Log in italiano
+                }
+
+                // Aggiungi l'opzione "add new client"
+                const addNewClientOption = document.createElement('option');
+                addNewClientOption.value = "__add_new_client__"; // Valore speciale per identificare questa opzione
+                addNewClientOption.textContent = "Add new client";
+                select.appendChild(addNewClientOption);
+
+                // Aggiungi evento change per gestire la selezione di "add new client"
+                select.addEventListener('change', function (e) {
+                    if (e.target.value === "__add_new_client__") {
+                        // Chiedi all'utente di inserire il nome del nuovo cliente
+                        const newClientName = prompt("Enter new client name:");
+                        if (newClientName && newClientName.trim() !== '') {
+                            // Aggiungi il nuovo cliente alla lista client globale se non esiste già
+                            if (!window.clients.includes(newClientName)) {
+                                window.clients.push(newClientName);
+                                console.log(`Nuovo cliente "${newClientName}" aggiunto alla lista.`); // Log in italiano
+                            }
+
+                            // Aggiungi il nuovo cliente come opzione della dropdown
+                            const newOption = document.createElement('option');
+                            newOption.value = newClientName;
+                            newOption.textContent = newClientName;
+
+                            // Inserisci prima dell'opzione "add new client"
+                            select.insertBefore(newOption, addNewClientOption);
+
+                            // Seleziona il nuovo cliente
+                            select.value = newClientName;
+                        } else {
+                            // Se l'utente annulla, ripristina la selezione di default
+                            select.value = '';
+                        }
+                    }
+                });
+                cell.appendChild(select);
             } else if (field.name === 'productKind') {
                 // Crea un ID unico per il datalist
                 const datalistId = 'product-kinds-list-' + Math.random().toString(36).substr(2, 9);
@@ -1343,44 +1373,44 @@ function addProject() {
                         option.textContent = factoryName;
                         select.appendChild(option);
                     });
-                 } else {
-                     console.warn('Nessuna factory disponibile per popolare il dropdown.'); // Log in italiano
-                 }
+                } else {
+                    console.warn('Nessuna factory disponibile per popolare il dropdown.'); // Log in italiano
+                }
 
-                 // Aggiungi l'opzione "add new factory"
-                 const addNewFactoryOption = document.createElement('option');
-                 addNewFactoryOption.value = "__add_new_factory__"; // Valore speciale
-                 addNewFactoryOption.textContent = "Add new factory";
-                 select.appendChild(addNewFactoryOption);
+                // Aggiungi l'opzione "add new factory"
+                const addNewFactoryOption = document.createElement('option');
+                addNewFactoryOption.value = "__add_new_factory__"; // Valore speciale
+                addNewFactoryOption.textContent = "Add new factory";
+                select.appendChild(addNewFactoryOption);
 
-                 // Aggiungi evento change per gestire "add new factory"
-                 select.addEventListener('change', function(e) {
-                     if (e.target.value === "__add_new_factory__") {
-                         const newFactoryName = prompt("Enter new factory name:");
-                         if (newFactoryName && newFactoryName.trim() !== '') {
-                             // Aggiungi alla lista globale se non esiste
-                             if (!window.factories.includes(newFactoryName)) {
-                                 window.factories.push(newFactoryName);
-                                 window.factories.sort(); // Mantieni ordinato
-                                 console.log(`Nuova factory "${newFactoryName}" aggiunta alla lista.`); // Log in italiano
-                             }
-                             // Aggiungi come opzione alla dropdown
-                             const newOption = document.createElement('option');
-                             newOption.value = newFactoryName;
-                             newOption.textContent = newFactoryName;
-                             select.insertBefore(newOption, addNewFactoryOption);
-                             // Seleziona la nuova factory
-                             select.value = newFactoryName;
-                         } else {
-                             // Se l'utente annulla, ripristina la selezione di default
-                             select.value = '';
-                         }
-                     }
-                 });
+                // Aggiungi evento change per gestire "add new factory"
+                select.addEventListener('change', function (e) {
+                    if (e.target.value === "__add_new_factory__") {
+                        const newFactoryName = prompt("Enter new factory name:");
+                        if (newFactoryName && newFactoryName.trim() !== '') {
+                            // Aggiungi alla lista globale se non esiste
+                            if (!window.factories.includes(newFactoryName)) {
+                                window.factories.push(newFactoryName);
+                                window.factories.sort(); // Mantieni ordinato
+                                console.log(`Nuova factory "${newFactoryName}" aggiunta alla lista.`); // Log in italiano
+                            }
+                            // Aggiungi come opzione alla dropdown
+                            const newOption = document.createElement('option');
+                            newOption.value = newFactoryName;
+                            newOption.textContent = newFactoryName;
+                            select.insertBefore(newOption, addNewFactoryOption);
+                            // Seleziona la nuova factory
+                            select.value = newFactoryName;
+                        } else {
+                            // Se l'utente annulla, ripristina la selezione di default
+                            select.value = '';
+                        }
+                    }
+                });
 
-                 cell.appendChild(select);
-             } else {
-                 // Gestione standard per altri input di testo/data
+                cell.appendChild(select);
+            } else {
+                // Gestione standard per altri input di testo/data
                 const input = document.createElement('input');
                 input.type = field.type;
                 input.name = field.name;
@@ -1396,7 +1426,7 @@ function addProject() {
     const saveBtn = document.createElement('button');
     saveBtn.textContent = 'Save';
     saveBtn.classList.add('save-btn');
-    saveBtn.addEventListener('click', async function() {
+    saveBtn.addEventListener('click', async function () {
         // Costruisci l'oggetto progetto estraendo i valori dalle celle
         const newProject = {};
 
@@ -1462,7 +1492,7 @@ function addProject() {
     const cancelBtn = document.createElement('button');
     cancelBtn.textContent = 'Cancel';
     cancelBtn.classList.add('cancel-btn'); // Aggiungi una classe per lo stile se necessario
-    cancelBtn.addEventListener('click', function() {
+    cancelBtn.addEventListener('click', function () {
         // Rimuovi la riga di inserimento
         newRow.remove();
         // Ripristina la visibilità delle colonne nascoste
@@ -1520,15 +1550,15 @@ function editProject(row, projectId) {
                     select.appendChild(option);
                 });
             }
-            
+
             // Aggiungi l'opzione "add new client"
             const addNewClientOption = document.createElement('option');
             addNewClientOption.value = "__add_new_client__"; // Valore speciale per identificare questa opzione
             addNewClientOption.textContent = "Add new client";
             select.appendChild(addNewClientOption);
-            
+
             // Aggiungi evento change per gestire la selezione di "add new client"
-            select.addEventListener('change', function(e) {
+            select.addEventListener('change', function (e) {
                 if (e.target.value === "__add_new_client__") {
                     // Chiedi all'utente di inserire il nome del nuovo cliente
                     const newClientName = prompt("Enter new client name:");
@@ -1538,15 +1568,15 @@ function editProject(row, projectId) {
                             window.clients.push(newClientName);
                             console.log(`Nuovo cliente "${newClientName}" aggiunto alla lista.`); // Log in italiano
                         }
-                        
+
                         // Aggiungi il nuovo cliente come opzione della dropdown
                         const newOption = document.createElement('option');
                         newOption.value = newClientName;
                         newOption.textContent = newClientName;
-                        
+
                         // Inserisci prima dell'opzione "add new client"
                         select.insertBefore(newOption, addNewClientOption);
-                        
+
                         // Seleziona il nuovo cliente
                         select.value = newClientName;
                     } else {
@@ -1626,48 +1656,48 @@ function editProject(row, projectId) {
                     // Seleziona il valore corrente del progetto
                     if (factoryName === projectData.factory) {
                         option.selected = true;
-                     }
-                     select.appendChild(option);
-                 });
-             }
+                    }
+                    select.appendChild(option);
+                });
+            }
 
-             // Aggiungi l'opzione "add new factory"
-             const addNewFactoryOption = document.createElement('option');
-             addNewFactoryOption.value = "__add_new_factory__"; // Valore speciale
-             addNewFactoryOption.textContent = "Add new factory";
-             select.appendChild(addNewFactoryOption);
+            // Aggiungi l'opzione "add new factory"
+            const addNewFactoryOption = document.createElement('option');
+            addNewFactoryOption.value = "__add_new_factory__"; // Valore speciale
+            addNewFactoryOption.textContent = "Add new factory";
+            select.appendChild(addNewFactoryOption);
 
-             // Salva il valore originale per il reset in caso di annullamento
-             const originalFactoryValue = projectData.factory;
+            // Salva il valore originale per il reset in caso di annullamento
+            const originalFactoryValue = projectData.factory;
 
-             // Aggiungi evento change per gestire "add new factory"
-             select.addEventListener('change', function(e) {
-                 if (e.target.value === "__add_new_factory__") {
-                     const newFactoryName = prompt("Enter new factory name:");
-                     if (newFactoryName && newFactoryName.trim() !== '') {
-                         // Aggiungi alla lista globale se non esiste
-                         if (!window.factories.includes(newFactoryName)) {
-                             window.factories.push(newFactoryName);
-                             window.factories.sort(); // Mantieni ordinato
-                             console.log(`Nuova factory "${newFactoryName}" aggiunta alla lista.`); // Log in italiano
-                         }
-                         // Aggiungi come opzione alla dropdown
-                         const newOption = document.createElement('option');
-                         newOption.value = newFactoryName;
-                         newOption.textContent = newFactoryName;
-                         select.insertBefore(newOption, addNewFactoryOption);
-                         // Seleziona la nuova factory
-                         select.value = newFactoryName;
-                     } else {
-                         // Se l'utente annulla, ripristina la selezione originale (se esisteva)
-                         select.value = originalFactoryValue || '';
-                     }
-                 }
-             });
+            // Aggiungi evento change per gestire "add new factory"
+            select.addEventListener('change', function (e) {
+                if (e.target.value === "__add_new_factory__") {
+                    const newFactoryName = prompt("Enter new factory name:");
+                    if (newFactoryName && newFactoryName.trim() !== '') {
+                        // Aggiungi alla lista globale se non esiste
+                        if (!window.factories.includes(newFactoryName)) {
+                            window.factories.push(newFactoryName);
+                            window.factories.sort(); // Mantieni ordinato
+                            console.log(`Nuova factory "${newFactoryName}" aggiunta alla lista.`); // Log in italiano
+                        }
+                        // Aggiungi come opzione alla dropdown
+                        const newOption = document.createElement('option');
+                        newOption.value = newFactoryName;
+                        newOption.textContent = newFactoryName;
+                        select.insertBefore(newOption, addNewFactoryOption);
+                        // Seleziona la nuova factory
+                        select.value = newFactoryName;
+                    } else {
+                        // Se l'utente annulla, ripristina la selezione originale (se esisteva)
+                        select.value = originalFactoryValue || '';
+                    }
+                }
+            });
 
-             cells[i].appendChild(select);
-         } else {
-             // Gestione standard per altri input
+            cells[i].appendChild(select);
+        } else {
+            // Gestione standard per altri input
             const input = document.createElement('input');
             input.type = (i === 8 || i === 9) ? 'date' : 'text'; // Indici per startDate e endDate
             // Usa Object.keys per ottenere il nome del campo corrispondente all'indice i
@@ -1683,7 +1713,7 @@ function editProject(row, projectId) {
     actionsCell.innerHTML = '';
     const saveBtn = document.createElement('button');
     saveBtn.textContent = 'Save';
-    saveBtn.addEventListener('click', async function() {
+    saveBtn.addEventListener('click', async function () {
         // Estrai i valori aggiornati dagli input/select nelle celle
         const updatedProject = {};
         const fieldNames = Object.keys(projectData); // Ottieni i nomi dei campi dall'oggetto originale
@@ -1751,7 +1781,7 @@ function editProject(row, projectId) {
     const cancelBtn = document.createElement('button');
     cancelBtn.textContent = 'Cancel';
     cancelBtn.classList.add('cancel-btn'); // Usa la stessa classe o una specifica se necessario
-    cancelBtn.addEventListener('click', async function() {
+    cancelBtn.addEventListener('click', async function () {
         // Ricarica semplicemente i progetti per annullare le modifiche e ripristinare la riga
         console.log(`Modifica progetto ID ${projectId} annullata.`); // Log in italiano
         const savedWidths = localStorage.getItem('projectsColumnWidths');
@@ -1845,19 +1875,19 @@ function enableColumnResizing() {
         console.error('ERRORE CRITICO: Tabella projects-table non trovata nel DOM!');
         return;
     }
-    
+
     const headerCells = table.getElementsByTagName('th');
     if (!headerCells || headerCells.length === 0) {
         console.error('ERRORE CRITICO: Nessuna cella di intestazione (th) trovata nella tabella!');
         return;
     }
-    
+
     const tableWrapper = table.closest('.table-wrapper');
     if (!tableWrapper) {
         console.error('ERRORE CRITICO: Table-wrapper non trovato!');
         return;
     }
-    
+
     const maxTableWidth = tableWrapper.offsetWidth;
     console.log(`Inizializzazione ridimensionamento colonne: ${headerCells.length} celle header trovate`);
 
@@ -1869,7 +1899,7 @@ function enableColumnResizing() {
         // Prima rimuoviamo tutti i resizer esistenti per evitare duplicati
         const existingResizers = table.querySelectorAll('.resizer');
         let removedCount = 0;
-        
+
         existingResizers.forEach(resizer => {
             try {
                 if (resizer._startResize) {
@@ -1878,20 +1908,20 @@ function enableColumnResizing() {
                 }
                 resizer.remove();
                 removedCount++;
-            } catch(e) {
+            } catch (e) {
                 console.warn(`Errore nella rimozione di un resizer: ${e.message}`);
             }
         });
-        
+
         console.log(`Rimossi ${removedCount} resizer esistenti di ${existingResizers.length} trovati`);
-    } catch(e) {
+    } catch (e) {
         console.error(`Errore durante la pulizia dei resizer: ${e.message}`);
     }
 
     // Applica le larghezze salvate prima di aggiungere i nuovi resizer
     try {
         restoreColumnWidths();
-    } catch(e) {
+    } catch (e) {
         console.warn(`Impossibile ripristinare larghezze colonne: ${e.message}`);
     }
 
@@ -1899,50 +1929,50 @@ function enableColumnResizing() {
     for (let i = 0; i < headerCells.length; i++) {
         try {
             const headerCell = headerCells[i];
-            
+
             // Verifica che la cella esista ancora nel DOM
             if (!headerCell || !headerCell.parentNode) {
                 console.warn(`Cella header ${i} non trovata o già rimossa dal DOM`);
                 continue;
             }
-            
+
             // Salva il contenuto testuale originale
             const originalContent = headerCell.innerHTML;
             const originalTextContent = headerCell.textContent.trim();
-            
+
             // Verifica se la cella ha già la struttura ottimizzata
             if (!headerCell.querySelector('.header-text-container')) {
                 // Svuota la cella
                 headerCell.innerHTML = '';
-                
+
                 // Crea un contenitore per il testo che può essere tradotto
                 const textContainer = document.createElement('span');
                 textContainer.className = 'header-text-container';
                 textContainer.innerHTML = originalContent;
-                
+
                 // Se la cella ha un attributo data-translate, aggiungilo al container di testo
                 if (headerCell.hasAttribute('data-translate')) {
                     textContainer.setAttribute('data-translate', headerCell.getAttribute('data-translate'));
                 }
-                
+
                 // Aggiungi il contenitore di testo alla cella
                 headerCell.appendChild(textContainer);
-                
+
                 console.log(`Ristrutturata cella header ${i}: "${originalTextContent}"`);
             }
-            
+
             // Verifica che la posizione sia impostata correttamente
             headerCell.style.position = 'relative';
-            
+
             // Crea un nuovo resizer come elemento indipendente
             const resizer = document.createElement('div');
             resizer.className = 'resizer';
             resizer.style.cssText = 'position: absolute; right: -3px; top: 0; height: 100%; width: 6px; background: transparent; cursor: col-resize; z-index: 10;';
-            
+
             // Aggiungi attributi data per debug e manutenzione
             resizer.setAttribute('data-column-index', i);
             resizer.setAttribute('data-column-title', originalTextContent);
-            
+
             // Stato specifico per questo resizer
             let startX, startWidth, totalWidth;
             let isResizing = false;
@@ -1952,40 +1982,40 @@ function enableColumnResizing() {
                 // Previene la selezione del testo e altri comportamenti default
                 e.preventDefault();
                 e.stopPropagation();
-                
+
                 // Usa clientX invece di pageX per maggiore compatibilità
                 startX = e.clientX || (e.touches && e.touches[0].clientX);
                 startWidth = headerCell.offsetWidth;
                 totalWidth = Array.from(headerCells).reduce((sum, cell) => sum + cell.offsetWidth, 0);
-                
+
                 isResizing = true;
                 resizer.classList.add('resizing');
-                
+
                 // Aggiungi gli event listener al document
                 document.addEventListener('mousemove', resizeColumn);
                 document.addEventListener('touchmove', resizeColumn, { passive: false });
                 document.addEventListener('mouseup', stopResize);
                 document.addEventListener('touchend', stopResize);
-                
+
                 // Aggiungi classe al body
                 document.body.classList.add('column-resizing');
-                
+
                 console.log(`Iniziato ridimensionamento colonna ${i}: "${originalTextContent}" - Larghezza iniziale: ${startWidth}px`);
             }
 
             // Funzione per gestire il ridimensionamento
             function resizeColumn(e) {
                 if (!isResizing) return;
-                
+
                 // Previene lo scroll durante il ridimensionamento
                 e.preventDefault();
                 e.stopPropagation();
-                
+
                 // Calcola la nuova larghezza
                 const currentX = e.clientX || (e.touches && e.touches[0].clientX);
                 const widthChange = currentX - startX;
                 const newWidth = Math.max(50, startWidth + widthChange); // Minimo 50px
-                
+
                 // Applica la nuova larghezza
                 headerCell.style.width = `${newWidth}px`;
 
@@ -2004,28 +2034,28 @@ function enableColumnResizing() {
             // Funzione per terminare il ridimensionamento
             function stopResize(e) {
                 if (!isResizing) return;
-                
+
                 isResizing = false;
                 resizer.classList.remove('resizing');
-                
+
                 // Rimuovi gli event listener
                 document.removeEventListener('mousemove', resizeColumn);
                 document.removeEventListener('touchmove', resizeColumn);
                 document.removeEventListener('mouseup', stopResize);
                 document.removeEventListener('touchend', stopResize);
-                
+
                 // Rimuovi la classe dal body
                 document.body.classList.remove('column-resizing');
-                
+
                 // Salva nuovamente le larghezze per sicurezza
                 saveColumnWidths();
-                
+
                 console.log(`Terminato ridimensionamento colonna ${i}: "${originalTextContent}" - Nuova larghezza: ${headerCell.offsetWidth}px`);
             }
 
             // Salva riferimento alla funzione startResize
             resizer._startResize = startResize;
-            
+
             // Salva riferimenti per gestione futura
             window.tableColumnState.resizerInstances.push({
                 index: i,
@@ -2036,14 +2066,14 @@ function enableColumnResizing() {
             // Aggiungi event listener
             resizer.addEventListener('mousedown', startResize);
             resizer.addEventListener('touchstart', startResize, { passive: false });
-            
+
             // Aggiungi il resizer alla cella header (sempre alla fine)
             headerCell.appendChild(resizer);
-        } catch(e) {
+        } catch (e) {
             console.error(`Errore nella ristrutturazione/inizializzazione per la colonna ${i}: ${e.message}`);
         }
     }
-    
+
     console.log('Ridimensionamento colonne inizializzato con successo con struttura ottimizzata');
 }
 
@@ -2053,7 +2083,7 @@ function addColumnResizingStyles() {
     if (document.getElementById('column-resizing-styles')) {
         return;
     }
-    
+
     // Crea elemento style
     const style = document.createElement('style');
     style.id = 'column-resizing-styles';
@@ -2089,7 +2119,7 @@ function addColumnResizingStyles() {
             width: 8px !important;
         }
     `;
-    
+
     // Aggiungi lo stile al documento
     document.head.appendChild(style);
     console.log('Stili di ridimensionamento colonne aggiunti dinamicamente');
@@ -2099,37 +2129,37 @@ function addColumnResizingStyles() {
 document.addEventListener('DOMContentLoaded', addColumnResizingStyles);
 
 // Funzione per verificare e riparare i resizer danneggiati dopo un cambio lingua
-window.checkAndRepairResizers = function() {
+window.checkAndRepairResizers = function () {
     console.log('Verifica e riparazione resizer...');
-    
+
     const table = document.getElementById('projects-table');
     if (!table) {
         console.error('ERRORE CRITICO: Tabella projects-table non trovata durante la riparazione!');
         return false;
     }
-    
+
     // Verifica che tutti gli header abbiano resizer funzionanti
     const headerCells = table.getElementsByTagName('th');
     let repairCount = 0;
-    
+
     for (let i = 0; i < headerCells.length; i++) {
         const headerCell = headerCells[i];
         const resizer = headerCell.querySelector('.resizer');
-        
+
         // Se la cella non ha un resizer, è danneggiata
         if (!resizer) {
             console.log(`Riparazione: cella ${i} (${headerCell.textContent.trim()}) senza resizer`);
             repairCount++;
         }
     }
-    
+
     // Se ci sono celle danneggiate, reinizializza completamente
     if (repairCount > 0) {
         console.log(`Trovati ${repairCount} resizer danneggiati. Reinizializzazione completa...`);
         enableColumnResizing();
         return true;
     }
-    
+
     console.log('Nessun resizer danneggiato trovato');
     return false;
 };
@@ -2147,7 +2177,7 @@ function enableColumnSorting() {
     }
 
     for (let i = 0; i < headers.length - 1; i++) { // Exclude the last column (Actions)
-        headers[i].addEventListener('click', function() {
+        headers[i].addEventListener('click', function () {
             const columnIndex = i;
             const rows = Array.from(table.getElementsByTagName('tbody')[0].rows);
             const isAscending = sortDirection[columnIndex];
@@ -2444,7 +2474,7 @@ function enableLiveFiltering() {
     // --- Ricerca globale ---
     const globalSearchInput = document.getElementById('global-project-search');
     if (globalSearchInput) {
-        globalSearchInput.addEventListener('input', function() {
+        globalSearchInput.addEventListener('input', function () {
             const keyword = this.value.toLowerCase().trim();
             const rows = document.getElementById('projects-table').getElementsByTagName('tbody')[0].rows;
             Array.from(rows).forEach(row => {
@@ -2463,7 +2493,7 @@ function enableLiveFiltering() {
     // --- Ricerca nella cronologia progetti ---
     const globalHistorySearch = document.getElementById('global-history-search');
     if (globalHistorySearch) {
-        globalHistorySearch.addEventListener('input', async function() {
+        globalHistorySearch.addEventListener('input', async function () {
             const keyword = this.value.toLowerCase().trim();
             if (!keyword) {
                 // Se il campo è vuoto, mostra tutte le righe
