@@ -440,3 +440,247 @@
     min-width: 40px; /* Larghezza minima per evitare scatti */
     text-align: right;
 }
+
+/* Stili per File Uploader Modal */
+#fileUploaderModal .modal-content {
+    max-width: 950px; /* Larghezza ridotta del 20% rispetto a 1188px (1188 * 0.8 = 950.4) */
+    width: 95%; /* Larghezza responsiva */
+    padding: 15px;
+}
+
+#uploaderContainer h3 {
+    color: #333;
+    margin-bottom: 3px;
+    font-size: 18px;
+}
+
+#uploaderContainer p {
+    color: #666;
+    font-size: 12px;
+    margin-top: 0;
+    margin-bottom: 15px;
+}
+
+#addFileBtn {
+    width: 100%;
+    padding: 10px;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 15px;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+#addFileBtn:hover {
+    background: #0056b3;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 123, 255, 0.4);
+}
+
+#fileCardsContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 15px;
+}
+
+.file-card {
+    background: #ffffff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 12px;
+    position: relative;
+    transition: all 0.3s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.file-card:hover {
+    border-color: #007bff;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.file-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #eee;
+}
+
+.file-card-header div {
+    font-size: 14px;
+    font-weight: 600;
+    color: #007bff;
+}
+
+.file-card-header button {
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.file-card-header button:hover {
+    background: #c82333;
+}
+
+.upload-area {
+    border: 2px dashed #ccc;
+    border-radius: 6px;
+    padding: 20px;
+    text-align: center;
+    margin-bottom: 12px;
+    background: #fdfdfd;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.upload-area.highlight,
+.upload-area:hover {
+    background-color: #f0f8ff;
+    border-color: #007bff;
+}
+
+.upload-area-icon {
+    font-size: 36px;
+    margin-bottom: 8px;
+    color: #007bff;
+}
+
+.upload-area-text {
+    color: #666;
+    font-size: 12px;
+}
+
+.file-name-display {
+    color: #28a745;
+    font-weight: 600;
+    margin-top: 8px;
+    font-size: 12px;
+    display: none;
+}
+
+.file-card label {
+    display: block;
+    margin-bottom: 5px;
+    color: #333;
+    font-weight: 600;
+    font-size: 12px;
+}
+
+.file-card input[type="text"],
+.file-card select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 13px;
+    background: white;
+    box-sizing: border-box;
+}
+
+.file-card input[type="text"]:focus,
+.file-card select:focus {
+    border-color: #007bff;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.15);
+}
+
+.generated-name-container {
+    margin-top: 12px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border: 1px solid #e0e0e0;
+}
+
+.generated-name-label {
+    font-weight: 600;
+    color: #007bff;
+    margin-bottom: 6px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.generated-name-output {
+    font-size: 12px;
+    color: #333;
+    font-weight: 600;
+    word-break: break-all;
+    min-height: 18px;
+}
+
+.assigned-to-section {
+    margin-top: 15px;
+    margin-bottom: 15px;
+}
+
+.assigned-to-section label {
+    display: block;
+    margin-bottom: 5px;
+    color: #333;
+    font-weight: 600;
+    font-size: 12px;
+}
+
+#assignedToSelect {
+     width: 100%;
+     padding: 8px;
+     border: 1px solid #ccc;
+     border-radius: 4px;
+     font-size: 13px;
+     background: white;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+#downloadBtn, #resetBtn {
+    flex: 1;
+    padding: 10px 15px;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+#downloadBtn {
+    background: #4CAF50;
+}
+
+#downloadBtn:hover {
+    background: #45a049;
+}
+
+#downloadBtn:disabled {
+    background: #aaa;
+    cursor: not-allowed;
+}
+
+#resetBtn {
+    background: #dc3545;
+}
+
+#resetBtn:hover {
+    background: #c82333;
+}

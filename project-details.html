@@ -59,6 +59,7 @@
             <div class="history-header">
                 <h1 data-translate="Project History">Project History</h1>
                 <button id="add-entry-btn" class="add-btn" data-translate="Add History Entry">Add History Entry</button>
+                <button id="upload-curves-btn" class="add-btn" data-translate="Upload Curves">Upload Curves</button>
                 <button id="urge-tasks-btn" class="btn" data-translate="Urge Tasks">Urge Tasks</button>
             </div>
             <div class="filters">
@@ -106,6 +107,7 @@
     <script src="project-layout.js"></script>
     <script type="module" src="project-history.js"></script>
     <script src="mobile-menu.js"></script>
+    <script src="js/file-uploader.js"></script> <!-- File uploader script -->
     <script src="i18n.js"></script> <!-- Aggiungi script i18n -->
     <script>
         document.addEventListener('DOMContentLoaded', async function() {
@@ -126,6 +128,18 @@
             <span id="tooltip-loading" style="display: none; margin-left: 8px; font-size: 11px; color: #555;">Translating...</span>
         </div>
         <div id="tooltip-error" style="color: red; font-size: 10px; margin-top: 5px;"></div>
+    </div>
+
+    <!-- Modal per File Uploader -->
+    <div id="fileUploaderModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="window.FileUploader.closeModal()">&times;</span>
+            <h2 data-translate="Upload Curves">Upload Curves - File Naming Tool</h2>
+            
+            <div id="uploaderContainer">
+                <!-- Contenuto dinamico del file uploader -->
+            </div>
+        </div>
     </div>
 
 </body>

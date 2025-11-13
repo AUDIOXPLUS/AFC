@@ -354,6 +354,16 @@ document.addEventListener('DOMContentLoaded', async function() {
         console.error("Elemento urge-tasks-btn non trovato nel DOM");
     }
 
+    // Gestione pulsante Upload Curves
+    const uploadCurvesBtn = document.getElementById('upload-curves-btn');
+    if (uploadCurvesBtn) {
+        uploadCurvesBtn.addEventListener('click', () => {
+            window.FileUploader.showModal();
+        });
+    } else {
+        console.error("Elemento upload-curves-btn non trovato nel DOM");
+    }
+
     // Inizializza le funzionalità della tabella dopo aver caricato la cronologia
     // Verifica le funzioni disponibili prima di chiamarle
     if (window.ProjectHistory && typeof window.ProjectHistory.fetchProjectHistory === 'function') {

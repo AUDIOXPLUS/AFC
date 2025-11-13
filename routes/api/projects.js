@@ -681,7 +681,7 @@ router.get('/:id/history', checkAuthentication, (req, res) => {
 // Endpoint per aggiungere una voce alla cronologia del progetto
 router.post('/:id/history', checkAuthentication, (req, res) => {
     const projectId = req.params.id;
-    const { date, phase, description, assignedTo, status } = req.body;
+    const { date, phase, description, assignedTo, status, fileIds } = req.body;
     const userId = req.session.user.id;
     const userName = req.session.user.name;
 
@@ -698,6 +698,38 @@ router.post('/:id/history', checkAuthentication, (req, res) => {
             return res.status(500).send('Errore del server');
         }
         const newHistoryId = this.lastID; // ID della nuova voce appena creata
+
+        // Se ci sono file da associare, aggiorna il campo history_id nella tabella project_files
+        if (fileIds && Array.isArray(fileIds) && fileIds.length > 0) {
+            const updateFileQuery = `UPDATE project_files SET history_id = ? WHERE id = ?`;
+            let filesUpdated = 0;
+            let filesErrors = 0;
+
+            fileIds.forEach((fileId) => {
+                req.db.run(updateFileQuery, [newHistoryId, fileId], function(fileErr) {
+                    filesUpdated++;
+                    if (fileErr) {
+                        console.error(`Errore nell'associazione del file ${fileId} alla history entry ${newHistoryId}:`, fileErr);
+                        filesErrors++;
+                    }
+
+                    // Quando tutti i file sono stati processati
+                    if (filesUpdated === fileIds.length) {
+                        console.log(`${filesUpdated - filesErrors} file associati con successo alla history entry ${newHistoryId}`);
+                        
+                        // Continua con la logica esistente per i forward
+                        processParentFiles(newHistoryId, parentId, projectId, res);
+                    }
+                });
+            });
+        } else {
+            // Se non ci sono file da associare, continua con la logica esistente
+            processParentFiles(newHistoryId, parentId, projectId, res);
+        }
+    });
+
+    // Funzione helper per processare i file del parent (forward)
+    function processParentFiles(newHistoryId, parentId, projectId, res) {
 
         // Se la nuova voce ha un parent_id, verifica se è un forward (basato sulla descrizione)
         if (parentId) {
@@ -755,7 +787,7 @@ router.post('/:id/history', checkAuthentication, (req, res) => {
         }
         // Invia la risposta dopo aver avviato (se necessario) la copia dei file
         res.status(201).json({ id: newHistoryId });
-    });
+    }
 });
 
 // Endpoint per aggiornare la visibilità di una voce della cronologia

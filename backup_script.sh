@@ -11,6 +11,8 @@ LOG_FILE="${DEST_DIR}/backup_log.txt"
 DATE_FORMAT=$(date +"%Y-%m-%d_%H-%M-%S")
 # Nome del file di backup
 BACKUP_FILENAME="backup_${DATE_FORMAT}.tar.gz"
+# Numero massimo di backup da mantenere (gli altri verranno cancellati)
+MAX_BACKUPS=7
 
 # --- FUNZIONE DI LOGGING ---
 log_message() {
@@ -35,6 +37,31 @@ log_message "Inizio del backup di $SOURCE_DIR"
 if ! mountpoint -q "$DEST_DIR"; then
     log_message "ERRORE: Il disco esterno non è montato in $DEST_DIR. Backup annullato."
     exit 1
+fi
+
+# --- ROTAZIONE BACKUP (cancellazione dei vecchi) ---
+# Conta i backup esistenti ordinati per data (dal più recente al più vecchio)
+BACKUP_COUNT=$(ls -t "${DEST_DIR}"/backup_*.tar.gz 2>/dev/null | wc -l)
+
+if [ "$BACKUP_COUNT" -ge "$MAX_BACKUPS" ]; then
+    # Calcola quanti backup cancellare
+    TO_DELETE=$((BACKUP_COUNT - MAX_BACKUPS + 1))
+    log_message "Trovati $BACKUP_COUNT backup, ne manterremo solo $MAX_BACKUPS. Cancello i $TO_DELETE più vecchi."
+    
+    # Cancella i backup più vecchi (gli ultimi nella lista ordinata)
+    ls -t "${DEST_DIR}"/backup_*.tar.gz 2>/dev/null | tail -n "$TO_DELETE" | while read -r old_backup; do
+        if [ -f "$old_backup" ]; then
+            log_message "Cancello backup vecchio: $(basename "$old_backup")"
+            rm -f "$old_backup"
+            if [ $? -eq 0 ]; then
+                log_message "Backup $(basename "$old_backup") cancellato con successo"
+            else
+                log_message "ERRORE: Impossibile cancellare $(basename "$old_backup")"
+            fi
+        fi
+    done
+else
+    log_message "Backup esistenti: $BACKUP_COUNT (limite: $MAX_BACKUPS). Nessuna cancellazione necessaria."
 fi
 
 # Comando per creare l'archivio compresso
