@@ -174,3 +174,42 @@
 .btn-primary:active {
     transform: translateY(1px);
 }
+
+/* Wrapper della paginazione */
+.pagination-wrapper {
+    margin-top: 10px;
+    text-align: center;
+    font-family: Arial, sans-serif;
+}
+
+/* Pulsanti generali */
+.pagination-wrapper button {
+    margin: 0 3px;
+    padding: 5px 10px;
+    border: 1px solid #ccc;
+    background-color: #f8f8f8;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+/* Hover */
+.pagination-wrapper button:hover:not(:disabled) {
+    background-color: #007bff;
+    color: white;
+    border-color: #007bff;
+}
+
+/* Pulsante disabilitato */
+.pagination-wrapper button:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+/* Pulsante pagina corrente */
+.pagination-wrapper button[disabled] {
+    font-weight: bold;
+    background-color: #007bff;
+    color: white;
+    border-color: #007bff;
+}

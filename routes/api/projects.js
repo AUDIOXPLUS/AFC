@@ -10,7 +10,12 @@ router.get('/', checkAuthentication, async (req, res) => {
         const showArchived = req.query.showArchived === 'true';
         const showOnHold = req.query.showOnHold === 'true';
         const countOnly = req.query.countOnly === 'true';
-        
+
+        // Pagination params (defaults)
+        const page = Math.max(1, parseInt(req.query.page || '1', 10));
+        const pageSize = Math.max(1, parseInt(req.query.pageSize || '20', 10));
+        const offset = (page - 1) * pageSize;
+
         // Se viene richiesto solo il conteggio, restituisci i conteggi per categoria
         if (countOnly) {
             // Ottieni i permessi CRUD dell'utente per la pagina projects
@@ -21,7 +26,7 @@ router.get('/', checkAuthentication, async (req, res) => {
                 WHERE c.page = 'Projects' 
                 AND c.action = 'Read'
             `;
-            
+
             const user = await new Promise((resolve, reject) => {
                 req.db.get(permissionsQuery, [req.session.user.id], (err, row) => {
                     if (err) reject(err);
@@ -36,7 +41,7 @@ router.get('/', checkAuthentication, async (req, res) => {
             let permissions;
             try {
                 permissions = JSON.parse(user.user_properties);
-                
+
                 if (!permissions.enabled) {
                     return res.status(403).json({ error: 'Permessi non abilitati' });
                 }
@@ -49,7 +54,7 @@ router.get('/', checkAuthentication, async (req, res) => {
             const countParams = [];
             let permissionsFilter = '';
             const level = permissions.level || permissions.scope;
-            
+
             // Applica i filtri di permesso in base al livello
             switch (level) {
                 case 'own':
@@ -88,7 +93,7 @@ router.get('/', checkAuthentication, async (req, res) => {
                         AND uc.user_id = ?
                         AND uc.properties IS NOT NULL
                     `;
-                    
+
                     const userPerms = await new Promise((resolve, reject) => {
                         req.db.get(userPermsQuery, [req.session.user.id], (err, row) => {
                             if (err) reject(err);
@@ -228,7 +233,7 @@ router.get('/', checkAuthentication, async (req, res) => {
             WHERE c.page = 'Projects' 
             AND c.action = 'Read'
         `;
-        
+
         const user = await new Promise((resolve, reject) => {
             req.db.get(permissionsQuery, [req.session.user.id], (err, row) => {
                 if (err) reject(err);
@@ -241,9 +246,9 @@ router.get('/', checkAuthentication, async (req, res) => {
         }
 
         const queryParams = [];
-        
-        // Costruisci la query in base allo stato dei toggle, includendo informazioni sullo status più recente
-        let query = `
+
+        // Costruisci la query di base e accumula il whereClause separatamente in modo da poterlo riutilizzare per il COUNT
+        let baseSelect = `
             SELECT p.*, 
                    latest_history.status as latest_status, 
                    latest_history.description as latest_description, 
@@ -257,49 +262,46 @@ router.get('/', checkAuthentication, async (req, res) => {
                                                (ph1.date < ph2.date OR (ph1.date = ph2.date AND ph1.id < ph2.id))
                 WHERE ph2.id IS NULL
             ) latest_history ON p.id = latest_history.project_id
-            WHERE 1=1`;
-        
-        // Gestisci i casi possibili per i toggle showArchived e showOnHold
+        `;
+
+        // Costruiamo il whereClause passo passo
+        let whereClause = ' WHERE 1=1';
         if (showArchived && !showOnHold) {
-            // CASO 1: Mostra SOLO progetti archiviati
-            query += ' AND archived = 1';
+            whereClause += ' AND archived = 1';
         } else if (!showArchived && showOnHold) {
-            // CASO 2: Mostra SOLO progetti on hold
-            query += ' AND archived = 0 AND EXISTS (';
-            query += `   SELECT 1 FROM project_history ph 
-                         WHERE ph.project_id = p.id 
-                         AND ph.status = 'On Hold'
-                         AND NOT EXISTS (
-                             SELECT 1 FROM project_history ph2
-                             WHERE ph2.project_id = p.id
-                             AND ph2.date > ph.date
-                         )
-                    )`;
+            whereClause += ` AND archived = 0 AND EXISTS (
+                 SELECT 1 FROM project_history ph 
+                 WHERE ph.project_id = p.id 
+                 AND ph.status = 'On Hold'
+                 AND NOT EXISTS (
+                     SELECT 1 FROM project_history ph2
+                     WHERE ph2.project_id = p.id
+                     AND ph2.date > ph.date
+                 )
+            )`;
         } else if (showArchived && showOnHold) {
-            // CASO 3: Mostra sia progetti archiviati che on hold
-            query += ` AND (archived = 1 OR EXISTS (
-                         SELECT 1 FROM project_history ph 
-                         WHERE ph.project_id = p.id 
-                         AND ph.status = 'On Hold'
-                         AND NOT EXISTS (
-                             SELECT 1 FROM project_history ph2
-                             WHERE ph2.project_id = p.id
-                             AND ph2.date > ph.date
-                         )
-                      ))`;
+            whereClause += ` AND (archived = 1 OR EXISTS (
+                 SELECT 1 FROM project_history ph 
+                 WHERE ph.project_id = p.id 
+                 AND ph.status = 'On Hold'
+                 AND NOT EXISTS (
+                     SELECT 1 FROM project_history ph2
+                     WHERE ph2.project_id = p.id
+                     AND ph2.date > ph.date
+                 )
+            ))`;
         } else {
-            // CASO 4: Mostra solo progetti normali (non archiviati e non on hold)
-            query += ' AND archived = 0';
-            query += ` AND NOT EXISTS (
-                         SELECT 1 FROM project_history ph 
-                         WHERE ph.project_id = p.id 
-                         AND ph.status = 'On Hold'
-                         AND NOT EXISTS (
-                             SELECT 1 FROM project_history ph2
-                             WHERE ph2.project_id = p.id
-                             AND ph2.date > ph.date
-                         )
-                      )`;
+            whereClause += ' AND archived = 0';
+            whereClause += ` AND NOT EXISTS (
+                 SELECT 1 FROM project_history ph 
+                 WHERE ph.project_id = p.id 
+                 AND ph.status = 'On Hold'
+                 AND NOT EXISTS (
+                     SELECT 1 FROM project_history ph2
+                     WHERE ph2.project_id = p.id
+                     AND ph2.date > ph.date
+                 )
+            )`;
         }
 
         if (!user.user_properties) {
@@ -308,10 +310,7 @@ router.get('/', checkAuthentication, async (req, res) => {
 
         let permissions;
         try {
-            console.log('User properties raw:', user.user_properties);
             permissions = JSON.parse(user.user_properties);
-            console.log('Permessi parsati:', permissions);
-            
             if (!permissions.enabled) {
                 return res.status(403).json({ error: 'Permessi non abilitati' });
             }
@@ -326,8 +325,7 @@ router.get('/', checkAuthentication, async (req, res) => {
 
         switch (level) {
             case 'own':
-                // Progetti assegnati all'utente corrente
-                query += ` AND EXISTS (
+                whereClause += ` AND EXISTS (
                     SELECT 1 FROM project_history ph
                     WHERE ph.project_id = p.id
                     AND ph.assigned_to = ?
@@ -335,8 +333,7 @@ router.get('/', checkAuthentication, async (req, res) => {
                 queryParams.push(req.session.user.name);
                 break;
             case 'own-factory':
-                // Progetti della stessa factory dell'utente
-                query += ` AND factory = (
+                whereClause += ` AND factory = (
                     SELECT factory 
                     FROM users 
                     WHERE id = ?
@@ -344,12 +341,10 @@ router.get('/', checkAuthentication, async (req, res) => {
                 queryParams.push(req.session.user.id);
                 break;
             case 'all-factories':
-                // Progetti di tutte le factories
-                query += ` AND factory IS NOT NULL`;
+                whereClause += ` AND factory IS NOT NULL`;
                 break;
             case 'own-client':
-                // Progetti dello stesso cliente dell'utente
-                query += ` AND client = (
+                whereClause += ` AND client = (
                     SELECT client_company_name 
                     FROM users 
                     WHERE id = ?
@@ -357,11 +352,10 @@ router.get('/', checkAuthentication, async (req, res) => {
                 queryParams.push(req.session.user.id);
                 break;
             case 'all-clients':
-                // Progetti di tutti i clienti
-                query += ` AND client IS NOT NULL`;
+                whereClause += ` AND client IS NOT NULL`;
                 break;
             case 'user-projects':
-                // Se sono specificati utenti specifici nei permessi, recupera i loro progetti
+                // recupera userProps come facevi prima
                 const userPermsQuery = `
                     SELECT uc.properties
                     FROM crud c
@@ -371,7 +365,7 @@ router.get('/', checkAuthentication, async (req, res) => {
                     AND uc.user_id = ?
                     AND uc.properties IS NOT NULL
                 `;
-                
+
                 const userPerms = await new Promise((resolve, reject) => {
                     req.db.get(userPermsQuery, [req.session.user.id], (err, row) => {
                         if (err) reject(err);
@@ -383,7 +377,7 @@ router.get('/', checkAuthentication, async (req, res) => {
                     try {
                         const userProps = JSON.parse(userPerms.properties);
                         if (Array.isArray(userProps.userIds) && userProps.userIds.length > 0) {
-                            query += ` AND EXISTS (
+                            whereClause += ` AND EXISTS (
                                 SELECT 1 FROM project_history ph
                                 JOIN users u ON ph.assigned_to = u.name
                                 WHERE ph.project_id = p.id
@@ -402,30 +396,36 @@ router.get('/', checkAuthentication, async (req, res) => {
                 }
                 break;
             case 'all':
-                // Nessun filtro necessario
+                // Nessun filtro aggiuntivo
                 break;
             default:
                 return res.status(403).json({ error: 'Scope non valido' });
         }
 
-        console.log('Query SQL:', query);
-        console.log('Parametri query:', queryParams);
+        // Esegui prima la COUNT usando lo stesso whereClause per ottenere il totale coerente
+        const countQuery = `SELECT COUNT(DISTINCT p.id) as total FROM projects p ${whereClause}`;
+        const total = await new Promise((resolve, reject) => {
+            req.db.get(countQuery, queryParams, (err, row) => {
+                if (err) reject(err);
+                else resolve(row?.total || 0);
+            });
+        });
 
-        req.db.all(query, queryParams, (err, rows) => {
+        // Ora esegui la query principale con LIMIT/OFFSET
+        const paginatedQuery = `${baseSelect} ${whereClause} LIMIT ? OFFSET ?`;
+        const paginatedParams = [...queryParams, pageSize, offset];
+
+        console.log('Query SQL (paginated):', paginatedQuery);
+        console.log('Parametri query (paginated):', paginatedParams);
+
+        req.db.all(paginatedQuery, paginatedParams, (err, rows) => {
             if (err) {
                 console.error('Errore nel recupero dei progetti:', err);
                 return res.status(500).json({ error: 'Errore del server' });
             }
-            console.log('Numero di righe trovate:', rows.length);
-            console.log('Prima riga risultato:', rows[0]);
-            if (err) {
-                console.error('Errore nel recupero dei progetti:', err);
-                return res.status(500).json({ error: 'Errore del server' });
-            }
-            console.log('Numero di progetti trovati:', rows.length);
-            // Se non ci sono progetti, restituisci un array vuoto
-            if (rows.length === 0) {
-                return res.json([]);
+
+            if (!rows || rows.length === 0) {
+                return res.json({ items: [], total, page, pageSize });
             }
 
             // Estrai gli ID dei progetti trovati
@@ -485,12 +485,16 @@ router.get('/', checkAuthentication, async (req, res) => {
 
                 // Aggiungi l'array di sommario a ciascun progetto
                 rows.forEach(project => {
-                    // Il campo si chiamerà 'historySummary' per non confonderlo con la cronologia completa
-                    project.historySummary = summaryMap[project.id] || []; 
+                    project.historySummary = summaryMap[project.id] || [];
                 });
 
-                console.log('Prima riga risultato con sommario cronologia:', rows[0]);
-                res.json(rows);
+                // Rispondi con struttura paginata
+                res.json({
+                    items: rows,
+                    total: total,
+                    page: page,
+                    pageSize: pageSize
+                });
             });
         });
     } catch (error) {
@@ -519,23 +523,23 @@ router.get('/:id', checkAuthentication, (req, res) => {
 // Endpoint per aggiungere un progetto
 router.post('/', checkAuthentication, (req, res) => {
     const { factory, brand, range, line, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, priority } = req.body;
-    
+
     // Prima query: inserimento del progetto
     const projectQuery = `INSERT INTO projects (factory, brand, range, line, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, priority) 
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-    
-    req.db.run(projectQuery, [factory, brand, range, line, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, priority], function(err) {
+
+    req.db.run(projectQuery, [factory, brand, range, line, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, priority], function (err) {
         if (err) {
             console.error('Errore nell\'inserimento del progetto:', err);
             return res.status(500).send('Errore del server');
         }
-        
+
         const projectId = this.lastID;
-        
+
         // Ottieni l'ID della fase "Initial Brief"
         const getPhaseQuery = `SELECT id FROM phases WHERE name = 'Initial Brief' LIMIT 1`;
-                
-        req.db.get(getPhaseQuery, [], function(err, phaseRow) {
+
+        req.db.get(getPhaseQuery, [], function (err, phaseRow) {
             if (err) {
                 console.error('Errore nel recupero della fase:', err);
                 return res.status(500).send('Errore del server');
@@ -551,7 +555,7 @@ router.post('/', checkAuthentication, (req, res) => {
             const userId = req.session.user.id; // Ottieni l'ID utente dalla sessione
 
             // Aggiunto userId come ultimo parametro per created_by
-            req.db.run(historyQuery, [projectId, currentDate, phaseId, description, 'In Progress', req.session.user.name, userId], function(err) {
+            req.db.run(historyQuery, [projectId, currentDate, phaseId, description, 'In Progress', req.session.user.name, userId], function (err) {
                 if (err) {
                     console.error('Errore nell\'inserimento della cronologia:', err);
                     // Considera di restituire un errore JSON invece di solo testo
@@ -567,7 +571,7 @@ router.post('/', checkAuthentication, (req, res) => {
 router.put('/:id', checkAuthentication, (req, res) => {
     const { factory, brand, range, line, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, priority, status } = req.body;
     const query = `UPDATE projects SET factory = ?, brand = ?, range = ?, line = ?, modelNumber = ?, factoryModelNumber = ?, productKind = ?, client = ?, startDate = ?, endDate = ?, priority = ?, status = ? WHERE id = ?`;
-    req.db.run(query, [factory, brand, range, line, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, priority, status, req.params.id], function(err) {
+    req.db.run(query, [factory, brand, range, line, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, priority, status, req.params.id], function (err) {
         if (err) {
             console.error('Errore nell\'aggiornamento del progetto:', err);
             return res.status(500).send('Errore del server');
@@ -583,7 +587,7 @@ router.delete('/:id', checkAuthentication, (req, res) => {
 
     // Prima verifichiamo se esistono voci di cronologia
     const checkHistoryQuery = `SELECT COUNT(*) as count FROM project_history WHERE project_id = ?`;
-    req.db.get(checkHistoryQuery, [projectId], function(err, row) {
+    req.db.get(checkHistoryQuery, [projectId], function (err, row) {
         if (err) {
             console.error('Errore nella verifica della cronologia:', err);
             return res.status(500).send('Server error');
@@ -602,7 +606,7 @@ router.delete('/:id', checkAuthentication, (req, res) => {
         // Se non ci sono voci di cronologia o è stata confermata l'eliminazione
         // Prima eliminiamo tutte le voci di cronologia associate al progetto
         const deleteHistoryQuery = `DELETE FROM project_history WHERE project_id = ?`;
-        req.db.run(deleteHistoryQuery, [projectId], function(err) {
+        req.db.run(deleteHistoryQuery, [projectId], function (err) {
             if (err) {
                 console.error('Errore nell\'eliminazione della cronologia del progetto:', err);
                 return res.status(500).send('Server error');
@@ -610,7 +614,7 @@ router.delete('/:id', checkAuthentication, (req, res) => {
 
             // Poi eliminiamo il progetto
             const deleteProjectQuery = `DELETE FROM projects WHERE id = ?`;
-            req.db.run(deleteProjectQuery, [projectId], function(err) {
+            req.db.run(deleteProjectQuery, [projectId], function (err) {
                 if (err) {
                     console.error('Errore nell\'eliminazione del progetto:', err);
                     return res.status(500).send('Server error');
@@ -638,7 +642,7 @@ router.get('/:id/phases', checkAuthentication, (req, res) => {
 router.get('/:id/history', checkAuthentication, (req, res) => {
     const projectId = req.params.id;
     const userId = req.session.user.id;
-    
+
     // Query modificata per mostrare tutti i record pubblici E i record privati visibili all'utente corrente
     // Include anche il nome dell'utente che ha creato il record e il parent_id
     const query = `
@@ -657,7 +661,7 @@ router.get('/:id/history', checkAuthentication, (req, res) => {
         )
         ORDER BY ph.date DESC, ph.id DESC
     `;
-    
+
     // Prepara i parametri per la ricerca con separatore virgola
     const userIdStr = String(userId);
     const patterns = [
@@ -666,7 +670,7 @@ router.get('/:id/history', checkAuthentication, (req, res) => {
         `%,${userIdStr},%`,       // Elemento in mezzo alla lista
         `%,${userIdStr}`          // Ultimo elemento della lista
     ];
-    
+
     // Imposta un timeout di 5 secondi per l'operazione
     req.db.configure('busyTimeout', 5000);
     req.db.all(query, [projectId, userId, patterns[1], patterns[2], patterns[3]], (err, rows) => {
@@ -689,10 +693,10 @@ router.post('/:id/history', checkAuthentication, (req, res) => {
 
     const query = `INSERT INTO project_history (project_id, date, phase, description, assigned_to, status, created_by, parent_id) 
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-    
+
     // Il parent_id è null per le nuove voci che non sono risposte
     const parentId = req.body.parent_id || null;
-    req.db.run(query, [projectId, date, phase, description, assignedTo, status, userId, parentId], function(err) {
+    req.db.run(query, [projectId, date, phase, description, assignedTo, status, userId, parentId], function (err) {
         if (err) {
             console.error('Errore nell\'inserimento della voce di cronologia:', err);
             return res.status(500).send('Errore del server');
@@ -735,7 +739,7 @@ router.post('/:id/history', checkAuthentication, (req, res) => {
         if (parentId) {
             // Verifica se la descrizione indica un forward
             const isForward = description && (description.toLowerCase().includes('forward-') || description.toLowerCase().startsWith('fwd:'));
-            
+
             if (isForward) {
                 // Copia i riferimenti ai file SOLO se è un forward
                 console.log(`Copia dei riferimenti file da history_id ${parentId} a ${newHistoryId} (è un forward)`);
@@ -755,7 +759,7 @@ router.post('/:id/history', checkAuthentication, (req, res) => {
                                 // Rimosso file.filesize e file.filetype dai parametri
                                 req.db.run(insertFileQuery, [
                                     projectId, newHistoryId, file.filename, file.filepath, file.uploaded_by
-                                ], function(fileInsertErr) {
+                                ], function (fileInsertErr) {
                                     if (fileInsertErr) {
                                         console.error(`Errore nell'inserimento del file clonato ${file.filename} per la history_id ${newHistoryId}:`, fileInsertErr);
                                         reject(fileInsertErr); // Rifiuta la singola promise
@@ -815,7 +819,7 @@ router.put('/:projectId/history/:historyId/privacy', checkAuthentication, (req, 
         privateBy = null;
     }
 
-    req.db.run(query, [privateBy, historyId, projectId], function(err) {
+    req.db.run(query, [privateBy, historyId, projectId], function (err) {
         if (err) {
             console.error('Errore durante l\'aggiornamento della visibilità:', err);
             return res.status(500).json({ error: 'Errore del server durante l\'aggiornamento della visibilità' });
@@ -857,10 +861,10 @@ router.get('/:projectId/history/:historyId/shared-users', checkAuthentication, (
         if (privateBy) {
             // Dividi la stringa per ottenere gli ID
             const privateByArray = privateBy.split(',');
-            
+
             // Il primo ID è sempre il proprietario
             isOwner = privateByArray[0] == userId;
-            
+
             // Gli altri ID sono gli utenti con cui è condiviso
             sharedUserIds = privateByArray.slice(1);
         }
@@ -899,7 +903,7 @@ router.put('/:projectId/history/:historyId', checkAuthentication, (req, res) => 
 
     const query = `UPDATE project_history SET date = ?, phase = ?, description = ?, assigned_to = ?, status = ? WHERE id = ? AND project_id = ?`;
 
-    req.db.run(query, [date, phase, description, assignedTo, status, historyId, projectId], function(err) {
+    req.db.run(query, [date, phase, description, assignedTo, status, historyId, projectId], function (err) {
         if (err) {
             console.error('Errore nell\'aggiornamento della voce di cronologia:', err);
             return res.status(500).send('Errore del server');
@@ -918,7 +922,7 @@ router.delete('/:projectId/history/:entryId', checkAuthentication, (req, res) =>
 
     // Prima otteniamo i file associati alla voce di cronologia
     const getFilesQuery = `SELECT * FROM project_files WHERE project_id = ? AND history_id = ?`;
-    
+
     req.db.all(getFilesQuery, [projectId, entryId], (err, files) => {
         if (err) {
             console.error('Errore nel recupero dei file associati:', err);
@@ -929,7 +933,7 @@ router.delete('/:projectId/history/:entryId', checkAuthentication, (req, res) =>
         const fileProcessingPromises = files.map(file => {
             return new Promise((resolve, reject) => {
                 const filename = path.basename(file.filepath);
-                
+
                 // Verifica se il file viene utilizzato da altri record
                 req.db.get(
                     'SELECT COUNT(*) as count FROM project_files WHERE filepath LIKE ? AND (project_id != ? OR history_id != ?)',
@@ -940,12 +944,12 @@ router.delete('/:projectId/history/:entryId', checkAuthentication, (req, res) =>
                             reject(err);
                             return;
                         }
-                        
+
                         // Se non ci sono altri riferimenti a questo file, lo eliminiamo fisicamente
                         if (result.count === 0) {
                             const filePath = path.join('/var/www/onlyoffice/Data', filename);
                             console.log(`File ${filename} non è condiviso con altri record. Eliminazione fisica:`, filePath);
-                            
+
                             if (fs.existsSync(filePath)) {
                                 fs.remove(filePath)
                                     .then(() => {
@@ -976,17 +980,17 @@ router.delete('/:projectId/history/:entryId', checkAuthentication, (req, res) =>
             .then(() => {
                 // Eliminiamo i riferimenti ai file dal database
                 const deleteFilesQuery = `DELETE FROM project_files WHERE project_id = ? AND history_id = ?`;
-                
-                req.db.run(deleteFilesQuery, [projectId, entryId], function(err) {
+
+                req.db.run(deleteFilesQuery, [projectId, entryId], function (err) {
                     if (err) {
                         console.error('Errore nell\'eliminazione dei riferimenti ai file:', err);
                         return res.status(500).json({ error: 'Errore nell\'eliminazione dei riferimenti ai file' });
                     }
-                    
+
                     // Infine, eliminiamo la voce di cronologia
                     const deleteHistoryQuery = `DELETE FROM project_history WHERE project_id = ? AND id = ?`;
-                    
-                    req.db.run(deleteHistoryQuery, [projectId, entryId], function(err) {
+
+                    req.db.run(deleteHistoryQuery, [projectId, entryId], function (err) {
                         if (err) {
                             console.error('Errore nell\'eliminazione della voce di cronologia:', err);
                             return res.status(500).json({ error: 'Errore del server' });
@@ -1020,7 +1024,7 @@ router.post('/:id/reset-new-status', checkAuthentication, (req, res) => {
 
     // Imposta un timeout di 5 secondi per l'operazione
     req.db.configure('busyTimeout', 5000);
-    req.db.run(query, [projectId, userId], function(err) {
+    req.db.run(query, [projectId, userId], function (err) {
         if (err) {
             console.error('Errore nel reset dello stato nuovo:', err);
             return res.status(500).json({ error: 'Errore del server' });
@@ -1045,7 +1049,7 @@ router.post('/:id/archive', checkAuthentication, async (req, res) => {
             });
 
             if (!projectStatus || projectStatus.status !== 'Completed') {
-                return res.status(400).json({ 
+                return res.status(400).json({
                     error: 'Solo i progetti con stato "Completed" possono essere archiviati'
                 });
             }
@@ -1053,7 +1057,7 @@ router.post('/:id/archive', checkAuthentication, async (req, res) => {
 
         // Aggiorna lo stato di archiviazione
         const query = `UPDATE projects SET archived = ? WHERE id = ?`;
-        req.db.run(query, [archive ? 1 : 0, projectId], function(err) {
+        req.db.run(query, [archive ? 1 : 0, projectId], function (err) {
             if (err) {
                 console.error('Errore nell\'archiviazione del progetto:', err);
                 return res.status(500).json({ error: 'Errore del server' });
@@ -1061,7 +1065,7 @@ router.post('/:id/archive', checkAuthentication, async (req, res) => {
             if (this.changes === 0) {
                 return res.status(404).json({ error: 'Progetto non trovato' });
             }
-            res.json({ 
+            res.json({
                 message: archive ? 'Progetto archiviato con successo' : 'Progetto disarchiviato con successo'
             });
         });
@@ -1103,7 +1107,7 @@ router.post('/:id/clone', checkAuthentication, async (req, res) => {
                 originalProject.factory, originalProject.brand, originalProject.range, originalProject.line,
                 newModelNumber, originalProject.factoryModelNumber, originalProject.productKind, originalProject.client,
                 originalProject.startDate, originalProject.endDate, originalProject.priority
-            ], function(err) {
+            ], function (err) {
                 if (err) {
                     console.error('Errore nell\'inserimento del progetto clonato:', err);
                     req.db.run('ROLLBACK');
@@ -1130,7 +1134,7 @@ router.post('/:id/clone', checkAuthentication, async (req, res) => {
                             req.db.run(insertHistoryQuery, [
                                 newProjectId, entry.date, entry.phase, entry.description, entry.assigned_to,
                                 entry.status, entry.created_by, entry.private_by, entry.parent_id, entry.is_new
-                            ], function(err) {
+                            ], function (err) {
                                 if (err) {
                                     console.error('Errore nell\'inserimento di una voce di cronologia clonata:', err);
                                     reject(err);
@@ -1161,7 +1165,7 @@ router.post('/:id/clone', checkAuthentication, async (req, res) => {
                                                 // Rimosso file.filesize e file.filetype dai parametri
                                                 req.db.run(insertFileQuery, [
                                                     newProjectId, newHistoryId, file.filename, file.filepath, file.uploaded_by
-                                                ], function(fileInsertErr) {
+                                                ], function (fileInsertErr) {
                                                     if (fileInsertErr) {
                                                         console.error('Errore nell\'inserimento del record file clonato:', fileInsertErr);
                                                         fileReject(fileInsertErr);
@@ -1187,7 +1191,7 @@ router.post('/:id/clone', checkAuthentication, async (req, res) => {
                             const cloneHistoryQuery = `INSERT INTO project_history (project_id, date, description, status, assigned_to, created_by) 
                                                        VALUES (?, ?, ?, ?, ?, ?)`;
                             const cloneDescription = `Cloned from project: ${originalProject.client} - ${originalProject.modelNumber}`;
-                            req.db.run(cloneHistoryQuery, [newProjectId, currentDate, cloneDescription, 'Cloned', userName, userId], function(err) {
+                            req.db.run(cloneHistoryQuery, [newProjectId, currentDate, cloneDescription, 'Cloned', userName, userId], function (err) {
                                 if (err) {
                                     console.error('Errore nell\'inserimento della voce di cronologia per il clone:', err);
                                     req.db.run('ROLLBACK');
@@ -1245,14 +1249,14 @@ router.post('/merge', checkAuthentication, async (req, res) => {
 
             // 2. Crea il nuovo progetto unito (modifica il modelNumber)
             // Aggiungi il prefisso "MERGED-" al model number del primo progetto
-            const newModelNumber = `MERGED-${baseProject.modelNumber}`; 
+            const newModelNumber = `MERGED-${baseProject.modelNumber}`;
             const insertProjectQuery = `INSERT INTO projects (factory, brand, range, line, modelNumber, factoryModelNumber, productKind, client, startDate, endDate, priority, archived) 
                                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`; // Nuovo progetto non è archiviato
             req.db.run(insertProjectQuery, [
                 baseProject.factory, baseProject.brand, baseProject.range, baseProject.line,
                 newModelNumber, baseProject.factoryModelNumber, baseProject.productKind, baseProject.client,
                 baseProject.startDate, baseProject.endDate, baseProject.priority // Usa i dati del primo progetto come base
-            ], function(err) {
+            ], function (err) {
                 if (err) {
                     console.error('Errore nell\'inserimento del progetto unito:', err);
                     req.db.run('ROLLBACK');
@@ -1263,7 +1267,7 @@ router.post('/merge', checkAuthentication, async (req, res) => {
                 // 3. Recupera tutta la cronologia e i file da TUTTI i progetti selezionati
                 const placeholders = projectIds.map(() => '?').join(',');
                 const getHistoryQuery = `SELECT * FROM project_history WHERE project_id IN (${placeholders}) ORDER BY date ASC, id ASC`;
-                
+
                 req.db.all(getHistoryQuery, projectIds, (err, historyEntries) => {
                     if (err) {
                         console.error('Errore nel recupero delle cronologie originali:', err);
@@ -1273,12 +1277,12 @@ router.post('/merge', checkAuthentication, async (req, res) => {
 
                     if (historyEntries.length === 0) {
                         // Anche se non dovrebbe succedere se i progetti esistono, gestiamo il caso
-                         // Aggiungi una voce di cronologia per registrare l'azione di merge
+                        // Aggiungi una voce di cronologia per registrare l'azione di merge
                         const mergeHistoryQuery = `INSERT INTO project_history (project_id, date, description, status, assigned_to, created_by) 
                                                    VALUES (?, ?, ?, ?, ?, ?)`;
                         // Descrizione più semplice che indica il numero di progetti uniti
-                        const mergeDescription = `Merged from ${projectIds.length} projects`; 
-                        req.db.run(mergeHistoryQuery, [newProjectId, currentDate, mergeDescription, 'Merged', userName, userId], function(err) {
+                        const mergeDescription = `Merged from ${projectIds.length} projects`;
+                        req.db.run(mergeHistoryQuery, [newProjectId, currentDate, mergeDescription, 'Merged', userName, userId], function (err) {
                             if (err) {
                                 console.error('Errore nell\'inserimento della voce di cronologia per il merge:', err);
                                 req.db.run('ROLLBACK');
@@ -1304,7 +1308,7 @@ router.post('/merge', checkAuthentication, async (req, res) => {
                             req.db.run(insertHistoryQuery, [
                                 newProjectId, entry.date, entry.phase, entry.description, entry.assigned_to,
                                 entry.status, entry.created_by, entry.private_by, entry.parent_id, entry.is_new
-                            ], function(err) {
+                            ], function (err) {
                                 if (err) {
                                     console.error('Errore nell\'inserimento di una voce di cronologia unita:', err);
                                     reject(err);
@@ -1333,7 +1337,7 @@ router.post('/merge', checkAuthentication, async (req, res) => {
                                                 // Rimosso file.filesize e file.filetype dai parametri
                                                 req.db.run(insertFileQuery, [
                                                     newProjectId, newHistoryId, file.filename, file.filepath, file.uploaded_by
-                                                ], function(fileInsertErr) {
+                                                ], function (fileInsertErr) {
                                                     if (fileInsertErr) {
                                                         console.error('Errore nell\'inserimento del record file unito:', fileInsertErr);
                                                         fileReject(fileInsertErr);
@@ -1360,7 +1364,7 @@ router.post('/merge', checkAuthentication, async (req, res) => {
                                                        VALUES (?, ?, ?, ?, ?, ?)`;
                             // Descrizione più semplice che indica il numero di progetti uniti
                             const mergeDescription = `Merged from ${projectIds.length} projects`;
-                            req.db.run(mergeHistoryQuery, [newProjectId, currentDate, mergeDescription, 'Merged', userName, userId], function(err) {
+                            req.db.run(mergeHistoryQuery, [newProjectId, currentDate, mergeDescription, 'Merged', userName, userId], function (err) {
                                 if (err) {
                                     console.error('Errore nell\'inserimento della voce di cronologia per il merge:', err);
                                     req.db.run('ROLLBACK');
