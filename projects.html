@@ -47,6 +47,7 @@
         <div class="table-actions">
             <button id="add-project-btn" class="add-btn" data-translate="Add Project">Add Project</button>
             <button id="clone-merge-project-btn" class="action-btn" data-translate="Clone/Merge projects">Clone/Merge projects</button> <!-- Pulsante unificato Clone/Merge -->
+            <button id="show-financials-btn" class="action-btn" style="font-weight: bold;">$</button> <!-- Pulsante Financials -->
             <!-- Campo di ricerca globale progetti -->
             <input type="text" id="global-project-search" placeholder="Search projects..." style="margin-left:10px;" data-translate-placeholder="Search projects">
             <!-- Campo di ricerca nella cronologia progetti -->
@@ -115,12 +116,6 @@
                 <span class="active-count-label count-display" style="margin-left: 20px;" data-translate="Active Projects:">Active Projects: (<span id="active-project-count">0</span>)</span>
             </div>
             
-            <!-- Taskbar esplicativa per le fasi dei progetti -->
-            <div class="phase-taskbar-container">
-                <div id="phase-taskbar" class="phase-taskbar">
-                    <!-- Le fasi verranno inserite dinamicamente qui -->
-                </div>
-            </div>
         </div>
         <div class="table-wrapper">
             <table id="projects-table">
@@ -166,6 +161,16 @@
                     <th>
                         <span class="header-text-container" data-translate="Priority">Priority <i class="fas fa-sort"></i></span>
                     </th>
+                    <!-- Colonne Financials (nascoste di default) -->
+                    <th class="financial-col" style="display: none;">
+                        <span class="header-text-container" data-translate="Quotation">Quotation <i class="fas fa-sort"></i></span>
+                    </th>
+                    <th class="financial-col" style="display: none;">
+                        <span class="header-text-container" data-translate="MOQ">MOQ <i class="fas fa-sort"></i></span>
+                    </th>
+                    <th class="financial-col" style="display: none;">
+                        <span class="header-text-container" data-translate="Total">Total <i class="fas fa-sort"></i></span>
+                    </th>
                     <th>
                         <span class="header-text-container" data-translate="Actions">Actions</span>
                     </th>
@@ -183,11 +188,12 @@
         <div class="loading-content">
             <h2 data-translate="Loading...">Loading...</h2>
             <p data-translate="Please wait while the projects are being loaded.">Please wait while the projects are being loaded.</p>
-            <div class="loading-progress-container">
-                <div class="loading-progress-bar">
-                    <div id="loading-progress" class="loading-progress" style="width: 0%;"></div>
-                </div>
-                <span id="loading-percentage" class="loading-percentage">0%</span>
+            <div class="music-loader">
+                <div class="bar"></div>
+                <div class="bar"></div>
+                <div class="bar"></div>
+                <div class="bar"></div>
+                <div class="bar"></div>
             </div>
         </div>
     </div>

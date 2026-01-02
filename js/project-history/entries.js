@@ -404,6 +404,9 @@ export async function fetchProjectHistory(projectId) {
 
             // Calcola l'ultima entry per ogni fase dai dati PRIMA di renderizzare
             const latestEntries = calculateLatestEntries(history);
+            
+            // Salva globalmente per l'uso in project-details.js (anche per il refresh)
+            window.latestPhaseEntries = latestEntries;
 
             // Visualizza la cronologia
             displayProjectHistory(history, projectId);
@@ -438,6 +441,7 @@ export async function fetchProjectHistory(projectId) {
  */
 function calculateLatestEntries(history) {
     const latestEntries = {};
+    
     // Assicurati che window.projectPhases sia disponibile e sia un array
     const phaseMap = (Array.isArray(window.projectPhases) ? window.projectPhases : []).reduce((map, phase) => {
         if (phase && phase.id !== undefined && phase.name !== undefined) {
@@ -466,18 +470,22 @@ function calculateLatestEntries(history) {
             // Usa l'ID come fallback se il nome non è trovato nella mappa
             const phaseName = phaseMap[phaseId] || String(phaseId);
 
-            // Poiché l'array è già ordinato per data decrescente,
-            // la prima entry che troviamo per una fase è l'ultima (la più recente)
-            if (!latestEntries[phaseName]) {
-                latestEntries[phaseName] = {
-                    // Non serve creare un oggetto Date qui, possiamo usare la stringa
+            // Considera SOLO le entry approvate per il summary
+            if (entry.is_approved) {
+                if (!latestEntries[phaseName]) {
+                    latestEntries[phaseName] = [];
+                }
+                // Aggiungi l'entry all'array (mantenendo l'ordine cronologico decrescente della history)
+                latestEntries[phaseName].push({
+                    id: entry.id,
                     date: entry.date,
-                    description: entry.description || '' // Assicura che description sia una stringa
-                };
+                    description: entry.description || '',
+                    user: entry.assigned_to || '-'
+                });
             }
         }
     });
-    console.log("Latest entries calcolate:", latestEntries);
+    console.log("Latest entries calcolate (TUTTE LE APPROVATE):", latestEntries);
     return latestEntries;
 }
 
@@ -684,6 +692,24 @@ export function displayProjectHistory(history, projectId) {
         privacyBtn.appendChild(privacyIcon);
         privacyBtn.addEventListener('click', async () => { /* ... logica privacy ... */ await window.showSharingModal(entry.id); });
         actionsCell.appendChild(privacyBtn);
+
+        // Pulsante Approvazione
+        const approveBtn = document.createElement('button');
+        approveBtn.className = 'approve-btn';
+        approveBtn.title = entry.is_approved ? 'Approved (Click to remove)' : 'Mark as Approved';
+        // Stile inline per il pulsante per rimuovere bordi/sfondi default se necessario, o usare classi CSS
+        approveBtn.style.background = 'none';
+        approveBtn.style.border = 'none';
+        approveBtn.style.cursor = 'pointer';
+        approveBtn.style.padding = '0 5px';
+        
+        const approveIcon = document.createElement('i');
+        approveIcon.className = 'fas fa-check-circle';
+        approveIcon.style.color = entry.is_approved ? '#2ecc71' : '#ccc'; // Verde se approvato, grigio altrimenti
+        approveIcon.style.fontSize = '1.2em';
+        approveBtn.appendChild(approveIcon);
+        approveBtn.addEventListener('click', () => toggleApproval(entry.id, projectId, !entry.is_approved));
+        actionsCell.appendChild(approveBtn);
 
         // Pulsanti Edit/Delete (condizionali)
         // Usiamo le variabili già dichiarate sopra
@@ -1812,6 +1838,36 @@ function restoreOriginalRow(row, originalData) {
 export function confirmDelete(entryId, projectId) {
     if (confirm("Are you sure you want to delete this history entry?")) {
         deleteHistoryEntry(entryId, projectId);
+    }
+}
+
+/**
+ * Imposta o rimuove l'approvazione per una voce della cronologia.
+ */
+export async function toggleApproval(entryId, projectId, isApproved) {
+    try {
+        const response = await fetch(`/api/projects/${projectId}/history/${entryId}/approve`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ isApproved })
+        });
+
+        if (response.ok) {
+            // Ricarica la cronologia per aggiornare lo stato di tutte le righe (poiché l'approvazione è esclusiva per fase)
+            const historyData = await fetchProjectHistory(projectId);
+            if (window.updatePhaseSummary && historyData && historyData.latestEntries) {
+                window.updatePhaseSummary(historyData.latestEntries);
+            }
+        } else {
+            const errorText = await response.text();
+            console.error('Errore nell\'aggiornare l\'approvazione:', errorText);
+            alert(`Failed to update approval: ${errorText}`);
+        }
+    } catch (error) {
+        handleNetworkError(error);
+        alert(`Network error updating approval: ${error.message}`);
     }
 }
 

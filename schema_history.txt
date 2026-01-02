@@ -1,0 +1,12 @@
+0|id|INTEGER|0||1
+1|project_id|INTEGER|0||0
+2|date|TEXT|0||0
+3|phase|TEXT|0||0
+4|description|TEXT|0||0
+5|assigned_to|TEXT|0||0
+6|status|TEXT|0||0
+7|is_new|INTEGER|0|1|0
+8|private_by|TEXT|0||0
+9|created_by|INTEGER|0||0
+10|parent_id|TEXT|0||0
+11|is_approved|INTEGER|0|0|0

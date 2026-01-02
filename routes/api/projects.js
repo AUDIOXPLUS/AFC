@@ -439,7 +439,9 @@ router.get('/', checkAuthentication, async (req, res) => {
                     ph.phase as phase_id,
                     MAX(CASE WHEN ph.status = 'In Progress' THEN 1 ELSE 0 END) as hasInProgress,
                     MAX(CASE WHEN ph.status = 'Completed' THEN 1 ELSE 0 END) as hasCompleted,
-                    MAX(CASE WHEN ph.is_new = 1 THEN 1 ELSE 0 END) as hasNew
+                    MAX(CASE WHEN ph.is_new = 1 THEN 1 ELSE 0 END) as hasNew,
+                    MAX(CASE WHEN ph.is_approved = 1 THEN 1 ELSE 0 END) as hasApproved,
+                    COUNT(*) as entryCount
                 FROM project_history ph
                 WHERE ph.project_id IN (${placeholders})
                 AND (
@@ -479,7 +481,9 @@ router.get('/', checkAuthentication, async (req, res) => {
                         phaseId: s.phase_id,
                         hasInProgress: s.hasInProgress,
                         hasCompleted: s.hasCompleted,
-                        hasNew: s.hasNew
+                        hasNew: s.hasNew,
+                        hasApproved: s.hasApproved,
+                        entryCount: s.entryCount
                     });
                 });
 
@@ -489,8 +493,41 @@ router.get('/', checkAuthentication, async (req, res) => {
                     project.historySummary = summaryMap[project.id] || []; 
                 });
 
-                console.log('Prima riga risultato con sommario cronologia:', rows[0]);
-                res.json(rows);
+                // Terza query: recupera le descrizioni delle entry approvate per estrarre dati come Quotation e MOQ
+                const approvedEntriesQuery = `
+                    SELECT project_id, phase, description
+                    FROM project_history
+                    WHERE project_id IN (${placeholders})
+                    AND is_approved = 1
+                `;
+
+                req.db.all(approvedEntriesQuery, projectIds, (approvedErr, approvedRows) => {
+                    if (approvedErr) {
+                        console.error('Errore nel recupero delle entry approvate:', approvedErr);
+                        // Non blocchiamo tutto per questo errore, restituiamo quello che abbiamo
+                        return res.json(rows);
+                    }
+
+                    // Mappa le entry approvate per progetto
+                    const approvedMap = {};
+                    approvedRows.forEach(entry => {
+                        if (!approvedMap[entry.project_id]) {
+                            approvedMap[entry.project_id] = [];
+                        }
+                        approvedMap[entry.project_id].push({
+                            phase: entry.phase,
+                            description: entry.description
+                        });
+                    });
+
+                    // Aggiungi le entry approvate ai progetti
+                    rows.forEach(project => {
+                        project.approvedEntries = approvedMap[project.id] || [];
+                    });
+
+                    console.log('Prima riga risultato con sommario cronologia e entry approvate:', rows[0]);
+                    res.json(rows);
+                });
             });
         });
     } catch (error) {
@@ -644,7 +681,8 @@ router.get('/:id/history', checkAuthentication, (req, res) => {
     const query = `
         SELECT ph.*, u.id as user_id, 
                u.name as creator_name,
-               ph.parent_id
+               ph.parent_id,
+               ph.is_approved
         FROM project_history ph
         LEFT JOIN users u ON ph.created_by = u.id
         WHERE ph.project_id = ? 
@@ -788,6 +826,49 @@ router.post('/:id/history', checkAuthentication, (req, res) => {
         // Invia la risposta dopo aver avviato (se necessario) la copia dei file
         res.status(201).json({ id: newHistoryId });
     }
+});
+
+// Endpoint per impostare una voce della cronologia come approvata
+router.put('/:projectId/history/:historyId/approve', checkAuthentication, (req, res) => {
+    const { projectId, historyId } = req.params;
+    const { isApproved } = req.body; // true o false
+
+    // Inizia una transazione per garantire la consistenza
+    req.db.serialize(() => {
+        req.db.run('BEGIN TRANSACTION');
+
+        // 1. Recupera la fase dell'entry che si sta modificando (per verifica esistenza)
+        const getPhaseQuery = `SELECT phase FROM project_history WHERE id = ? AND project_id = ?`;
+        req.db.get(getPhaseQuery, [historyId, projectId], (err, row) => {
+            if (err) {
+                console.error('Errore nel recupero della fase:', err);
+                req.db.run('ROLLBACK');
+                return res.status(500).json({ error: 'Errore del server' });
+            }
+
+            if (!row) {
+                req.db.run('ROLLBACK');
+                return res.status(404).json({ error: 'Voce di cronologia non trovata' });
+            }
+
+            // 2. Imposta l'approvazione per l'entry corrente (senza resettare le altre)
+            const updateQuery = `UPDATE project_history SET is_approved = ? WHERE id = ?`;
+            req.db.run(updateQuery, [isApproved ? 1 : 0, historyId], (err) => {
+                if (err) {
+                    console.error('Errore nell\'impostazione dell\'approvazione:', err);
+                    req.db.run('ROLLBACK');
+                    return res.status(500).json({ error: 'Errore del server' });
+                }
+
+                req.db.run('COMMIT', () => {
+                    res.json({ 
+                        message: isApproved ? 'Approvazione aggiunta con successo' : 'Approvazione rimossa con successo', 
+                        isApproved: isApproved 
+                    });
+                });
+            });
+        });
+    });
 });
 
 // Endpoint per aggiornare la visibilità di una voce della cronologia

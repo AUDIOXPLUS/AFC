@@ -490,75 +490,93 @@ function createFileItem(file, projectId, entryId, canDelete) {
                 const { dataType, startIndex } = analyzeFileContent(content);
                 const points = extractDataPoints(content, startIndex);
                 
-                if (points.length === 0) {
-                    // Rimosso alert, apro direttamente come testo.
+                // Controlla se è un file TS (Thiele-Small)
+                const KEYWORDS = ["Fs", "Re", "Sd", "Qms", "Qes", "Qts", "Cms", "Mms", "Rms", "Bl", "dBspl", "VAS", "Zmin", "L1kHz", "L10kHz"];
+                let keywordCount = 0;
+                for (const kw of KEYWORDS) {
+                    if (content.toLowerCase().includes(kw.toLowerCase())) {
+                        keywordCount++;
+                    }
+                }
+
+                if (points.length === 0 && keywordCount < 3) {
+                    // Se non ha punti e non sembra un file TS, apri come testo
                     window.open(`/api/files/${file.id}/view`, '_blank');
                     return;
                 }
 
+                // Se ha punti o è un file TS, apri nel graph viewer
                 // Nome univoco per la finestra del grafico per gestire più istanze se necessario
                 const graphWindowName = 'graphViewer'; // Potrebbe essere reso più dinamico se servono più viewer
                 let graphWindow = window.open('', graphWindowName); // Tenta di ottenere un riferimento a una finestra esistente
 
-                const sendDataToGraphWindow = (targetWindow) => {
-                    console.log(`Invio dati a ${targetWindow.name || 'finestra grafico'}: ${file.filename}`);
-                    try {
-                        targetWindow.postMessage({
-                            type: 'addGraph',
-                            points: points,
-                            filename: file.filename,
-                            dataType: dataType // Aggiunto dataType al messaggio
-                        }, '*');
-                    } catch (e) {
-                        console.error(`Errore postMessage a ${targetWindow.name} (file .txt) con dataType:`, e);
-                    }
-                };
+            const sendDataToGraphWindow = (targetWindow) => {
+                console.log(`Invio dati a ${targetWindow.name || 'finestra grafico'}: ${file.filename}`);
+                try {
+                    targetWindow.postMessage({
+                        type: 'addGraph',
+                        points: points,
+                        filename: file.filename,
+                        dataType: points.length === 0 && keywordCount >= 3 ? 'ts' : dataType, // Se solo TS, usa 'ts'
+                        content: content
+                    }, '*');
+                } catch (e) {
+                    console.error(`Errore postMessage a ${targetWindow.name} (file .txt) con dataType:`, e);
+                }
+            };
 
+                let checkInterval;
                 const handleGraphViewerReady = (event) => {
                     // Assicurati che il messaggio provenga dalla finestra del grafico corretta
                     if (event.source === graphWindow && event.data && event.data.type === 'graphViewerReady') {
                         console.log(`Ricevuto graphViewerReady da ${graphWindow.name || 'finestra grafico'} per ${file.filename}`);
                         window.removeEventListener('message', handleGraphViewerReady);
-                        clearTimeout(readyCheckTimeout);
+                        clearInterval(checkInterval);
                         sendDataToGraphWindow(graphWindow);
                     }
                 };
-
-                let readyCheckTimeout;
 
                 if (!graphWindow || graphWindow.closed || !graphWindow.location || !graphWindow.location.href.includes('graph-viewer.html')) {
                     // Finestra non esiste, è chiusa, o non è graph-viewer.html: aprila.
                     console.log(`Apertura nuova finestra graph-viewer.html per ${file.filename}`);
                     graphWindow = window.open('graph-viewer.html', graphWindowName);
-                    // Non impostare graphWindow.onload direttamente, affidati al messaggio 'graphViewerReady'
-                    // o al timeout.
                 } else {
                     // Finestra esiste ed è graph-viewer.html, portala in focus.
-                    console.log(`Finestra graph-viewer.html (${graphWindow.name}) già aperta, invio areYouReady per ${file.filename}`);
+                    console.log(`Finestra graph-viewer.html (${graphWindow.name}) già aperta.`);
                     graphWindow.focus();
-                    // Invia un messaggio per chiedere se è pronta, specificando il nome della finestra target
-                    try {
-                        graphWindow.postMessage({ type: 'areYouReady', targetWindowName: graphWindowName }, '*');
-                    } catch (e) {
-                         console.error(`Errore postMessage 'areYouReady' a ${graphWindow.name} (file .txt):`, e);
-                    }
                 }
                 
                 // Ascolta la risposta 'graphViewerReady'
                 window.addEventListener('message', handleGraphViewerReady);
 
-                // Timeout di fallback: se non riceviamo 'graphViewerReady' entro un tot, invia comunque i dati.
-                // Questo gestisce casi in cui la finestra era già aperta e pronta ma il messaggio iniziale è andato perso,
-                // o se la nuova finestra non invia il messaggio per qualche motivo.
-                readyCheckTimeout = setTimeout(() => {
-                    console.warn(`Timeout attesa graphViewerReady per ${graphWindow.name || 'finestra grafico'}. Invio dati comunque per ${file.filename}.`);
-                    window.removeEventListener('message', handleGraphViewerReady);
+                // Avvia un polling per controllare se la finestra è pronta
+                // Questo gestisce sia il caso di nuova finestra (aspetta che carichi)
+                // sia il caso di finestra esistente (chiede conferma)
+                let attempts = 0;
+                checkInterval = setInterval(() => {
+                    attempts++;
                     if (graphWindow && !graphWindow.closed) {
-                        sendDataToGraphWindow(graphWindow);
+                        try {
+                            graphWindow.postMessage({ type: 'areYouReady', targetWindowName: graphWindowName }, '*');
+                        } catch (e) {
+                            console.log("Finestra non ancora pronta per ricevere messaggi...");
+                        }
                     } else {
-                        console.error("Finestra grafico chiusa o non disponibile dopo timeout.");
+                        console.warn("Finestra grafico chiusa durante l'attesa.");
+                        clearInterval(checkInterval);
+                        window.removeEventListener('message', handleGraphViewerReady);
                     }
-                }, 2000); // Timeout di 2 secondi
+                    
+                    // Dopo 5 secondi (50 tentativi * 100ms), rinuncia o forza l'invio
+                    if (attempts > 50) {
+                        console.warn(`Timeout polling graphViewerReady per ${file.filename}. Provo invio forzato.`);
+                        clearInterval(checkInterval);
+                        window.removeEventListener('message', handleGraphViewerReady);
+                        if (graphWindow && !graphWindow.closed) {
+                            sendDataToGraphWindow(graphWindow);
+                        }
+                    }
+                }, 100);
             } catch (error) {
                 console.error(`Error opening "${file.filename}" as graph:`, error);
                 // Rimosso alert, apro direttamente come testo in caso di errore.
@@ -631,41 +649,52 @@ function createFileItem(file, projectId, entryId, canDelete) {
                 }
             };
 
+            let checkInterval;
             const handleGraphViewerReady = (event) => {
                 if (event.source === graphWindow && event.data && event.data.type === 'graphViewerReady') {
                     console.log(`Ricevuto graphViewerReady da ${graphWindow.name || 'finestra grafico'} per ${file.filename}`);
                     window.removeEventListener('message', handleGraphViewerReady);
-                    clearTimeout(readyCheckTimeout);
+                    clearInterval(checkInterval);
                     sendDataToGraphWindow(graphWindow);
                 }
             };
-
-            let readyCheckTimeout;
 
             if (!graphWindow || graphWindow.closed || !graphWindow.location || !graphWindow.location.href.includes('graph-viewer.html')) {
                 console.log(`Apertura nuova finestra graph-viewer.html per ${file.filename}`);
                 graphWindow = window.open('graph-viewer.html', graphWindowName);
             } else {
-                console.log(`Finestra graph-viewer.html (${graphWindow.name}) già aperta, invio areYouReady per ${file.filename}`);
+                console.log(`Finestra graph-viewer.html (${graphWindow.name}) già aperta.`);
                 graphWindow.focus();
-                try {
-                    graphWindow.postMessage({ type: 'areYouReady', targetWindowName: graphWindowName }, '*');
-                } catch (e) {
-                    console.error(`Errore postMessage 'areYouReady' a ${graphWindow.name} (altri file):`, e);
-                }
             }
 
             window.addEventListener('message', handleGraphViewerReady);
 
-            readyCheckTimeout = setTimeout(() => {
-                console.warn(`Timeout attesa graphViewerReady per ${graphWindow.name || 'finestra grafico'}. Invio dati comunque per ${file.filename}.`);
-                window.removeEventListener('message', handleGraphViewerReady);
+            // Avvia un polling per controllare se la finestra è pronta
+            let attempts = 0;
+            checkInterval = setInterval(() => {
+                attempts++;
                 if (graphWindow && !graphWindow.closed) {
-                    sendDataToGraphWindow(graphWindow);
+                    try {
+                        graphWindow.postMessage({ type: 'areYouReady', targetWindowName: graphWindowName }, '*');
+                    } catch (e) {
+                        console.log("Finestra non ancora pronta per ricevere messaggi...");
+                    }
                 } else {
-                    console.error("Finestra grafico chiusa o non disponibile dopo timeout.");
+                    console.warn("Finestra grafico chiusa durante l'attesa.");
+                    clearInterval(checkInterval);
+                    window.removeEventListener('message', handleGraphViewerReady);
                 }
-            }, 2000); // Timeout di 2 secondi
+                
+                // Dopo 5 secondi, rinuncia o forza l'invio
+                if (attempts > 50) {
+                    console.warn(`Timeout polling graphViewerReady per ${file.filename}. Provo invio forzato.`);
+                    clearInterval(checkInterval);
+                    window.removeEventListener('message', handleGraphViewerReady);
+                    if (graphWindow && !graphWindow.closed) {
+                        sendDataToGraphWindow(graphWindow);
+                    }
+                }
+            }, 100);
         } catch (error) {
             console.error(`Error opening "${file.filename}" as graph:`, error);
             // Rimosso alert, apro direttamente come testo in caso di errore.
@@ -835,31 +864,13 @@ async function previewAllFiles(files) {
 
                 // Se contiene dati grafici, va in graphFiles
                 if (points.length > 0) {
-                    graphFiles.push({ file, points, dataType });
+                    graphFiles.push({ file, points, dataType, content });
                     continue;
                 }
 
-                // Se contiene almeno 3 parole chiave, va in floating graph viewer
+                // Se contiene almeno 3 parole chiave, va in graphFiles come dataset solo TS
                 if (keywordCount >= 3) {
-                    // Invia il file come "floating" al graph viewer
-                    // La finestra floating sarà gestita da graph-viewer.html
-                    const graphWindowName = 'graphViewer';
-                    let graphWindow = window.open('', graphWindowName);
-                    const sendFloatingToGraphWindow = (targetWindow) => {
-                        targetWindow.postMessage({
-                            type: 'addFloatingText',
-                            filename: file.filename,
-                            content: content
-                        }, '*');
-                    };
-                    if (!graphWindow || graphWindow.closed || !graphWindow.location || !graphWindow.location.href.includes('graph-viewer.html')) {
-                        graphWindow = window.open('graph-viewer.html', graphWindowName);
-                        graphWindow.onload = () => sendFloatingToGraphWindow(graphWindow);
-                    } else {
-                        graphWindow.focus();
-                        sendFloatingToGraphWindow(graphWindow);
-                    }
-                    // Non aggiungere agli altri file
+                    graphFiles.push({ file, points: [], dataType: 'ts', content });
                     continue;
                 }
             }
@@ -885,7 +896,8 @@ async function previewAllFiles(files) {
                     type: 'addGraph',
                     points: graphData.points,
                     filename: graphData.file.filename,
-                    dataType: graphData.dataType
+                    dataType: graphData.dataType,
+                    content: graphData.content
                 }, '*');
             });
         };

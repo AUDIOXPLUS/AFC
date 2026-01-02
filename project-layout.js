@@ -16,68 +16,6 @@ window.handleResponse = async function(response) {
     }
 };
 
-window.fetchProjectDetails = async function(projectId) {
-    try {
-        const response = await fetch(`/api/projects/${projectId}`);
-        const project = await window.handleResponse(response);
-        window.displayProjectDetails(project);
-        await window.fetchProjectHistory(projectId);
-    } catch (error) {
-        console.error('Error fetching project details:', error);
-    }
-};
-
-window.displayProjectDetails = function(project) {
-    document.getElementById('project-model-number').textContent = project.modelNumber;
-
-    const detailsDiv = document.getElementById('project-details');
-    detailsDiv.innerHTML = `
-        <p><strong>Factory:</strong> ${project.factory}</p>
-        <p><strong>Factory Model Number:</strong> ${project.factoryModelNumber}</p>
-        <p><strong>Product Kind:</strong> ${project.productKind}</p>
-        <p><strong>Client:</strong> ${project.client}</p>
-        <p><strong>Start Date:</strong> ${project.startDate}</p>
-        <p><strong>End Date:</strong> ${project.endDate}</p>
-        <p><strong>Status:</strong> ${project.status}</p>
-    `;
-};
-
-window.fetchProjectPhases = async function(projectId) {
-    try {
-        const response = await fetch(`/api/projects/${projectId}/phases`);
-        const phases = await window.handleResponse(response);
-        window.displayPhaseSummary(phases);
-    } catch (error) {
-        console.error('Error fetching project phases:', error);
-    }
-};
-
-window.displayPhaseSummary = function(phases) {
-    const summaryDiv = document.getElementById('phase-summary');
-    summaryDiv.innerHTML = '';
-
-    phases.forEach(phase => {
-        const phaseElement = document.createElement('div');
-        phaseElement.className = 'phase-item';
-        phaseElement.innerHTML = `
-            <h3>${phase.name}</h3>
-            <p>Status: ${phase.status}</p>
-            <p>Progress: ${phase.progress}%</p>
-        `;
-        summaryDiv.appendChild(phaseElement);
-    });
-};
-
-window.teamMembers = [];
-window.fetchTeamMembers = async function() {
-    try {
-        const response = await fetch('/api/team-members');
-        window.teamMembers = await window.handleResponse(response);
-    } catch (error) {
-        console.error('Error fetching team members:', error);
-    }
-};
-
 window.saveColumnWidths = function() {
     const table = document.getElementById('history-table');
     const headerCells = table.getElementsByTagName('th');

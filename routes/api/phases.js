@@ -17,17 +17,29 @@ router.get('/', checkAuthentication, (req, res) => {
 // Endpoint per aggiungere una nuova fase
 router.post('/', checkAuthentication, (req, res) => {
     const { name, description, order_num } = req.body;
-    const query = `INSERT INTO phases (name, description, order_num) VALUES (?, ?, ?)`;
-    req.db.run(query, [name, description, order_num], function(err) {
+    
+    // Prima incrementa gli ordini delle fasi esistenti che hanno un ordine >= a quello nuovo
+    const updateQuery = `UPDATE phases SET order_num = order_num + 1 WHERE order_num >= ?`;
+    
+    req.db.run(updateQuery, [order_num], function(err) {
         if (err) {
-            console.error('Errore nell\'inserimento della fase:', err);
+            console.error('Errore nell\'aggiornamento degli ordini:', err);
             return res.status(500).send('Errore del server');
         }
-        res.status(201).json({ 
-            id: this.lastID,
-            name,
-            description,
-            order_num
+        
+        // Poi inserisci la nuova fase
+        const insertQuery = `INSERT INTO phases (name, description, order_num) VALUES (?, ?, ?)`;
+        req.db.run(insertQuery, [name, description, order_num], function(err) {
+            if (err) {
+                console.error('Errore nell\'inserimento della fase:', err);
+                return res.status(500).send('Errore del server');
+            }
+            res.status(201).json({ 
+                id: this.lastID,
+                name,
+                description,
+                order_num
+            });
         });
     });
 });

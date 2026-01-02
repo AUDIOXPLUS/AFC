@@ -21,6 +21,12 @@ function handleNetworkError(error) {
 
 // Aggiunta di un listener per l'evento DOMContentLoaded
 document.addEventListener('DOMContentLoaded', async function() {
+    // Mostra il popup di caricamento
+    const loadingPopup = document.getElementById('loading-popup');
+    if (loadingPopup) {
+        loadingPopup.style.display = 'flex';
+    }
+
     // Ottieni il riferimento all'elemento del titolo PRESTO
     const modelNumberSpan = document.getElementById('project-model-number');
     if (!modelNumberSpan) {
@@ -471,55 +477,56 @@ document.addEventListener('DOMContentLoaded', async function() {
     const highlightBtn = document.getElementById('highlight-record-btn');
     const highlightInput = document.getElementById('highlight-record-id');
 
-    if (highlightBtn && highlightInput) {
-        // Funzione per evidenziare un record specifico basato sull'ID
-        // La rendiamo globale così può essere usata anche dall'event listener mouseenter
-        window.highlightRecordById = function(recordId) {
-            // Rimuovi evidenziazione precedente se presente
-            const previousHighlighted = document.querySelectorAll('.record-highlight');
-            previousHighlighted.forEach(el => {
-                el.classList.remove('record-highlight');
-                el.style.backgroundColor = '';
-                el.style.boxShadow = '';
-                el.style.fontWeight = '';
-                el.style.color = '';
-                el.style.transform = '';
+    // Funzione per evidenziare un record specifico basato sull'ID
+    // La rendiamo globale così può essere usata anche dall'event listener mouseenter e dal phase summary
+    window.highlightRecordById = function(recordId) {
+        // Rimuovi evidenziazione precedente se presente
+        const previousHighlighted = document.querySelectorAll('.record-highlight');
+        previousHighlighted.forEach(el => {
+            el.classList.remove('record-highlight');
+            el.style.backgroundColor = '';
+            el.style.boxShadow = '';
+            el.style.fontWeight = '';
+            el.style.color = '';
+            el.style.transform = '';
+        });
+
+        // Cerca il record con l'ID specificato
+        const row = document.querySelector(`tr[data-entry-id="${recordId}"]`);
+
+        if (row) {
+            console.log(`Record con ID ${recordId} trovato, applico highlight`);
+
+            // Salva lo stile originale (se non già memorizzato nell'elemento)
+            if (!row._originalStyle) {
+                row._originalStyle = {
+                    backgroundColor: row.style.backgroundColor,
+                    color: row.style.color,
+                    fontWeight: row.style.fontWeight
+                };
+            }
+
+            // Applica stile evidente
+            row.classList.add('record-highlight');
+            row.style.backgroundColor = '#ff0000'; // Rosso acceso
+            row.style.color = 'white';
+            row.style.fontWeight = 'bold';
+            row.style.boxShadow = '0 0 15px 5px red';
+            row.style.position = 'relative';
+            row.style.zIndex = '1000';
+            row.style.transform = 'translateY(-2px)'; // Effetto 3D lieve
+
+            // Scorre alla riga evidenziata
+            row.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
             });
 
-            // Cerca il record con l'ID specificato
-            const row = document.querySelector(`tr[data-entry-id="${recordId}"]`);
-
-            if (row) {
-                console.log(`Record con ID ${recordId} trovato, applico highlight`);
-
-                // Salva lo stile originale (se non già memorizzato nell'elemento)
-                if (!row._originalStyle) {
-                    row._originalStyle = {
-                        backgroundColor: row.style.backgroundColor,
-                        color: row.style.color,
-                        fontWeight: row.style.fontWeight
-                    };
-                }
-
-                // Applica stile evidente
-                row.classList.add('record-highlight');
-                row.style.backgroundColor = '#ff0000'; // Rosso acceso
-                row.style.color = 'white';
-                row.style.fontWeight = 'bold';
-                row.style.boxShadow = '0 0 15px 5px red';
-                row.style.position = 'relative';
-                row.style.zIndex = '1000';
-                row.style.transform = 'translateY(-2px)'; // Effetto 3D lieve
-
-                // Scorre alla riga evidenziata
-                row.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'center'
-                });
-
-                // Aggiungi un badge con l'ID
-                const firstCell = row.cells[0];
+            // Aggiungi un badge con l'ID se non esiste già
+            const firstCell = row.cells[0];
+            if (!firstCell.querySelector('.record-id-badge')) {
                 const badge = document.createElement('span');
+                badge.className = 'record-id-badge'; // Usa classe per identificazione
                 badge.textContent = `ID: ${recordId}`;
                 badge.style.backgroundColor = 'red';
                 badge.style.color = 'white';
@@ -535,28 +542,30 @@ document.addEventListener('DOMContentLoaded', async function() {
                 } else {
                     firstCell.appendChild(badge);
                 }
-
-                return true;
-            } else {
-                console.error(`Record con ID ${recordId} non trovato nella tabella`);
-
-                // Se i filtri sono attivi, suggerisci di disabilitarli
-                const filteringActive = document.querySelector('.filter-active');
-                if (filteringActive) {
-                    alert(`Record con ID ${recordId} non trovato. Potrebbero essere attivi dei filtri che nascondono il record. Prova a disattivare i filtri.`);
-                } else {
-                    alert(`Record con ID ${recordId} non trovato nella tabella.`);
-                }
-
-                return false;
             }
-        }
 
+            return true;
+        } else {
+            console.error(`Record con ID ${recordId} non trovato nella tabella`);
+
+            // Se i filtri sono attivi, suggerisci di disabilitarli
+            const filteringActive = document.querySelector('.filter-active');
+            if (filteringActive) {
+                alert(`Record con ID ${recordId} non trovato. Potrebbero essere attivi dei filtri che nascondono il record. Prova a disattivare i filtri.`);
+            } else {
+                alert(`Record con ID ${recordId} non trovato nella tabella.`);
+            }
+
+            return false;
+        }
+    };
+
+    if (highlightBtn && highlightInput) {
         // Event listener per il pulsante di highlight
         highlightBtn.addEventListener('click', () => {
             const recordId = highlightInput.value.trim();
             if (recordId) {
-                highlightRecordById(recordId);
+                window.highlightRecordById(recordId);
             } else {
                 alert('Inserisci un ID valido.');
                 highlightInput.focus();
@@ -585,10 +594,23 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // Inizializza il filtraggio
     window.filteringApi = enableLiveFiltering();
+
+    // Nascondi il popup di caricamento alla fine
+    if (loadingPopup) {
+        // Usa un timeout per assicurare che il rendering sia completato
+        setTimeout(() => {
+            loadingPopup.style.display = 'none';
+        }, 100);
+    }
 });
 
 // Funzione per aggiornare la phase summary usando i dati precalcolati
 window.updatePhaseSummary = function(latestEntries) {
+    // Se latestEntries non viene passato, prova a usare quello globale salvato da entries.js
+    if (!latestEntries && window.latestPhaseEntries) {
+        latestEntries = window.latestPhaseEntries;
+    }
+
     // Se latestEntries non viene passato, prova a calcolarlo in modo legacy (con warning)
     if (!latestEntries) {
         console.warn("updatePhaseSummary chiamata senza latestEntries. Tentativo di calcolo legacy dal DOM (inefficiente).");
@@ -616,29 +638,61 @@ window.updatePhaseSummary = function(latestEntries) {
         const phases = Object.keys(latestEntries); // Ottieni le chiavi (nomi delle fasi)
 
         phases.forEach((phase, index) => {
-            const entry = latestEntries[phase];
-            const phaseEntryDiv = document.createElement('div');
-            phaseEntryDiv.className = 'phase-entry';
+            const entries = latestEntries[phase]; // Ora è un array o un oggetto singolo (legacy)
+            
+            // Normalizza in array
+            const entriesArray = Array.isArray(entries) ? entries : [entries];
 
-            const phaseTitleDiv = document.createElement('div');
-            const strong = document.createElement('strong');
-            strong.textContent = phase;
-            strong.setAttribute('data-translate', phase); // Aggiunge attributo per traduzione
-            phaseTitleDiv.appendChild(strong);
+            entriesArray.forEach(entry => {
+                const phaseEntryDiv = document.createElement('div');
+                phaseEntryDiv.className = 'phase-entry';
 
-            const descriptionDiv = document.createElement('div');
-            // Pulisci la descrizione come viene fatto nella tabella principale
-            let cleanDescription = entry.description;
-            cleanDescription = cleanDescription.replace(/(forward-|reply-)/gi, '');
-            cleanDescription = cleanDescription.replace(/\s*\[Parent:\s*\d+\]/g, '');
-            descriptionDiv.textContent = cleanDescription;
-            descriptionDiv.title = entry.description; // Tooltip con descrizione completa
+                const phaseTitleDiv = document.createElement('div');
+                const strong = document.createElement('strong');
+                strong.textContent = phase;
+                strong.setAttribute('data-translate', phase); // Aggiunge attributo per traduzione
+                phaseTitleDiv.appendChild(strong);
 
-            phaseEntryDiv.appendChild(phaseTitleDiv);
-            phaseEntryDiv.appendChild(descriptionDiv);
-            fragment.appendChild(phaseEntryDiv);
+                // Aggiungi la data e l'utente per chiarezza se ci sono più entry
+                const dateSpan = document.createElement('span');
+                dateSpan.style.fontSize = '0.8em';
+                dateSpan.style.color = '#666';
+                dateSpan.style.marginLeft = '5px';
+                // Gestisci sia stringhe data che oggetti Date
+                const dateStr = entry.date instanceof Date ? entry.date.toISOString().split('T')[0] : entry.date;
+                const userStr = entry.user || '-';
+                dateSpan.textContent = `(${dateStr} - ${userStr})`;
+                phaseTitleDiv.appendChild(dateSpan);
 
-            // Aggiungi <hr> tranne che dopo l'ultimo elemento
+                // Aggiungi interattività al click per scorrere alla riga corrispondente
+                phaseEntryDiv.style.cursor = 'pointer';
+                phaseEntryDiv.title = 'Click to view in history';
+                phaseEntryDiv.addEventListener('click', () => {
+                    if (window.highlightRecordById && entry.id) {
+                        window.highlightRecordById(entry.id);
+                    } else {
+                        console.warn('Funzione highlightRecordById non disponibile o ID mancante');
+                    }
+                });
+
+                const descriptionDiv = document.createElement('div');
+                // Pulisci la descrizione come viene fatto nella tabella principale
+                let cleanDescription = entry.description;
+                if (cleanDescription) {
+                    cleanDescription = cleanDescription.replace(/(forward-|reply-)/gi, '');
+                    cleanDescription = cleanDescription.replace(/\s*\[Parent:\s*\d+\]/g, '');
+                } else {
+                    cleanDescription = '';
+                }
+                descriptionDiv.textContent = cleanDescription;
+                descriptionDiv.title = entry.description; // Tooltip con descrizione completa
+
+                phaseEntryDiv.appendChild(phaseTitleDiv);
+                phaseEntryDiv.appendChild(descriptionDiv);
+                fragment.appendChild(phaseEntryDiv);
+            });
+
+            // Aggiungi <hr> tranne che dopo l'ultimo elemento (fase)
             if (index < phases.length - 1) {
                 const hr = document.createElement('hr');
                 fragment.appendChild(hr);

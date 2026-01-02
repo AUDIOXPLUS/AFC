@@ -142,7 +142,11 @@ export function initialize(projectId) {
         Filters.enableFiltering();
 
         // Carica la cronologia del progetto
-        Entries.fetchProjectHistory(projectId);
+        Entries.fetchProjectHistory(projectId).then(historyData => {
+             if (historyData && historyData.latestEntries && window.updatePhaseSummary) {
+                 window.updatePhaseSummary(historyData.latestEntries);
+             }
+        });
     })
     .catch(error => Utils.handleNetworkError(error));
 }

@@ -19,174 +19,6 @@ document.addEventListener('DOMContentLoaded', async function() {
     await initializeDashboard();
 });
 
-// Variabile globale per tenere traccia della fase attualmente selezionata
-let currentHighlightedPhase = null;
-
-// Funzione per inizializzare la taskbar esplicativa delle fasi
-async function initializePhaseTaskbar() {
-    console.log('Inizializzazione taskbar esplicativa delle fasi...');
-    
-    // Verifica se le fasi sono già state caricate
-    if (!window.projectPhases) {
-        try {
-            const phasesResponse = await fetch('/api/phases');
-            if (phasesResponse.ok) {
-                window.projectPhases = await phasesResponse.json();
-                console.log('Fasi caricate per la taskbar:', window.projectPhases);
-            } else {
-                console.error('Errore nel caricamento delle fasi per la taskbar:', phasesResponse.status);
-                return;
-            }
-        } catch (error) {
-            console.error('Errore nel caricamento delle fasi per la taskbar:', error);
-            return;
-        }
-    }
-    
-    // Ordina le fasi per order_num
-    const sortedPhases = [...window.projectPhases].sort((a, b) => a.order_num - b.order_num);
-    
-    // Riferimento alla taskbar
-    const phaseTaskbar = document.getElementById('phase-taskbar');
-    if (!phaseTaskbar) {
-        console.error('Elemento taskbar non trovato nel DOM');
-        return;
-    }
-    
-    // Pulisci la taskbar
-    phaseTaskbar.innerHTML = '';
-    
-    // Popola la taskbar con i mattoncini delle fasi
-    sortedPhases.forEach(phase => {
-        const phaseItem = document.createElement('div');
-        phaseItem.className = 'phase-taskbar-item';
-        phaseItem.textContent = phase.name;
-        phaseItem.dataset.phaseId = phase.id;
-        phaseItem.dataset.translate = phase.name; // Aggiungi data-translate per supportare la traduzione
-        phaseItem.title = phase.name; // Tooltip con il nome completo
-        phaseItem.dataset.translateTitle = phase.name; // Aggiungi data-translate-title per il tooltip
-        
-        // Aggiungi stili per separare visivamente i pulsanti e adattarli alla lunghezza del testo
-        phaseItem.style.margin = '0 1px'; // Riduco ulteriormente i margini laterali
-        phaseItem.style.padding = '0 3px'; // Riduco il padding orizzontale
-        phaseItem.style.borderRadius = '2px'; // Angoli ancora meno arrotondati
-        phaseItem.style.border = '0.5px solid #ccc'; // Bordo ancora più sottile
-        phaseItem.style.display = 'inline-flex'; // Manteniamo flex per allineamento
-        phaseItem.style.alignItems = 'center'; // Centra verticalmente il contenuto
-        phaseItem.style.justifyContent = 'center'; // Centra orizzontalmente il contenuto
-        phaseItem.style.whiteSpace = 'nowrap'; // Impedisce che il testo vada a capo
-        phaseItem.style.height = '10px'; // Riduco ulteriormente l'altezza
-        phaseItem.style.minWidth = 'fit-content'; // Assicura che il pulsante sia largo quanto il testo
-        phaseItem.style.fontSize = '0.55rem'; // Dimensione testo ancora più piccola
-        phaseItem.style.lineHeight = '0.6'; // Riduco ulteriormente l'altezza di riga
-        phaseItem.style.fontWeight = 'normal'; // Mantieni il testo senza grassetto
-        
-        // Event listener per il click sul mattoncino
-        phaseItem.addEventListener('click', () => {
-            // Se questa fase è già selezionata, deseleziona
-            if (currentHighlightedPhase === phase.id) {
-                removePhaseColumnHighlight();
-                currentHighlightedPhase = null;
-                
-                // Rimuovi la classe active da tutti i mattoncini
-                document.querySelectorAll('.phase-taskbar-item').forEach(item => {
-                    item.classList.remove('active');
-                });
-            } else {
-                // Altrimenti, seleziona questa fase
-                highlightPhaseColumn(phase.id);
-                currentHighlightedPhase = phase.id;
-                
-                // Rimuovi la classe active da tutti i mattoncini
-                document.querySelectorAll('.phase-taskbar-item').forEach(item => {
-                    item.classList.remove('active');
-                });
-                
-                // Aggiungi la classe active solo al mattoncino corrente
-                phaseItem.classList.add('active');
-            }
-        });
-        
-        phaseTaskbar.appendChild(phaseItem);
-    });
-    
-    console.log('Taskbar esplicativa inizializzata con successo');
-}
-
-// Funzione per evidenziare la colonna corrispondente a una fase
-function highlightPhaseColumn(phaseId) {
-    // Rimuovi l'evidenziazione precedente
-    removePhaseColumnHighlight();
-    
-    // Ottieni tutte le celle nella tabella
-    const table = document.getElementById('projects-table');
-    const rows = table.getElementsByTagName('tr');
-    if (!rows.length) {
-        console.warn('Nessuna riga trovata nella tabella');
-        return;
-    }
-    
-    // Per ogni riga, trova i mattoncini della phase-progress-bar che corrispondono alla fase selezionata
-    // La colonna dello status è la 10 (indice)
-    const statusColumnIndex = 10;
-    
-    // Crea l'elemento di evidenziazione
-    const highlightElement = document.createElement('div');
-    highlightElement.className = 'phase-column-highlight';
-    highlightElement.id = 'phase-column-highlight';
-    
-    // Aggiungi l'elemento al contenitore della tabella
-    const tableWrapper = document.querySelector('.table-wrapper');
-    if (!tableWrapper) {
-        console.error('Table wrapper non trovato');
-        return;
-    }
-    
-    // Calcola la posizione dell'evidenziazione
-    const firstRow = rows[0];
-    const headerCell = firstRow.cells[statusColumnIndex];
-    if (!headerCell) {
-        console.error('Cella header non trovata');
-        return;
-    }
-    
-    // Posizione basata sul target clickato (ogni quadratino nella phase-progress-bar)
-    const phaseIndex = window.projectPhases.findIndex(phase => String(phase.id) === String(phaseId));
-    if (phaseIndex === -1) {
-        console.error('Fase non trovata:', phaseId);
-        return;
-    }
-    
-    // Misure totali per il calcolo
-    const tableRect = table.getBoundingClientRect();
-    const headerCellRect = headerCell.getBoundingClientRect();
-    const cellWidth = headerCellRect.width;
-    const phaseItemWidth = cellWidth / window.projectPhases.length;
-    
-    // Calcola la posizione X all'interno della cella di status
-    const offsetX = headerCellRect.left - tableRect.left + (phaseItemWidth * phaseIndex);
-    
-    // Imposta posizione e dimensioni dell'evidenziazione
-    highlightElement.style.left = `${offsetX}px`;
-    highlightElement.style.width = `${phaseItemWidth}px`;
-    highlightElement.style.top = '0';
-    highlightElement.style.height = `${tableRect.height}px`;
-    
-    // Aggiungi l'elemento al wrapper
-    tableWrapper.appendChild(highlightElement);
-    tableWrapper.style.position = 'relative';
-    
-    console.log(`Evidenziazione colonna per fase ID ${phaseId} (indice ${phaseIndex}) applicata`);
-}
-
-// Funzione per rimuovere l'evidenziazione della colonna
-function removePhaseColumnHighlight() {
-    const highlight = document.getElementById('phase-column-highlight');
-    if (highlight) {
-        highlight.remove();
-        console.log('Evidenziazione colonna rimossa');
-    }
-}
 
 // Variabili globali per memorizzare factory e client
 window.factories = []; // Verrà popolato dopo il fetch dei progetti
@@ -198,8 +30,6 @@ async function initializeDashboard() {
         window.location.href = 'login.html';
     });
     
-    // Inizializza la taskbar esplicativa delle fasi
-    await initializePhaseTaskbar();
 
     // NOTA: Il caricamento delle factory è stato spostato dopo fetchProjects
     // per derivarle dai progetti accessibili dall'utente.
@@ -238,6 +68,9 @@ async function initializeDashboard() {
 
     // Add event listener for the "Clone/Merge Project" button
     document.getElementById('clone-merge-project-btn').addEventListener('click', openCloneMergeModal);
+
+    // Add event listener for the "Financials" button
+    document.getElementById('show-financials-btn').addEventListener('click', toggleFinancialColumns);
 
         // Initial fetch of projects (includerà il sorting, l'aggiornamento dei conteggi e il popolamento delle factory permesse)
         await fetchProjects();
@@ -450,9 +283,6 @@ async function handleCloneMergeConfirm() {
     if (loadingPopup) {
         loadingPopup.querySelector('h2').textContent = 'Processing...';
         loadingPopup.querySelector('p').textContent = 'Please wait while the operation is being completed.';
-        // Nascondi la barra di progresso se presente, o impostala a indeterminato
-        const progressContainer = loadingPopup.querySelector('.loading-progress-container');
-        if (progressContainer) progressContainer.style.display = 'none';
         loadingPopup.style.display = 'flex';
     }
 
@@ -502,18 +332,42 @@ async function handleCloneMergeConfirm() {
          // fetchProjects() lo nasconderà se ha successo, ma lo nascondiamo qui
          // per sicurezza in caso di errori non gestiti da fetchProjects
          if (loadingPopup && loadingPopup.style.display !== 'none') {
-             // Ripristina testo e barra di progresso originali per usi futuri
+             // Ripristina testo originale per usi futuri
              loadingPopup.querySelector('h2').textContent = 'Loading...';
              loadingPopup.querySelector('p').textContent = 'Please wait while the projects are being loaded.';
-             const progressContainer = loadingPopup.querySelector('.loading-progress-container');
-             if (progressContainer) progressContainer.style.display = 'flex'; // Mostra di nuovo
-             updateLoadingProgress(0); // Resetta progresso
              loadingPopup.style.display = 'none';
          }
      }
  }
  
- // Funzione per filtrare i progetti nella modale (aggiornata per cinque filtri)
+ // Funzione per mostrare/nascondere le colonne Financials
+function toggleFinancialColumns() {
+    const financialCols = document.querySelectorAll('.financial-col');
+    const btn = document.getElementById('show-financials-btn');
+    
+    let isVisible = false;
+    if (financialCols.length > 0) {
+        isVisible = financialCols[0].style.display !== 'none';
+    }
+
+    financialCols.forEach(col => {
+        col.style.display = isVisible ? 'none' : '';
+    });
+
+    // Aggiorna lo stile del pulsante
+    if (!isVisible) {
+        btn.classList.add('active');
+        btn.style.backgroundColor = '#ffff99'; // Evidenzia
+    } else {
+        btn.classList.remove('active');
+        btn.style.backgroundColor = '';
+    }
+    
+    // Ripristina le larghezze delle colonne se necessario
+    restoreColumnWidths();
+}
+
+// Funzione per filtrare i progetti nella modale (aggiornata per cinque filtri)
 function filterModalProjects() {
     const clientFilterInput = document.getElementById('modal-client-filter');
     const productKindFilterInput = document.getElementById('modal-product-kind-filter');
@@ -557,6 +411,21 @@ function filterModalProjects() {
 }
  
  // --- Fine Funzioni per Clone/Merge ---
+
+// Funzione per applicare la visibilità delle colonne basata sullo stato attuale dei checkbox
+function applyColumnVisibilityFromUI() {
+    const table = document.getElementById('projects-table');
+    const checkboxes = document.querySelectorAll('.column-visibility input[type="checkbox"]');
+    
+    checkboxes.forEach(checkbox => {
+        const columnIndex = parseInt(checkbox.dataset.column);
+        if (checkbox.checked) {
+            showColumn(table, columnIndex);
+        } else {
+            hideColumn(table, columnIndex);
+        }
+    });
+}
 
 // Funzione per inizializzare la gestione della visibilità delle colonne
 function initializeColumnVisibility() {
@@ -670,39 +539,21 @@ function applyLastSorting() {
     }
 }
 
-// Funzione helper per aggiornare la progress bar e la percentuale
-function updateLoadingProgress(percentage) {
-    const progressBar = document.getElementById('loading-progress'); // ID corretto della barra interna
-    const percentageText = document.getElementById('loading-percentage'); // ID corretto dello span percentuale
-    if (progressBar && percentageText) {
-        const clampedPercentage = Math.max(0, Math.min(100, percentage)); // Assicura che sia tra 0 e 100
-        // Usa setTimeout per dare al browser il tempo di aggiornare la UI
-        setTimeout(() => {
-            progressBar.style.width = `${clampedPercentage}%`; // Imposta la larghezza della barra interna
-            percentageText.textContent = `${Math.round(clampedPercentage)}%`; // Aggiorna il testo della percentuale
-            console.log(`Loading progress updated to ${clampedPercentage}%`); // Log progresso
-        }, 0); // Ritardo minimo per mettere in coda l'aggiornamento
-    } else {
-        console.warn('Progress bar or percentage element not found in the DOM.');
-    }
-}
-
 // Function to fetch project data from the backend
 async function fetchProjects() {
     console.log(`[PROGRESS] Inizio fetchProjects - Timestamp: ${Date.now()}`);
     const loadingPopup = document.getElementById('loading-popup');
     console.log('[PROGRESS] Mostro loading popup');
 
-    // Mostra il popup e imposta progresso a 0%
+    // Mostra il popup
     if (loadingPopup) {
         loadingPopup.style.display = 'flex'; // Usa flex per centrare il contenuto
-        updateLoadingProgress(0); // Inizia da 0%
     }
 
-    // Aggiorna sempre i conteggi totali prima di caricare i progetti filtrati
-    await fetchProjectCounts();
-
     try {
+        // Aggiorna sempre i conteggi totali prima di caricare i progetti filtrati
+        await fetchProjectCounts();
+
         // Fase 1: Fetch elenco progetti
         const showArchived = document.getElementById('show-archived').checked;
         const showOnHold = document.getElementById('show-on-hold').checked;
@@ -710,8 +561,6 @@ async function fetchProjects() {
         const response = await fetch(`/api/projects?showArchived=${showArchived}&showOnHold=${showOnHold}`);
         console.log('[PROGRESS] Ricevuta risposta API progetti');
         if (!response.ok) {
-            // Nascondi popup in caso di errore fetch iniziale
-            if (loadingPopup) loadingPopup.style.display = 'none';
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         const projects = await response.json();
@@ -736,9 +585,6 @@ async function fetchProjects() {
         }
         // --- FINE NUOVA LOGICA ---
 
-        // Aggiorna progresso dopo fetch elenco progetti (es. 20%)
-        updateLoadingProgress(20);
-
         // Check for duplicates based on ID right here
         const projectIds = projects.map(p => p.id);
         const uniqueProjectIds = new Set(projectIds);
@@ -753,9 +599,6 @@ async function fetchProjects() {
             console.log('No duplicate project IDs received from API.'); // Confirm no duplicates
         }
 
-        // Aggiorna progresso prima della visualizzazione (es. 90%)
-        updateLoadingProgress(90);
-
         // Fase 2: Visualizzazione (le cronologie sono ora incluse nei dati dei progetti)
         await displayProjects(projects); // Non serve più passare 'histories'
 
@@ -768,13 +611,17 @@ async function fetchProjects() {
         applyLastSorting();
     } catch (error) {
         handleNetworkError(error);
-        // Assicura che il popup sia nascosto in caso di errore
+    } finally {
+        // Assicura che il popup sia nascosto in OGNI caso (successo o errore)
         if (loadingPopup) {
-            loadingPopup.style.display = 'none';
+            // Piccolo timeout per evitare flash troppo rapidi se l'operazione è istantanea
+            // e per dare tempo al rendering del DOM
+            setTimeout(() => {
+                loadingPopup.style.display = 'none';
+            }, 100);
         }
     }
-    // Il finally block non è più necessario qui, il popup viene nascosto da displayProjects o dal catch
-} // <-- Aggiunta parentesi graffa mancante per chiudere fetchProjects
+}
 
 // Rimossa funzione fetchAllHistories - non più necessaria
 // Rimossa funzione getProjectStatus - non più necessaria
@@ -810,29 +657,27 @@ function createPhaseProgressBar(projectHistorySummary, phases, projectId) {
         const hasInProgress = summary ? !!summary.hasInProgress : false;
         const hasCompleted = summary ? !!summary.hasCompleted : false;
         const hasNewEntries = summary ? !!summary.hasNew : false;
-
-        // Calcola se una fase successiva è attiva (richiede i sommari di tutte le fasi)
-        const hasLaterPhaseActive = sortedPhases.slice(index + 1).some(laterPhase => {
-            const laterPhaseSummary = summaryMap.get(String(laterPhase.id));
-            return laterPhaseSummary && (!!laterPhaseSummary.hasInProgress || !!laterPhaseSummary.hasCompleted);
-        });
+        const hasApproved = summary ? !!summary.hasApproved : false;
+        const entryCount = summary ? (summary.entryCount || 0) : 0;
+        const hasEntries = entryCount > 0;
 
         // Prepara il testo del tooltip
         let tooltipText = `${phase.name}: `;
 
-        // Applica la logica dei colori
-        if (hasInProgress) {
-            phaseItem.classList.add('phase-progress-yellow');
-            tooltipText += 'In Progress';
-        } else if (hasCompleted) {
+        // Applica la logica dei colori richiesta:
+        // - Rosso se non esiste alcuna fase nel project history relativo
+        // - Giallo se esiste un entry ma non e' approvata
+        // - Verde se esiste un'entry approvata
+        
+        if (hasApproved) {
             phaseItem.classList.add('phase-progress-green');
-            tooltipText += 'Completed';
-        } else if (hasLaterPhaseActive) {
-            phaseItem.classList.add('phase-progress-red');
-            tooltipText += 'Not Started (subsequent phases active)';
+            tooltipText += 'Approved';
+        } else if (hasEntries) {
+            phaseItem.classList.add('phase-progress-yellow');
+            tooltipText += 'In Progress (Not Approved)';
         } else {
-            phaseItem.classList.add('phase-progress-none');
-            tooltipText += 'Not Started';
+            phaseItem.classList.add('phase-progress-red');
+            tooltipText += 'No History';
         }
 
         // Se ci sono voci nuove, aggiungi l'animazione e aggiorna il tooltip
@@ -941,10 +786,6 @@ function createPhaseProgressBar(projectHistorySummary, phases, projectId) {
 // Function to display projects in the table
 // Modificata per usare la cronologia inclusa nell'oggetto project
 async function displayProjects(projects) {
-        // Aggiorna progresso a 100% prima di iniziare il rendering pesante
-        console.log('[PROGRESS] Aggiorno progresso al 100%');
-        updateLoadingProgress(100);
-
     console.log(`displayProjects called with ${projects.length} projects. Timestamp: ${Date.now()}`);
     
     // Aggiorna il conteggio dei progetti *visibili* (filtrati)
@@ -1115,7 +956,74 @@ async function displayProjects(projects) {
         priorityCell.textContent = project.priority;
         priorityCell.title = priorityCell.textContent;
 
-        const actionsCell = row.insertCell(13);
+        // Financials Columns (Quotation, MOQ, Total)
+        // Estrai i dati dalle entry approvate basandosi sulle fasi "Quotation" e "Quotation-moq"
+        let quotation = 0;
+        let moq = 0;
+        let total = 0;
+
+        // Trova gli ID delle fasi di interesse
+        const quotationPhase = window.projectPhases ? window.projectPhases.find(p => p.name === 'Quotation') : null;
+        const moqPhase = window.projectPhases ? window.projectPhases.find(p => p.name === 'Quotation-moq') : null;
+        
+        // Converti in stringa per confronto sicuro, gestendo null/undefined
+        const quotationPhaseId = quotationPhase ? String(quotationPhase.id) : 'Quotation'; // Fallback al nome se ID non trovato
+        const moqPhaseId = moqPhase ? String(moqPhase.id) : 'Quotation-moq';
+
+        if (project.approvedEntries && project.approvedEntries.length > 0) {
+            project.approvedEntries.forEach(entry => {
+                if (!entry.description) return;
+                
+                const entryPhase = String(entry.phase);
+                
+                // Se la fase corrisponde a Quotation
+                if (entryPhase === quotationPhaseId || entryPhase === 'Quotation') {
+                    // Cerca il primo numero nella descrizione
+                    // Supporta formati come "12.50", "1,200.00", "$12.50"
+                    const match = entry.description.match(/([\d\.,]+)/);
+                    if (match) {
+                        // Pulisci la stringa numerica
+                        let valStr = match[1].replace(/,/g, ''); // Rimuovi virgole (migliaia)
+                        // Se c'è un solo punto alla fine o in mezzo, è il decimale.
+                        // Se non ci sono punti, è intero.
+                        // Nota: questa è una semplificazione, assume formato 1,000.00 o 1000.00
+                        quotation = parseFloat(valStr) || 0;
+                    }
+                } 
+                // Se la fase corrisponde a Quotation-moq
+                else if (entryPhase === moqPhaseId || entryPhase === 'Quotation-moq') {
+                    const match = entry.description.match(/([\d\.,]+)/);
+                    if (match) {
+                        let valStr = match[1].replace(/,/g, '');
+                        moq = parseFloat(valStr) || 0;
+                    }
+                }
+            });
+        }
+
+        if (quotation > 0 && moq > 0) {
+            total = quotation * moq;
+        }
+
+        // Quotation Cell
+        const quotationCell = row.insertCell(13);
+        quotationCell.className = 'financial-col';
+        quotationCell.style.display = 'none'; // Nascosto di default
+        quotationCell.textContent = quotation > 0 ? quotation.toFixed(2) : '-';
+        
+        // MOQ Cell
+        const moqCell = row.insertCell(14);
+        moqCell.className = 'financial-col';
+        moqCell.style.display = 'none'; // Nascosto di default
+        moqCell.textContent = moq > 0 ? moq : '-';
+
+        // Total Cell
+        const totalCell = row.insertCell(15);
+        totalCell.className = 'financial-col';
+        totalCell.style.display = 'none'; // Nascosto di default
+        totalCell.textContent = total > 0 ? total.toFixed(2) : '-';
+
+        const actionsCell = row.insertCell(16);
 
         // Edit button
         const editBtn = document.createElement('button');
@@ -1162,13 +1070,12 @@ async function displayProjects(projects) {
     // Ripristina le larghezze delle colonne dopo aver caricato i dati
     restoreColumnWidths();
 
-    // Nascondi il popup di caricamento DOPO che i dati sono stati visualizzati
-    // Usiamo un piccolo timeout per permettere al browser di aggiornare la UI prima di nascondere
-    setTimeout(() => {
-        if (loadingPopup) {
-            loadingPopup.style.display = 'none';
-        }
-    }, 50); // Breve ritardo
+    // Applica la visibilità delle colonne basata sui checkbox attuali
+    // Questo corregge il problema di allineamento quando si creano nuove entry con filtri attivi
+    applyColumnVisibilityFromUI();
+
+    // Il popup di caricamento viene ora gestito nel blocco finally di fetchProjects
+    // per garantire che venga sempre nascosto.
 }
 
 // Function to handle adding a new project
@@ -1390,8 +1297,21 @@ function addProject() {
         }
     });
 
-    // Aggiungi anche una cella per le azioni alla fine (rispettando l'indice corretto)
-    const actionsCell = newRow.insertCell(13);
+    // Aggiungi celle vuote per le colonne Financials (13, 14, 15)
+    // Questo è necessario per mantenere l'allineamento della tabella
+    for (let i = 13; i <= 15; i++) {
+        const cell = newRow.insertCell(i);
+        cell.className = 'financial-col';
+        // Controlla se le colonne financial sono attualmente visibili
+        const financialCols = document.querySelectorAll('th.financial-col');
+        if (financialCols.length > 0 && financialCols[0].style.display === 'none') {
+            cell.style.display = 'none';
+        }
+        cell.textContent = '-'; // Valore di default
+    }
+
+    // Aggiungi anche una cella per le azioni alla fine (rispettando l'indice corretto 16)
+    const actionsCell = newRow.insertCell(16);
     actionsCell.classList.add('actions-cell');
     const saveBtn = document.createElement('button');
     saveBtn.textContent = 'Save';
@@ -1440,11 +1360,8 @@ function addProject() {
                 console.log('Project added successfully');
                 const savedWidths = localStorage.getItem('projectsColumnWidths');
                 await fetchProjects(); // Refresh the project list and apply sorting
-
-                // Riapplica le impostazioni di visibilità originali dopo il salvataggio
-                hiddenColumns.forEach(columnIndex => {
-                    hideColumn(table, columnIndex);
-                });
+                // Nota: fetchProjects chiama displayProjects che ora chiama applyColumnVisibilityFromUI,
+                // quindi non è necessario ripristinare manualmente le colonne nascoste qui.
 
                 if (savedWidths) {
                     restoreColumnWidths(); // Ripristina le larghezze dopo l'aggiunta
@@ -1494,6 +1411,12 @@ function editProject(row, projectId) {
     };
 
     // Convert cells to input fields
+    // Nota: le colonne financial sono agli indici 13, 14, 15. Actions è 16.
+    // Dobbiamo gestire gli indici correttamente.
+    // La logica originale assumeva che Actions fosse l'ultima cella.
+    // Ora Actions è all'indice 16.
+    // I campi modificabili sono fino all'indice 12 (Priority).
+    
     for (let i = 0; i < 13; i++) {
         if (i === 10 || i === 11) { // Campi 'status' e 'assignedTo' - non modificabili
             continue; // Salta le celle dello status e assignedTo
@@ -1679,48 +1602,35 @@ function editProject(row, projectId) {
     }
 
     // Change edit button to save button
-    const actionsCell = cells[13];
+    // Actions cell è l'ultima cella della riga
+    const actionsCell = cells[cells.length - 1];
     actionsCell.innerHTML = '';
     const saveBtn = document.createElement('button');
     saveBtn.textContent = 'Save';
     saveBtn.addEventListener('click', async function() {
-        // Estrai i valori aggiornati dagli input/select nelle celle
-        const updatedProject = {};
-        const fieldNames = Object.keys(projectData); // Ottieni i nomi dei campi dall'oggetto originale
+        // Estrai i valori aggiornati dagli input/select nelle celle in modo esplicito e sicuro
+        // Usiamo querySelector per trovare l'input o select corretto all'interno della cella
+        // Se non troviamo l'input (caso strano), usiamo il textContent o il valore originale
+        const getVal = (cellIndex, selector) => {
+            const el = cells[cellIndex].querySelector(selector);
+            return el ? el.value : cells[cellIndex].textContent;
+        };
 
-        for (let i = 0; i < 13; i++) { // Itera fino all'indice della priorità
-            const fieldName = fieldNames[i];
-            if (i === 10 || i === 11) { // Salta status e assignedTo (non modificabili)
-                updatedProject[fieldName] = projectData[fieldName]; // Mantieni il valore originale
-                continue;
-            }
-            const cell = cells[i];
-            const inputElement = cell.querySelector('input, select'); // Trova l'input o il select
-            if (inputElement) {
-                updatedProject[fieldName] = inputElement.value;
-            } else {
-                // Fallback se non trova l'elemento (non dovrebbe succedere)
-                updatedProject[fieldName] = projectData[fieldName];
-            }
-        }
-
-        // Logica di salvataggio (ora usa il loop sopra)
-        // Vecchio codice commentato correttamente:
-        // const updatedProject_OLD = {
-        //    client: cells[0].firstChild.value,
-        //    productKind: cells[1].querySelector('input').value, // Gestisce il datalist
-        //    factory: cells[2].querySelector('select').value, // Ottieni valore dal select
-        //    brand: cells[3].firstChild.value,
-        //    range: cells[4].firstChild.value,
-        //    line: cells[5].firstChild.value,
-        //    modelNumber: cells[6].firstChild.value,
-        //    factoryModelNumber: cells[7].firstChild.value,
-        //    startDate: cells[8].firstChild.value,
-        //    endDate: cells[9].firstChild.value,
-        //    status: cells[10].textContent, // Mantiene lo status corrente
-        //    assignedTo: cells[11].textContent, // Mantiene l'utente assegnato corrente
-        //    priority: cells[12].firstChild.value
-        // };
+        const updatedProject = {
+            client: getVal(0, 'select'),
+            productKind: getVal(1, 'input'),
+            factory: getVal(2, 'select'),
+            brand: getVal(3, 'input'),
+            range: getVal(4, 'input'),
+            line: getVal(5, 'input'),
+            modelNumber: getVal(6, 'input'),
+            factoryModelNumber: getVal(7, 'input'),
+            startDate: getVal(8, 'input'),
+            endDate: getVal(9, 'input'),
+            status: projectData.status, // Non modificabile
+            assignedTo: projectData.assignedTo, // Non modificabile
+            priority: getVal(12, 'input')
+        };
 
         try {
             const response = await fetch(`/api/projects/${projectId}`, {
@@ -2274,7 +2184,7 @@ function enableLiveFiltering() {
             let isMatch = true;
 
             // Controllo filtri testo
-            for (let i = 0; i < textFilterValues.length - 1; i++) { // -1 perché escludiamo l'ultimo che era per lo status
+            for (let i = 0; i < textFilterValues.length; i++) { 
                 const filterValue = textFilterValues[i];
                 const cellIndex = filterIndices[i];
                 const cell = row.cells[cellIndex];

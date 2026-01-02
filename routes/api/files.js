@@ -249,21 +249,52 @@ router.get('/speaker-files', checkAuthentication, async (req, res) => {
         console.log('Query file per progetti autorizzati:', filesQuery);
         console.log('ID progetti autorizzati:', projectIds);
 
-        req.db.all(filesQuery, projectIds, (err, files) => {
+        req.db.all(filesQuery, projectIds, async (err, files) => {
             if (err) {
                 console.error('Error fetching speaker files:', err);
                 return res.status(500).json({ error: 'Failed to fetch speaker files' });
             }
             
-            console.log(`Trovati ${files.length} file .txt nei progetti autorizzati`);
+            console.log(`Trovati ${files.length} file .txt nei progetti autorizzati. Inizio analisi contenuto...`);
             
-            // Restituiamo i file con contenuto vuoto per ora
-            const filesWithEmptyContent = files.map(file => ({
-                ...file,
-                content: '' // Contenuto vuoto per ora
-            }));
-            
-            res.json(filesWithEmptyContent);
+            try {
+                // Processa i file in parallelo per leggere il contenuto e filtrare
+                const processedFiles = await Promise.all(files.map(async (file) => {
+                    const filePath = resolveFilePath(file);
+                    if (!filePath) {
+                        return null; // File non trovato su disco
+                    }
+
+                    try {
+                        const content = await fs.readFile(filePath, 'utf8');
+                        
+                        // Verifica se è un file valido (TS o Graph)
+                        const hasTS = checkForTSParameters(content);
+                        const { dataType } = analyzeFileContent(content);
+                        const isGraph = dataType === 'db' || dataType === 'ohm';
+
+                        if (hasTS || isGraph) {
+                            return {
+                                ...file,
+                                content: content // Includiamo il contenuto per il client
+                            };
+                        }
+                    } catch (readErr) {
+                        console.warn(`Errore lettura file ${file.filename}:`, readErr);
+                    }
+                    return null;
+                }));
+
+                // Filtra via i null (file non trovati o non validi)
+                const validFiles = processedFiles.filter(f => f !== null);
+                
+                console.log(`Restituiti ${validFiles.length} file validi (TS/Graph) su ${files.length} totali`);
+                res.json(validFiles);
+
+            } catch (processErr) {
+                console.error('Errore nel processamento dei file:', processErr);
+                res.status(500).json({ error: 'Errore nel processamento dei file' });
+            }
         });
 
     } catch (error) {
@@ -691,7 +722,63 @@ function readAndSendFileContent(filePath, res) {
     });
 }
 
+// Funzioni helper per l'analisi dei file (porting dal client)
+function checkForTSParameters(content) {
+    if (!content) return false;
+    const keywords = ["Fs", "Re", "Sd", "Qms", "Qes", "Qts", "Cms", "Mms", "Rms", "Bl", "dBspl", "VAS", "Zmin", "L1kHz", "L10kHz"];
+    let count = 0;
+    keywords.forEach(kw => {
+        if (content.toLowerCase().includes(kw.toLowerCase())) {
+            count++;
+        }
+    });
+    return count >= 3;
+}
+
+function analyzeFileContent(content) {
+    if (!content) return { dataType: 'unknown' };
+    const lines = content.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+    let dataType = 'unknown';
+
+    for (let i = 0; i < Math.min(5, lines.length); i++) {
+        const lineForCheck = lines[i].toLowerCase();
+        if (lineForCheck.includes('db')) {
+            dataType = 'db';
+        } else if (lineForCheck.includes('ohm') || lineForCheck.includes('impedance')) {
+            dataType = 'ohm';
+        }
+        if (dataType !== 'unknown') break;
+    }
+    return { dataType };
+}
+
+function resolveFilePath(file) {
+    // 1. Primo tentativo: percorso originale dal database
+    if (file.filepath) {
+        let filePath;
+        if (file.filepath.startsWith('uploads/')) {
+            filePath = path.join(__dirname, '../../', file.filepath);
+        } else {
+            filePath = file.filepath;
+        }
+        if (fs.existsSync(filePath)) return filePath;
+    }
+    
+    // 2. Secondo tentativo: in OnlyOffice con ID nel nome
+    const onlyOfficePath1 = path.join('/var/www/onlyoffice/Data', `${file.id}-${path.basename(file.filepath)}`);
+    if (fs.existsSync(onlyOfficePath1)) return onlyOfficePath1;
+    
+    // 3. Terzo tentativo: in OnlyOffice senza ID
+    const onlyOfficePath2 = path.join('/var/www/onlyoffice/Data', path.basename(file.filepath));
+    if (fs.existsSync(onlyOfficePath2)) return onlyOfficePath2;
+
+    return null;
+}
+
 module.exports = {
     router,
-    upload
+    upload,
+    checkForTSParameters,
+    analyzeFileContent,
+    resolveFilePath
 };

@@ -14,7 +14,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
         tr.selected {
-            background-color: #ffcccb;
+            background-color: #ffcccb !important;
         }
         .lock-icon {
             margin-left: 5px;
@@ -23,7 +23,7 @@
             transition: color 0.3s;
         }
         .lock-icon.locked {
-            color: #007bff;
+            color: #dc3545; /* Rosso */
         }
     </style>
 </head>
@@ -83,11 +83,15 @@
                 </div>
                 <div class="filter-group">
                     <input type="text" id="filekind-filter" placeholder="File Kind" data-translate-placeholder="File Kind">
-                    <label class="column-visibility"><input type="checkbox" data-column="7" checked></label>
+                    <label class="column-visibility"><input type="checkbox" data-column="8" checked></label>
                 </div>
                 <div class="filter-group">
                     <input type="text" id="description-filter" placeholder="Description" data-translate-placeholder="Description">
-                    <label class="column-visibility"><input type="checkbox" data-column="8" checked></label>
+                    <label class="column-visibility"><input type="checkbox" data-column="7" checked></label>
+                </div>
+                <div class="filter-group">
+                    <input type="text" id="date-filter" placeholder="Date" data-translate-placeholder="Date">
+                    <label class="column-visibility"><input type="checkbox" data-column="9" checked></label>
                 </div>
                 <div class="filter-group">
                     <button id="view-selected" title="View Selected"><i class="fas fa-eye"></i></button>
@@ -107,6 +111,7 @@
                         <th data-translate="File Name">File Name <i class="fas fa-lock lock-icon" data-column="6"></i></th>
                         <th data-translate="Description">Description <i class="fas fa-lock lock-icon" data-column="7"></i></th>
                         <th data-translate="File Kind">File Kind <i class="fas fa-lock lock-icon" data-column="8"></i></th>
+                        <th data-translate="Date">Date <i class="fas fa-lock lock-icon" data-column="9"></i></th>
                         <!-- Colonna Actions rimossa -->
                     </tr>
                     </thead>
@@ -130,9 +135,13 @@
     <script src="menu-utils.js"></script>
     <script>
         let allFiles = []; // Array globale per memorizzare tutti i file
+        let currentFilteredFiles = []; // Array per memorizzare i file filtrati correnti
         let lockedColumns = []; // Array per tracciare le colonne bloccate
         let lockedColumnsDirection = {}; // Oggetto per tracciare la direzione di ordinamento delle colonne bloccate
-        
+        let isLoading = false; // Flag per evitare caricamenti multipli
+        let currentSortColumn = 5; // Default sort by Model N (index 5)
+        let currentSortDirection = true; // true = ascending
+
         document.addEventListener('DOMContentLoaded', async function() {
             // Inizializza gli event listener per i lucchetti
             document.querySelectorAll('.lock-icon').forEach(icon => {
@@ -145,7 +154,8 @@
                         if (!lockedColumns.includes(columnIndex)) {
                             lockedColumns.push(columnIndex);
                             // Salva la direzione corrente di ordinamento per questa colonna
-                            lockedColumnsDirection[columnIndex] = sortDirection[columnIndex];
+                            // sortDirection contiene la direzione del PROSSIMO click, quindi l'attuale è l'opposto
+                            lockedColumnsDirection[columnIndex] = !sortDirection[columnIndex];
                         }
                     } else {
                         lockedColumns = lockedColumns.filter(col => col !== columnIndex);
@@ -246,6 +256,9 @@
         }
 
         async function loadSpeakerFiles() {
+            if (isLoading) return;
+            isLoading = true;
+
             try {
                 // Mostra l'animazione di caricamento
                 const loadingAnimation = document.getElementById('loading-animation');
@@ -260,48 +273,26 @@
                 }
                 const files = await response.json();
                 
-                // Carica il contenuto dei file per poterli filtrare
-                const filesWithContent = await Promise.all(files.map(async (file) => {
-                    try {
-                        const contentResponse = await fetch(`/api/files/${file.id}/content`);
-                        if (contentResponse.ok) {
-                            const content = await contentResponse.text();
-                            return { ...file, content: content };
-                        }
-                    } catch (err) {
-                        console.warn(`Impossibile caricare il contenuto del file ${file.filename}:`, err);
-                    }
-                    return { ...file, content: '' };
-                }));
+                // L'API restituisce già solo i file rilevanti (TS/Graph) con il loro contenuto
+                allFiles = files; 
                 
-                // Filtra solo i file con parametri TS, risposte in frequenza e impedenza
-                const filteredFiles = filesWithContent.filter(file => {
-                    if (!file.content) return false;
-                    
-                    // Verifica se contiene parametri TS
-                    const hasTS = checkForTSParameters(file.content);
-                    if (hasTS) return true;
-                    
-                    // Verifica se contiene dati di risposta in frequenza o impedenza
-                    const { dataType } = analyzeFileContent(file.content);
-                    return dataType === 'db' || dataType === 'ohm';
-                });
-                
-                allFiles = filteredFiles; // Memorizza solo i file filtrati
-                displayFiles(filteredFiles);
-                
-                console.log(`Caricati ${filteredFiles.length} file rilevanti su ${files.length} totali`);
+                console.log(`Caricati ${files.length} file rilevanti`);
                 
                 // Aspetta il tempo minimo prima di nascondere l'animazione
                 await minLoadingTime;
                 
                 // Nascondi l'animazione di caricamento
                 loadingAnimation.style.display = 'none';
+
+                // Applica i filtri correnti invece di mostrare tutto
+                applyFilters();
             } catch (error) {
                 console.error('Errore nel caricamento dei file speaker:', error);
                 alert('Errore nel caricamento dei file. Riprova più tardi.');
                 // Nascondi l'animazione di caricamento in caso di errore
                 document.getElementById('loading-animation').style.display = 'none';
+            } finally {
+                isLoading = false;
             }
         }
 
@@ -310,7 +301,8 @@
             const textFilters = [
                 'client-filter', 'product-kind-filter', 'brand-filter', 
                 'range-filter', 'line-filter', 'model-filter', 
-                'filename-filter', 'filekind-filter', 'description-filter'
+                'filename-filter', 'filekind-filter', 'description-filter',
+                'date-filter'
             ];
             
             // Ripristina i filtri salvati
@@ -340,6 +332,7 @@
                         applyFilters();
                     });
                 } else {
+                    // Se non ci sono dati caricati, applyFilters non farà nulla di visibile ma imposterà lo stato
                     applyFilters();
                 }
             }
@@ -376,7 +369,8 @@
                 'model-filter': document.getElementById('model-filter')?.value || '',
                 'filename-filter': document.getElementById('filename-filter')?.value || '',
                 'filekind-filter': document.getElementById('filekind-filter')?.value || '',
-                'description-filter': document.getElementById('description-filter')?.value || ''
+                'description-filter': document.getElementById('description-filter')?.value || '',
+                'date-filter': document.getElementById('date-filter')?.value || ''
             };
             localStorage.setItem('speakerFilesFilters', JSON.stringify(filters));
         }
@@ -392,13 +386,45 @@
             const graphWindowName = 'graphViewer';
             let graphWindow = window.open('', graphWindowName);
             
+            let checkInterval;
+            const handleGraphViewerReady = (event) => {
+                if (event.source === graphWindow && event.data && event.data.type === 'graphViewerReady') {
+                    window.removeEventListener('message', handleGraphViewerReady);
+                    clearInterval(checkInterval);
+                    sendSelectedFilesToGraphWindow(graphWindow);
+                }
+            };
+
             if (!graphWindow || graphWindow.closed || !graphWindow.location || !graphWindow.location.href.includes('graph-viewer.html')) {
                 graphWindow = window.open('graph-viewer.html', graphWindowName);
-                graphWindow.onload = () => sendSelectedFilesToGraphWindow(graphWindow);
             } else {
                 graphWindow.focus();
-                sendSelectedFilesToGraphWindow(graphWindow);
             }
+
+            window.addEventListener('message', handleGraphViewerReady);
+
+            let attempts = 0;
+            checkInterval = setInterval(() => {
+                attempts++;
+                if (graphWindow && !graphWindow.closed) {
+                    try {
+                        graphWindow.postMessage({ type: 'areYouReady', targetWindowName: graphWindowName }, '*');
+                    } catch (e) {
+                        console.log("Finestra non ancora pronta...");
+                    }
+                } else {
+                    clearInterval(checkInterval);
+                    window.removeEventListener('message', handleGraphViewerReady);
+                }
+                
+                if (attempts > 50) {
+                    clearInterval(checkInterval);
+                    window.removeEventListener('message', handleGraphViewerReady);
+                    if (graphWindow && !graphWindow.closed) {
+                        sendSelectedFilesToGraphWindow(graphWindow);
+                    }
+                }
+            }, 100);
         }
         
         // Funzione per scaricare i file selezionati
@@ -425,17 +451,18 @@
                 model: document.getElementById('model-filter')?.value.toLowerCase() || '',
                 filename: document.getElementById('filename-filter')?.value.toLowerCase() || '',
                 filekind: document.getElementById('filekind-filter')?.value.toLowerCase() || '',
-                description: document.getElementById('description-filter')?.value.toLowerCase() || ''
+                description: document.getElementById('description-filter')?.value.toLowerCase() || '',
+                date: document.getElementById('date-filter')?.value.toLowerCase() || ''
             };
 
             // Controlla se almeno un filtro è impostato
-            const isFilterSet = filters.client || filters.productKind || filters.brand || filters.range || filters.line || filters.model || filters.filename || filters.filekind;
+            const isFilterSet = filters.client || filters.productKind || filters.brand || filters.range || filters.line || filters.model || filters.filename || filters.filekind || filters.date;
 
             if (isFilterSet && allFiles.length === 0) {
                 // Carica i dati solo se un filtro è impostato e i dati non sono ancora stati caricati
                 loadSpeakerFiles();
             } else {
-                const filteredFiles = allFiles.filter(file => {
+                currentFilteredFiles = allFiles.filter(file => {
                     return (
                         (!filters.client || (file.client || '').toLowerCase().includes(filters.client)) &&
                         (!filters.productKind || (file.productKind || '').toLowerCase().includes(filters.productKind)) &&
@@ -445,12 +472,12 @@
                         (!filters.model || (file.modelNumber || '').toLowerCase().includes(filters.model)) &&
                         (!filters.filename || (file.filename || '').toLowerCase().includes(filters.filename)) &&
                         (!filters.filekind || determineFileType(file.filename, file.content).toLowerCase().includes(filters.filekind)) &&
-                        (!filters.description || (file.description || '').toLowerCase().includes(filters.description))
+                        (!filters.description || (file.description || '').toLowerCase().includes(filters.description)) &&
+                        (!filters.date || (file.upload_date ? new Date(file.upload_date).toLocaleDateString() : '').toLowerCase().includes(filters.date))
                     );
                 });
 
-                displayFiles(filteredFiles);
-                applyLastSorting(); // Applica l'ultimo ordinamento salvato dopo il filtraggio
+                sortAndDisplayFiles();
             }
         }
 
@@ -486,86 +513,192 @@
                 filterMessage.style.display = 'none';
             }
 
+            // Raggruppa i file per Model Number
+            const groupedFiles = {};
             files.forEach(file => {
-                const row = document.createElement('tr');
-                row.dataset.fileId = file.id;
-                row.style.cursor = 'pointer';
-                
-                row.addEventListener('click', function(e) {
-                    // Evita di selezionare la riga se si clicca su un pulsante di azione
-                    if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'I') {
-                        this.classList.toggle('selected');
-                    }
-                });
-                
-                // Colonna Client
-                const clientCell = document.createElement('td');
-                clientCell.textContent = file.client || '-';
-                row.appendChild(clientCell);
-                
-                // Colonna Product Kind
-                const productKindCell = document.createElement('td');
-                productKindCell.textContent = file.productKind || '-';
-                row.appendChild(productKindCell);
-                
-                // Colonna Brand
-                const brandCell = document.createElement('td');
-                brandCell.textContent = file.brand || '-';
-                row.appendChild(brandCell);
-                
-                // Colonna Range
-                const rangeCell = document.createElement('td');
-                rangeCell.textContent = file.range || '-';
-                row.appendChild(rangeCell);
-                
-                // Colonna Line
-                const lineCell = document.createElement('td');
-                lineCell.textContent = file.line || '-';
-                row.appendChild(lineCell);
-                
-                // Colonna Model N - con link al progetto
-                const modelCell = document.createElement('td');
-                if (file.modelNumber && file.modelNumber !== '-' && file.project_id) {
-                    // Crea un link cliccabile per il model number usando il project_id
-                    const modelLink = document.createElement('a');
-                    modelLink.href = `project-details.html?id=${encodeURIComponent(file.project_id)}`;
-                    modelLink.textContent = file.modelNumber;
-                    modelLink.style.color = '#007bff';
-                    modelLink.style.textDecoration = 'underline';
-                    modelLink.style.cursor = 'pointer';
-                    modelLink.title = `Visualizza dettagli progetto per ${file.modelNumber}`;
-                    
-                    // Previeni la selezione della riga quando si clicca sul link
-                    modelLink.addEventListener('click', function(e) {
-                        e.stopPropagation();
-                    });
-                    
-                    modelCell.appendChild(modelLink);
-                } else {
-                    modelCell.textContent = file.modelNumber || '-';
+                const modelKey = file.modelNumber || 'Unknown Model';
+                if (!groupedFiles[modelKey]) {
+                    groupedFiles[modelKey] = [];
                 }
-                row.appendChild(modelCell);
-                
-                // Colonna File Name
-                const nameCell = document.createElement('td');
-                nameCell.textContent = file.filename;
-                row.appendChild(nameCell);
-                
-                // Colonna Description
-                const descriptionCell = document.createElement('td');
-                descriptionCell.textContent = file.description || '-';
-                row.appendChild(descriptionCell);
-                
-                // Colonna File Kind
-                const fileKindCell = document.createElement('td');
-                fileKindCell.textContent = determineFileType(file.filename, file.content);
-                row.appendChild(fileKindCell);
-                
-                // Colonna Actions rimossa
-                tbody.appendChild(row);
+                groupedFiles[modelKey].push(file);
+            });
+
+            Object.keys(groupedFiles).forEach(modelKey => {
+                const group = groupedFiles[modelKey];
+                const firstFile = group[0];
+                const isGroup = group.length > 1;
+
+                // Se c'è più di un file, crea una riga di gruppo
+                if (isGroup) {
+                    const groupRow = document.createElement('tr');
+                    groupRow.classList.add('group-header');
+                    groupRow.style.backgroundColor = '#f0f0f0';
+                    groupRow.style.fontWeight = 'bold';
+                    groupRow.style.cursor = 'pointer';
+
+                    // Aggiungi icona di espansione alla prima cella (Client)
+                    const clientCell = document.createElement('td');
+                    clientCell.innerHTML = `<i class="fas fa-chevron-right expand-icon" style="margin-right: 5px;"></i> ${firstFile.client || '-'}`;
+                    groupRow.appendChild(clientCell);
+
+                    // Altre colonne comuni
+                    const commonColumns = ['productKind', 'brand', 'range', 'line'];
+                    commonColumns.forEach(col => {
+                        const cell = document.createElement('td');
+                        cell.textContent = firstFile[col] || '-';
+                        groupRow.appendChild(cell);
+                    });
+
+                    // Colonna Model N - con link al progetto
+                    const modelCell = document.createElement('td');
+                    if (firstFile.modelNumber && firstFile.modelNumber !== '-' && firstFile.project_id) {
+                        const modelLink = document.createElement('a');
+                        modelLink.href = `project-details.html?id=${encodeURIComponent(firstFile.project_id)}`;
+                        modelLink.textContent = firstFile.modelNumber;
+                        modelLink.style.color = '#007bff';
+                        modelLink.style.textDecoration = 'underline';
+                        modelLink.style.cursor = 'pointer';
+                        modelLink.title = `Visualizza dettagli progetto per ${firstFile.modelNumber}`;
+                        modelLink.addEventListener('click', function(e) {
+                            e.stopPropagation(); // Evita l'espansione quando si clicca sul link
+                        });
+                        modelCell.appendChild(modelLink);
+                    } else {
+                        modelCell.textContent = firstFile.modelNumber || '-';
+                    }
+                    groupRow.appendChild(modelCell);
+
+                    // Colonne specifiche del file (File Name, Description, File Kind, Date) - mostrano riepilogo
+                    const summaryCell = document.createElement('td');
+                    summaryCell.colSpan = 4; // Occupa le restanti colonne
+                    summaryCell.textContent = `${group.length} files`;
+                    summaryCell.style.fontStyle = 'italic';
+                    summaryCell.style.color = '#666';
+                    groupRow.appendChild(summaryCell);
+
+                    // Event listener per espandere/collassare
+                    groupRow.addEventListener('click', function() {
+                        const icon = this.querySelector('.expand-icon');
+                        const isExpanded = icon.classList.contains('fa-chevron-down');
+                        
+                        // Toggle icona
+                        icon.classList.remove(isExpanded ? 'fa-chevron-down' : 'fa-chevron-right');
+                        icon.classList.add(isExpanded ? 'fa-chevron-right' : 'fa-chevron-down');
+
+                        // Toggle visibilità righe figlie
+                        let nextRow = this.nextElementSibling;
+                        while (nextRow && nextRow.classList.contains('group-item')) {
+                            nextRow.style.display = isExpanded ? 'none' : 'table-row';
+                            nextRow = nextRow.nextElementSibling;
+                        }
+                    });
+
+                    tbody.appendChild(groupRow);
+
+                    // Aggiungi le righe dei singoli file (nascoste di default)
+                    group.forEach(file => {
+                        const row = createSingleFileRow(file);
+                        row.classList.add('group-item');
+                        row.style.display = 'none'; // Nascoste di default
+                        // row.style.backgroundColor = '#ffffff'; // Rimosso per non sovrascrivere la selezione
+                        
+                        // Aggiungi indentazione alla prima cella
+                        row.cells[0].style.paddingLeft = '30px';
+                        
+                        tbody.appendChild(row);
+                    });
+
+                } else {
+                    // Se c'è un solo file, mostralo normalmente
+                    const row = createSingleFileRow(firstFile);
+                    tbody.appendChild(row);
+                }
             });
 
             restoreColumnWidths();
+        }
+
+        function createSingleFileRow(file) {
+            const row = document.createElement('tr');
+            row.dataset.fileId = file.id;
+            row.style.cursor = 'pointer';
+            
+            row.addEventListener('click', function(e) {
+                if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'I' && e.target.tagName !== 'A') {
+                    this.classList.toggle('selected');
+                }
+            });
+            
+            // Colonna Client
+            const clientCell = document.createElement('td');
+            clientCell.textContent = file.client || '-';
+            row.appendChild(clientCell);
+            
+            // Colonna Product Kind
+            const productKindCell = document.createElement('td');
+            productKindCell.textContent = file.productKind || '-';
+            row.appendChild(productKindCell);
+            
+            // Colonna Brand
+            const brandCell = document.createElement('td');
+            brandCell.textContent = file.brand || '-';
+            row.appendChild(brandCell);
+            
+            // Colonna Range
+            const rangeCell = document.createElement('td');
+            rangeCell.textContent = file.range || '-';
+            row.appendChild(rangeCell);
+            
+            // Colonna Line
+            const lineCell = document.createElement('td');
+            lineCell.textContent = file.line || '-';
+            row.appendChild(lineCell);
+            
+            // Colonna Model N
+            const modelCell = document.createElement('td');
+            if (file.modelNumber && file.modelNumber !== '-' && file.project_id) {
+                const modelLink = document.createElement('a');
+                modelLink.href = `project-details.html?id=${encodeURIComponent(file.project_id)}`;
+                modelLink.textContent = file.modelNumber;
+                modelLink.style.color = '#007bff';
+                modelLink.style.textDecoration = 'underline';
+                modelLink.style.cursor = 'pointer';
+                modelLink.title = `Visualizza dettagli progetto per ${file.modelNumber}`;
+                modelLink.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                });
+                modelCell.appendChild(modelLink);
+            } else {
+                modelCell.textContent = file.modelNumber || '-';
+            }
+            row.appendChild(modelCell);
+            
+            // Colonna File Name
+            const nameCell = document.createElement('td');
+            nameCell.textContent = file.filename;
+            row.appendChild(nameCell);
+            
+            // Colonna Description
+            const descriptionCell = document.createElement('td');
+            descriptionCell.textContent = file.description || '-';
+            row.appendChild(descriptionCell);
+            
+            // Colonna File Kind
+            const fileKindCell = document.createElement('td');
+            fileKindCell.textContent = determineFileType(file.filename, file.content);
+            row.appendChild(fileKindCell);
+
+            // Colonna Date
+            const dateCell = document.createElement('td');
+            if (file.upload_date) {
+                const date = new Date(file.upload_date);
+                dateCell.textContent = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            } else {
+                dateCell.textContent = '-';
+            }
+            row.appendChild(dateCell);
+            
+            return row;
         }
 
         function determineFileType(filename, content) {
@@ -698,12 +831,15 @@
                                 type: 'addGraph',
                                 points: points,
                                 filename: file.filename,
-                                dataType: dataType
+                                dataType: dataType,
+                                content: content
                             }, '*');
                         } else if (checkForTSParameters(content)) {
                             targetWindow.postMessage({
-                                type: 'addFloatingText',
+                                type: 'addGraph',
+                                points: [],
                                 filename: file.filename,
+                                dataType: 'ts',
                                 content: content
                             }, '*');
                         }
@@ -728,38 +864,111 @@
                     if (points.length > 0) {
                         const graphWindowName = 'graphViewer';
                         let graphWindow = window.open('', graphWindowName);
+                        
                         const sendDataToGraphWindow = (targetWindow) => {
                             targetWindow.postMessage({
                                 type: 'addGraph',
                                 points: points,
                                 filename: file.filename,
-                                dataType: dataType
-                            }, '*');
-                        };
-                        if (!graphWindow || graphWindow.closed || !graphWindow.location || !graphWindow.location.href.includes('graph-viewer.html')) {
-                            graphWindow = window.open('graph-viewer.html', graphWindowName);
-                            graphWindow.onload = () => sendDataToGraphWindow(graphWindow);
-                        } else {
-                            graphWindow.focus();
-                            sendDataToGraphWindow(graphWindow);
-                        }
-                    } else if (checkForTSParameters(content)) {
-                        const graphWindowName = 'graphViewer';
-                        let graphWindow = window.open('', graphWindowName);
-                        const sendFloatingToGraphWindow = (targetWindow) => {
-                            targetWindow.postMessage({
-                                type: 'addFloatingText',
-                                filename: file.filename,
+                                dataType: dataType,
                                 content: content
                             }, '*');
                         };
+
+                        let checkInterval;
+                        const handleGraphViewerReady = (event) => {
+                            if (event.source === graphWindow && event.data && event.data.type === 'graphViewerReady') {
+                                window.removeEventListener('message', handleGraphViewerReady);
+                                clearInterval(checkInterval);
+                                sendDataToGraphWindow(graphWindow);
+                            }
+                        };
+
                         if (!graphWindow || graphWindow.closed || !graphWindow.location || !graphWindow.location.href.includes('graph-viewer.html')) {
                             graphWindow = window.open('graph-viewer.html', graphWindowName);
-                            graphWindow.onload = () => sendFloatingToGraphWindow(graphWindow);
                         } else {
                             graphWindow.focus();
-                            sendFloatingToGraphWindow(graphWindow);
                         }
+
+                        window.addEventListener('message', handleGraphViewerReady);
+
+                        let attempts = 0;
+                        checkInterval = setInterval(() => {
+                            attempts++;
+                            if (graphWindow && !graphWindow.closed) {
+                                try {
+                                    graphWindow.postMessage({ type: 'areYouReady', targetWindowName: graphWindowName }, '*');
+                                } catch (e) {
+                                    console.log("Finestra non ancora pronta...");
+                                }
+                            } else {
+                                clearInterval(checkInterval);
+                                window.removeEventListener('message', handleGraphViewerReady);
+                            }
+                            
+                            if (attempts > 50) {
+                                clearInterval(checkInterval);
+                                window.removeEventListener('message', handleGraphViewerReady);
+                                if (graphWindow && !graphWindow.closed) {
+                                    sendDataToGraphWindow(graphWindow);
+                                }
+                            }
+                        }, 100);
+
+                    } else if (checkForTSParameters(content)) {
+                        const graphWindowName = 'graphViewer';
+                        let graphWindow = window.open('', graphWindowName);
+                        
+                        const sendDataToGraphWindow = (targetWindow) => {
+                            targetWindow.postMessage({
+                                type: 'addGraph',
+                                points: [],
+                                filename: file.filename,
+                                dataType: 'ts',
+                                content: content
+                            }, '*');
+                        };
+
+                        let checkInterval;
+                        const handleGraphViewerReady = (event) => {
+                            if (event.source === graphWindow && event.data && event.data.type === 'graphViewerReady') {
+                                window.removeEventListener('message', handleGraphViewerReady);
+                                clearInterval(checkInterval);
+                                sendDataToGraphWindow(graphWindow);
+                            }
+                        };
+
+                        if (!graphWindow || graphWindow.closed || !graphWindow.location || !graphWindow.location.href.includes('graph-viewer.html')) {
+                            graphWindow = window.open('graph-viewer.html', graphWindowName);
+                        } else {
+                            graphWindow.focus();
+                        }
+
+                        window.addEventListener('message', handleGraphViewerReady);
+
+                        let attempts = 0;
+                        checkInterval = setInterval(() => {
+                            attempts++;
+                            if (graphWindow && !graphWindow.closed) {
+                                try {
+                                    graphWindow.postMessage({ type: 'areYouReady', targetWindowName: graphWindowName }, '*');
+                                } catch (e) {
+                                    console.log("Finestra non ancora pronta...");
+                                }
+                            } else {
+                                clearInterval(checkInterval);
+                                window.removeEventListener('message', handleGraphViewerReady);
+                            }
+                            
+                            if (attempts > 50) {
+                                clearInterval(checkInterval);
+                                window.removeEventListener('message', handleGraphViewerReady);
+                                if (graphWindow && !graphWindow.closed) {
+                                    sendDataToGraphWindow(graphWindow);
+                                }
+                            }
+                        }, 100);
+
                     } else {
                         window.open(`/api/files/${file.id}/view`, '_blank');
                     }
@@ -776,16 +985,20 @@
             window.location.href = `/api/files/${fileId}/download`;
         }
 
+        let sortDirection = []; // Variabile globale per tracciare la direzione di ordinamento
+
         // Funzione per abilitare l'ordinamento e il raggruppamento delle colonne
         function enableColumnSorting() {
             const table = document.getElementById('speaker-files-table');
             const headers = table.getElementsByTagName('th');
-            let sortDirection = Array(headers.length).fill(true); // true per ascendente, false per discendente
+            sortDirection = Array(headers.length).fill(true); // true per ascendente, false per discendente
 
             // Carica l'ultimo stato di ordinamento dal localStorage
             const lastSorting = JSON.parse(localStorage.getItem('lastSpeakerFilesSorting'));
             if (lastSorting) {
                 sortDirection[lastSorting.columnIndex] = lastSorting.direction;
+                currentSortColumn = lastSorting.columnIndex;
+                currentSortDirection = lastSorting.direction;
             }
 
             // Carica lo stato dei lucchetti salvato e le direzioni
@@ -800,7 +1013,8 @@
                         // Ripristina la direzione di ordinamento se salvata
                         if (savedDirections && savedDirections[colIndex] !== undefined) {
                             lockedColumnsDirection[colIndex] = savedDirections[colIndex];
-                            sortDirection[colIndex] = savedDirections[colIndex];
+                            // sortDirection deve essere l'opposto dell'attuale per il prossimo click
+                            sortDirection[colIndex] = !savedDirections[colIndex];
                         }
                     }
                 });
@@ -815,8 +1029,14 @@
                         return;
                     }
 
-                    const rows = Array.from(table.getElementsByTagName('tbody')[0].rows);
                     const isAscending = sortDirection[columnIndex];
+                    
+                    // Aggiorna stato globale
+                    currentSortColumn = columnIndex;
+                    currentSortDirection = isAscending;
+
+                    // Esegui l'ordinamento
+                    sortAndDisplayFiles();
 
                     // Salva l'ultimo ordinamento nel localStorage
                     localStorage.setItem('lastSpeakerFilesSorting', JSON.stringify({
@@ -824,94 +1044,103 @@
                         direction: !isAscending // Salva la prossima direzione
                     }));
 
-                    // Rimuovi le classi di ordinamento da tutte le righe
-                    rows.forEach(row => {
-                        row.classList.remove('sorted-asc-1', 'sorted-asc-2', 'sorted-desc-1', 'sorted-desc-2');
-                    });
-
-                    // Rimuovi la classe sorted da tutti gli header
-                    Array.from(headers).forEach(header => header.classList.remove('sorted'));
-                    // Aggiungi la classe sorted all'header corrente
-                    headers[columnIndex].classList.add('sorted');
-
-                    // Funzione di confronto per l'ordinamento
-                    const compareFn = (a, b) => {
-                        // Prima verifica tutte le colonne bloccate in ordine
-                        for (const lockedCol of lockedColumns.sort((a, b) => a - b)) {
-                            const aLocked = a.cells[lockedCol].textContent.trim();
-                            const bLocked = b.cells[lockedCol].textContent.trim();
-                            const compareResult = aLocked.localeCompare(bLocked);
-                            if (compareResult !== 0) {
-                                // Usa la direzione salvata per questa colonna bloccata
-                                const direction = lockedColumnsDirection[lockedCol];
-                                return direction ? compareResult : -compareResult;
-                            }
-                        }
-                        
-                        // Se tutte le colonne bloccate sono uguali, ordina per la colonna corrente
-                        // Solo se la colonna corrente non è bloccata
-                        if (!lockedColumns.includes(columnIndex)) {
-                            const aText = a.cells[columnIndex].textContent.trim();
-                            const bText = b.cells[columnIndex].textContent.trim();
-                            return isAscending ? aText.localeCompare(bText) : bText.localeCompare(aText);
-                        }
-                        
-                        // Se la colonna corrente è bloccata, mantieni l'ordine attuale
-                        return 0;
-                    };
-
-                    rows.sort(compareFn);
-
-                    // Raggruppa le righe con lo stesso valore
-                    let currentValue = '';
-                    let colorGroup = 1;
-
-                    rows.forEach(row => {
-                        const cellValue = row.cells[columnIndex].textContent.trim();
-                        if (cellValue !== currentValue) {
-                            currentValue = cellValue;
-                            colorGroup = colorGroup === 1 ? 2 : 1;
-                        }
-                        row.classList.add(isAscending ? `sorted-asc-${colorGroup}` : `sorted-desc-${colorGroup}`);
-                    });
-
-                    sortDirection[columnIndex] = !isAscending; // Cambia direzione di ordinamento
-                    rows.forEach(row => table.getElementsByTagName('tbody')[0].appendChild(row)); // Riordina le righe
+                    sortDirection[columnIndex] = !isAscending; // Cambia direzione di ordinamento per il prossimo click
                 });
             }
         }
 
-        // Funzione per applicare l'ultimo ordinamento salvato
-        function applyLastSorting() {
+        function sortAndDisplayFiles() {
             const table = document.getElementById('speaker-files-table');
-            const lastSorting = JSON.parse(localStorage.getItem('lastSpeakerFilesSorting'));
-            if (lastSorting) {
-                const headers = table.getElementsByTagName('th');
-                if (headers[lastSorting.columnIndex]) {
-                    // Se la direzione salvata è false (discendente), clicca due volte per ottenere l'ordine discendente
-                    headers[lastSorting.columnIndex].click();
-                    if (!lastSorting.direction) {
-                        headers[lastSorting.columnIndex].click();
+            const headers = table.getElementsByTagName('th');
+            
+            // Rimuovi la classe sorted da tutti gli header
+            Array.from(headers).forEach(header => header.classList.remove('sorted'));
+            // Aggiungi la classe sorted all'header corrente
+            if (headers[currentSortColumn]) {
+                headers[currentSortColumn].classList.add('sorted');
+            }
+
+            // Mappa indice colonna a proprietà oggetto file
+            const columnMap = {
+                0: 'client',
+                1: 'productKind',
+                2: 'brand',
+                3: 'range',
+                4: 'line',
+                5: 'modelNumber',
+                6: 'filename',
+                7: 'description',
+                8: 'filekind', // Calcolato
+                9: 'upload_date'
+            };
+
+            const prop = columnMap[currentSortColumn];
+
+            currentFilteredFiles.sort((a, b) => {
+                // Prima verifica tutte le colonne bloccate in ordine cronologico di blocco
+                for (const lockedCol of lockedColumns) {
+                    const lockedProp = columnMap[lockedCol];
+                    let aVal = a[lockedProp] || '';
+                    let bVal = b[lockedProp] || '';
+                    
+                    if (lockedCol === 8) { // File Kind
+                        aVal = determineFileType(a.filename, a.content);
+                        bVal = determineFileType(b.filename, b.content);
+                    }
+
+                    const compareResult = String(aVal).localeCompare(String(bVal));
+                    if (compareResult !== 0) {
+                        // Usa la direzione salvata per questa colonna bloccata
+                        const direction = lockedColumnsDirection[lockedCol];
+                        return direction ? compareResult : -compareResult;
                     }
                 }
+
+                // Se tutte le colonne bloccate sono uguali, ordina per la colonna corrente
+                // Solo se la colonna corrente non è bloccata
+                if (!lockedColumns.includes(currentSortColumn)) {
+                    let aVal = a[prop] || '';
+                    let bVal = b[prop] || '';
+
+                    if (currentSortColumn === 8) { // File Kind
+                        aVal = determineFileType(a.filename, a.content);
+                        bVal = determineFileType(b.filename, b.content);
+                    }
+
+                    return currentSortDirection ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal));
+                }
+
+                return 0;
+            });
+
+            displayFiles(currentFilteredFiles);
+        }
+
+        // Funzione per applicare l'ultimo ordinamento salvato
+        function applyLastSorting() {
+            const lastSorting = JSON.parse(localStorage.getItem('lastSpeakerFilesSorting'));
+            if (lastSorting) {
+                currentSortColumn = lastSorting.columnIndex;
+                currentSortDirection = !lastSorting.direction; // Nota: direction salvata è la prossima, quindi invertiamo
+                sortAndDisplayFiles();
             }
         }
 
         // Funzione per applicare l'ordinamento predefinito a Model N
         function applyDefaultSorting() {
-            const table = document.getElementById('speaker-files-table');
             const lastSorting = JSON.parse(localStorage.getItem('lastSpeakerFilesSorting'));
             // Se non c'è un ordinamento salvato, imposta Model N come predefinito
             if (!lastSorting) {
-                const modelNHeader = table.querySelector('th:nth-child(6)');
-                if (modelNHeader) {
-                    modelNHeader.click();
-                    // Salva l'ordinamento predefinito nel localStorage
-                    localStorage.setItem('lastSpeakerFilesSorting', JSON.stringify({
-                        columnIndex: 5,
-                        direction: true
-                    }));
-                }
+                currentSortColumn = 5; // Model N
+                currentSortDirection = true; // Ascending
+                
+                // Salva l'ordinamento predefinito nel localStorage
+                localStorage.setItem('lastSpeakerFilesSorting', JSON.stringify({
+                    columnIndex: 5,
+                    direction: true
+                }));
+                
+                sortAndDisplayFiles();
             } else {
                 applyLastSorting();
             }

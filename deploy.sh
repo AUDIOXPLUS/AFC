@@ -31,22 +31,25 @@ fi
 
 echo "✅ Configurazione sicurezza OK!"
 
-# 1. Correggi i permessi PRIMA del deploy
+# 0. Ferma il container remoto (evita lock sul DB durante la copia)
+echo "⛔ Stop container Docker remoto..."
+ssh ${REMOTE_USER}@${REMOTE_HOST} "cd ${REMOTE_PATH} && sudo docker stop ${CONTAINER_NAME} || true"
+
+# 1. Correggi i permessi PRIMA del deploy (nel dubbio)
 echo "🔧 Correzione permessi PRIMA del deploy..."
 ssh ${REMOTE_USER}@${REMOTE_HOST} << 'ENDSSH'
   sudo chown -R 1000:1000 /opt/afc-v3/database /opt/afc-v3/uploads 2>/dev/null || true
   sudo chmod -R 775 /opt/afc-v3/database /opt/afc-v3/uploads 2>/dev/null || true
 ENDSSH
 
-# 2. Rsync (escludi file sensibili)
-echo "📤 Sincronizzazione file via rsync..."
+# 2. Rsync: copia TUTTO (DB + uploads), escludendo solo logs e node_modules
+echo "📤 Sincronizzazione file via rsync (TUTTO, incluso database e uploads)..."
 rsync -avz --delete \
-  --exclude='database/*.db' \
-  --exclude='database/*.sqlite' \
-  --exclude='uploads/*' \
   --exclude='logs/*' \
   --exclude='node_modules/' \
-  -e ssh "${LOCAL_PATH}/" ${REMOTE_USER}@${REMOTE_HOST}:"${REMOTE_PATH}/"
+  -e ssh \
+  --rsync-path="sudo rsync" \
+  "${LOCAL_PATH}/" ${REMOTE_USER}@${REMOTE_HOST}:"${REMOTE_PATH}/"
 
 # 3. Correggi i permessi DOPO il deploy 
 echo "🔐 Correzione permessi DOPO il deploy..."
@@ -57,7 +60,7 @@ ENDSSH
 
 # 4. Riavvia container
 echo "🚀 Riavvio container Docker..."
-ssh ${REMOTE_USER}@${REMOTE_HOST} "sudo docker restart ${CONTAINER_NAME}"
+ssh ${REMOTE_USER}@${REMOTE_HOST} "cd ${REMOTE_PATH} && sudo docker start ${CONTAINER_NAME}"
 
 # 5. Healthcheck
 echo "⏳ Attendere avvio (10 sec)..."
@@ -70,4 +73,4 @@ else
   echo "⚠️ Healthcheck fallito - verificare manualmente"
 fi
 
-echo "✅ Deploy completato in sicurezza!"
+echo "✅ Deploy completato in sicurezza (cloud = copia di Belsito)!"

@@ -1,0 +1,14 @@
+0|id|INTEGER|0||1
+1|client|TEXT|0||0
+2|factory|TEXT|0||0
+3|modelNumber|TEXT|0||0
+4|factoryModelNumber|TEXT|0||0
+5|productKind|TEXT|0||0
+6|startDate|TEXT|0||0
+7|endDate|TEXT|0||0
+8|status|TEXT|0||0
+9|brand|TEXT|0||0
+10|range|TEXT|0||0
+11|line|TEXT|0||0
+12|priority|INTEGER|0|NULL|0
+13|archived|INTEGER|0|0|0

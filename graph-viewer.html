@@ -68,11 +68,13 @@
             position: absolute;
             top: 35px;
             left: calc(80px); /* Spostato a destra del 10% */
-            background-color: rgba(42, 58, 74, 0.9);
+            background-color: rgba(42, 58, 74, 0.8); /* Più opaco per leggibilità */
             padding: 10px;
             border-radius: 5px;
-            max-width: 400px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Aggiunta ombra per effetto flottante */
+            max-width: 90vw; /* Permette espansione */
+            overflow-x: auto; /* Scroll se necessario */
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
         }
         .dataset-item {
             display: flex;
@@ -82,6 +84,21 @@
             padding: 2px 4px;
             border-radius: 3px;
             transition: background-color 0.2s ease-in-out;
+            white-space: nowrap; /* Evita a capo */
+        }
+        .ts-params-container {
+            display: flex;
+            margin-left: 10px;
+            border-left: 1px solid #555;
+            padding-left: 5px;
+        }
+        .ts-cell {
+            width: 90px; /* Larghezza fissa per allineamento */
+            padding: 0 5px;
+            border-right: 1px solid #444;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: #a0c0a0;
         }
         .dataset-value {
             width: 70px; /* Larghezza fissa per l'allineamento */
@@ -184,6 +201,10 @@
             <label><input type="checkbox" id="grid-toggle" checked> Grid</label>
             
             <div class="separator"></div>
+
+            <button id="ts-toggle-btn" title="Toggle TS Parameters">TS</button>
+            
+            <div class="separator"></div>
                         
             <button id="export-btn" title="Export">💾</button>
             <button id="clear-btn" title="Clear">🗑️</button>
@@ -194,7 +215,20 @@
             
             <div class="dataset-controls">
                 <h4 style="margin: 0 0 10px 0; font-size: 14px;">Datasets</h4>
-                <div id="dataset-list"></div>
+                <div id="dataset-list-container" style="overflow-x: auto;">
+                    <table id="dataset-table" style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                        <thead>
+                            <tr id="dataset-header-row" style="text-align: left; border-bottom: 1px solid #555;">
+                                <th style="padding: 4px;">Val</th>
+                                <th style="padding: 4px;">Color</th>
+                                <th style="padding: 4px;">Name</th>
+                                <th style="padding: 4px;">Vis</th>
+                                <th style="padding: 4px;">Del</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dataset-list-body"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -208,6 +242,8 @@
         let chartReady = false; // Flag per indicare se initChart è stato completato
         let selectedDatasetIndex = null; // Indice del dataset selezionato (null se nessuno è selezionato)
         let lastMouseEvent = null; // Memorizza l'ultimo evento del mouse per il re-sorting
+        let showTSColumns = false; // Stato visualizzazione colonne TS
+        const tsKeys = ["Fs", "Re", "Sd", "Qms", "Qes", "Qts", "Vas", "Mms", "Cms", "Bl", "L1kHz", "Le"];
         const colors = [
             'rgb(75, 192, 192)',
             'rgb(255, 99, 132)',
@@ -413,28 +449,28 @@
                 lastMouseEvent = null; // Resetta l'evento del mouse
                 // Nascondi tooltip persistente
                 customTooltip.style.display = 'none';
-                const list = document.getElementById('dataset-list');
-                const items = Array.from(list.children);
+                
+                const tbody = document.getElementById('dataset-list-body');
+                const rows = Array.from(tbody.children);
                 
                 // Pulisce i valori e lo stile di hover
-                items.forEach(item => {
-                    const valueSpan = item.querySelector('.dataset-value');
-                    if (valueSpan) valueSpan.textContent = '';
-                    const labelSpan = item.querySelector('.dataset-label');
-                    item.style.backgroundColor = 'transparent';
-                    if (labelSpan) labelSpan.style.fontWeight = 'normal';
+                rows.forEach(row => {
+                    const valueCell = row.querySelector('.dataset-value-cell');
+                    if (valueCell) valueCell.textContent = '';
+                    row.style.backgroundColor = 'transparent';
+                    row.style.fontWeight = 'normal';
                 });
 
                 // Riordina gli elementi in base all'indice originale
-                items.sort((a, b) => {
+                rows.sort((a, b) => {
                     const indexA = parseInt(a.dataset.originalIndex, 10);
                     const indexB = parseInt(b.dataset.originalIndex, 10);
                     return indexA - indexB;
                 });
 
-                // Rimuove eventuali separatori e ripopola la lista
-                list.innerHTML = '';
-                items.forEach(item => list.appendChild(item));
+                // Ripopola la lista
+                tbody.innerHTML = '';
+                rows.forEach(row => tbody.appendChild(row));
 
                 // Ripristina lo spessore dei bordi
                 chart.data.datasets.forEach((dataset, index) => {
@@ -493,56 +529,52 @@
                             const dbValues = calculatedValues.filter(v => v.yAxisID === 'y').sort(sortRule);
                             const ohmValues = calculatedValues.filter(v => v.yAxisID === 'yOhm').sort(sortRule);
 
-                            const list = document.getElementById('dataset-list');
+                            const tbody = document.getElementById('dataset-list-body');
                             const fragment = document.createDocumentFragment();
-                            const allItems = Array.from(list.children);
+                            const allRows = Array.from(tbody.children);
 
                             const appendGroup = (values, unit) => {
                                 values.forEach(({ index, yValue }) => {
-                                    const item = allItems.find(child => parseInt(child.dataset.originalIndex) === index);
-                                    if (item) {
-                                        const valueSpan = item.querySelector('.dataset-value');
-                                        valueSpan.style.color = '#c0d0e0'; // Resetta il colore di default
+                                    const row = allRows.find(child => parseInt(child.dataset.originalIndex) === index);
+                                    if (row) {
+                                        const valueCell = row.querySelector('.dataset-value-cell');
+                                        valueCell.style.color = '#c0d0e0'; // Resetta il colore di default
 
                                         if (yValue !== null) {
                                             // Se una curva di riferimento è selezionata, gestisci la visualizzazione delta
                                             if (selectedDatasetIndex !== null && referenceY !== null && unit === 'dB') {
                                                 if (index === selectedDatasetIndex) {
                                                     // La curva di riferimento mostra il suo valore assoluto
-                                                    valueSpan.textContent = `${yValue.toFixed(1)} ${unit}`;
+                                                    valueCell.textContent = `${yValue.toFixed(1)} ${unit}`;
                                                 } else {
                                                     // Le altre curve mostrano il delta
                                                     const displayValue = yValue - referenceY;
-                                                    valueSpan.textContent = `${displayValue > 0 ? '+' : ''}${displayValue.toFixed(1)} dB`;
+                                                    valueCell.textContent = `${displayValue > 0 ? '+' : ''}${displayValue.toFixed(1)} dB`;
                                                     // Applica i colori per il delta
                                                     if (displayValue > 0) {
-                                                        valueSpan.style.color = 'lightgreen';
+                                                        valueCell.style.color = 'lightgreen';
                                                     } else if (displayValue < 0) {
-                                                        valueSpan.style.color = 'salmon';
+                                                        valueCell.style.color = 'salmon';
                                                     }
                                                 }
                                             } else {
                                                 // Modalità normale: mostra il valore assoluto
-                                                valueSpan.textContent = `${yValue.toFixed(1)} ${unit}`;
+                                                valueCell.textContent = `${yValue.toFixed(1)} ${unit}`;
                                             }
                                         } else {
-                                            valueSpan.textContent = '';
+                                            valueCell.textContent = '';
                                         }
-                                        fragment.appendChild(item);
+                                        fragment.appendChild(row);
                                     }
                                 });
                             };
 
                             appendGroup(dbValues, 'dB');
-                            if (dbValues.some(v => !v.hidden) && ohmValues.some(v => !v.hidden)) {
-                                const separator = document.createElement('hr');
-                                separator.className = 'dataset-separator';
-                                fragment.appendChild(separator);
-                            }
+                            // Separatore visivo tra gruppi non necessario in tabella, l'ordine è sufficiente
                             appendGroup(ohmValues, 'Ω');
                             
-                            list.innerHTML = '';
-                            list.appendChild(fragment);
+                            tbody.innerHTML = '';
+                            tbody.appendChild(fragment);
 
                             // Gestione evidenziazione
                             chart.data.datasets.forEach((dataset, index) => {
@@ -550,19 +582,17 @@
                                 const isHovered = (index === hoveredDatasetIndex);
                                 dataset.borderWidth = (isSelected || isHovered) ? 4 : 2;
                                 
-                                const legendItem = Array.from(list.children).find(child => child.dataset && parseInt(child.dataset.originalIndex) === index);
-                                if (legendItem) {
-                                    const labelSpan = legendItem.querySelector('.dataset-label');
-                                    // Applica lo stile di sfondo per la curva selezionata
+                                const row = Array.from(tbody.children).find(child => parseInt(child.dataset.originalIndex) === index);
+                                if (row) {
                                     if (isSelected) {
-                                        legendItem.style.backgroundColor = 'rgba(75, 192, 192, 0.2)'; // Colore di highlight per la selezione
-                                        if (labelSpan) labelSpan.style.fontWeight = 'bold';
+                                        row.style.backgroundColor = 'rgba(75, 192, 192, 0.2)';
+                                        row.style.fontWeight = 'bold';
                                     } else if (isHovered) {
-                                        legendItem.style.backgroundColor = '#4a5a6a'; // Colore per l'hover
-                                        if (labelSpan) labelSpan.style.fontWeight = 'bold';
+                                        row.style.backgroundColor = '#4a5a6a';
+                                        row.style.fontWeight = 'bold';
                                     } else {
-                                        legendItem.style.backgroundColor = 'transparent';
-                                        if (labelSpan) labelSpan.style.fontWeight = 'normal';
+                                        row.style.backgroundColor = 'transparent';
+                                        row.style.fontWeight = 'normal';
                                     }
                                 }
                             });
@@ -616,8 +646,130 @@
             }
         }
 
-        // Modificata per accettare dataType
-        function addDataset(points, filename, dataType) { 
+        function parseTSContent(content) {
+            const params = {};
+            if (!content) return params;
+            
+            const lines = content.split('\n');
+            
+            // Mappa lowerCase key -> Chiave corretta
+            // Aggiunte chiavi mancanti come Rms, dBSPL, L10kHz ecc.
+            const keysMap = {
+                "fs": "Fs", "re": "Re", "sd": "Sd", "qms": "Qms", "qes": "Qes", 
+                "qts": "Qts", "vas": "Vas", "mms": "Mms", "cms": "Cms", "bl": "Bl", 
+                "l1khz": "L1kHz", "l10khz": "L10kHz", "le": "Le", "rms": "Rms",
+                "dbspl": "dBSPL", "spl": "SPL", "z1khz": "Z1kHz", "z10khz": "Z10kHz"
+            };
+
+            for (const line of lines) {
+                let cleanLine = line.replace(/[:=]/g, ' ').trim();
+                if (!cleanLine) continue;
+
+                // Pre-normalizzazione per chiavi complesse o con spazi
+                // Es: "dB SPL" -> "dBSPL", "L 1kHz" -> "L1kHz"
+                cleanLine = cleanLine.replace(/dB\s*SPL/gi, "dBSPL");
+                cleanLine = cleanLine.replace(/L\s*1kHz/gi, "L1kHz");
+                cleanLine = cleanLine.replace(/L\s*10kHz/gi, "L10kHz");
+                cleanLine = cleanLine.replace(/Z\s*1kHz/gi, "Z1kHz");
+                cleanLine = cleanLine.replace(/Z\s*10kHz/gi, "Z10kHz");
+
+                // Splitta in token per whitespace
+                const tokens = cleanLine.split(/\s+/);
+                
+                let currentKey = null;
+                let valueAccumulator = [];
+
+                for (const token of tokens) {
+                    const lowerToken = token.toLowerCase();
+                    
+                    // Se il token è una chiave conosciuta
+                    if (keysMap.hasOwnProperty(lowerToken)) {
+                        // Se avevamo una chiave aperta, salviamo il valore accumulato finora
+                        if (currentKey) {
+                            const fullValue = valueAccumulator.join(' ').trim();
+                            if (fullValue) {
+                                params[currentKey] = fullValue;
+                            }
+                        }
+                        
+                        // Inizia una nuova chiave
+                        currentKey = keysMap[lowerToken];
+                        valueAccumulator = [];
+                    } else {
+                        // Non è una chiave, aggiungi al valore corrente se ne abbiamo una aperta
+                        if (currentKey) {
+                            valueAccumulator.push(token);
+                        }
+                    }
+                }
+                
+                // Salvataggio finale per l'ultima chiave della riga
+                if (currentKey && valueAccumulator.length > 0) {
+                    const fullValue = valueAccumulator.join(' ').trim();
+                    if (fullValue) {
+                        params[currentKey] = fullValue;
+                    }
+                }
+            }
+            return params;
+        }
+
+        // Modificata per accettare dataType e content
+        function addDataset(points, filename, dataType, content) {
+            let tsParams = null;
+            let hasTsParams = false;
+
+            // Parso i TS se il contenuto è presente
+            if (content) {
+                tsParams = parseTSContent(content);
+                hasTsParams = Object.keys(tsParams).length > 0;
+            }
+
+            // Logica per unire i dati TS a un dataset esistente se il file attuale contiene solo TS (nessun punto grafico)
+            // o se è esplicitamente un file TS, evitando di creare una nuova riga.
+            const isTsOnly = (points.length === 0 && hasTsParams);
+
+            if (isTsOnly && datasets.length > 0) {
+                console.log(`[Graph Viewer] Rilevati dati TS senza punti grafici. Tentativo di merge con dataset esistente.`);
+                
+                // Cerchiamo un dataset esistente a cui agganciare i dati TS.
+                // Priorità: Ultimo dataset aggiunto che sia 'ohm' o 'db'.
+                // L'utente vuole che vada nella riga RES o Impedenza.
+                let targetIndex = -1;
+
+                // Cerca dall'ultimo al primo
+                for (let i = datasets.length - 1; i >= 0; i--) {
+                    // Controlla se è un dataset valido (non un altro placeholder vuoto, anche se la logica qui dovrebbe prevenirlo)
+                    // Accettiamo qualsiasi dataset che abbia dei dati grafici o sia comunque una "curva" principale
+                    if (datasets[i].data && datasets[i].data.length > 0) {
+                        targetIndex = i;
+                        break;
+                    }
+                }
+
+                if (targetIndex !== -1) {
+                    console.log(`[Graph Viewer] Merge TS effettuato su dataset analogo: ${datasets[targetIndex].label}`);
+                    
+                    // Merge dei parametri TS
+                    datasets[targetIndex].tsParams = { ...datasets[targetIndex].tsParams, ...tsParams };
+                    
+                    // Aggiorno anche dataset originale
+                    originalDatasets[targetIndex].tsParams = { ...originalDatasets[targetIndex].tsParams, ...tsParams };
+
+                    // Aggiorna anche il contenuto testuale grezzo accodandolo, per completezza
+                    if (content) {
+                        datasets[targetIndex].tsContent = (datasets[targetIndex].tsContent || '') + '\n' + content;
+                        originalDatasets[targetIndex].tsContent = (originalDatasets[targetIndex].tsContent || '') + '\n' + content;
+                    }
+
+                    // Aggiorna la tabella per mostrare i nuovi parametri TS
+                    updateDatasetList();
+                    
+                    // Non aggiungiamo una nuova riga, usciamo.
+                    return;
+                }
+            }
+
             const color = colors[nextColorIndex % colors.length];
             nextColorIndex++;
             
@@ -627,7 +779,7 @@
             } else if (dataType === 'db') {
                 yAxisIDToUse = 'y';
             }
-            // Se dataType è 'unknown', userà 'y'
+            // Se dataType è 'unknown' o 'ts', userà 'y' ma per 'ts' i punti sono vuoti quindi non importa
 
             console.log(`[Graph Viewer] Aggiunta curva: ${filename}, Tipo dati: ${dataType}, Asse Y: ${yAxisIDToUse}`);
 
@@ -641,7 +793,10 @@
                 tension: 0.1,
                 yAxisID: yAxisIDToUse,
                 pointRadius: 0,
-                pointHoverRadius: 4
+                pointHoverRadius: 4,
+                tsContent: content, // Memorizza il contenuto TS grezzo
+                tsParams: tsParams, // Memorizza i parametri parsati
+                showTS: false // Stato visualizzazione TS
             };
             
             // Aggiunge il dataset sia alla versione di lavoro che a quella originale
@@ -659,19 +814,46 @@
         }
 
         function updateDatasetList() {
-            const list = document.getElementById('dataset-list');
-            list.innerHTML = ''; // Pulisce la lista per ricrearla
+            const tbody = document.getElementById('dataset-list-body');
+            const headerRow = document.getElementById('dataset-header-row');
+            tbody.innerHTML = '';
+            
+            // Aggiorna header: rimuovi colonne TS esistenti
+            while (headerRow.children.length > 5) {
+                headerRow.removeChild(headerRow.lastChild);
+            }
+            
+            // Aggiungi colonne TS se necessario
+            if (showTSColumns) {
+                tsKeys.forEach(key => {
+                    const th = document.createElement('th');
+                    th.textContent = key;
+                    th.style.padding = '4px';
+                    th.style.borderLeft = '1px solid #555';
+                    th.className = 'ts-col-header';
+                    headerRow.appendChild(th);
+                });
+            }
+
             const fragment = document.createDocumentFragment();
             
             datasets.forEach((dataset, index) => {
-                const item = document.createElement('div');
-                item.className = 'dataset-item';
-                item.dataset.originalIndex = index; // Aggiungo l'indice per un facile recupero
-                
-                // Span per il valore (es. 94.1 dB)
-                const valueSpan = document.createElement('span');
-                valueSpan.className = 'dataset-value';
-                
+                const tr = document.createElement('tr');
+                tr.dataset.originalIndex = index;
+                tr.style.borderBottom = '1px solid #3a4a5a';
+
+                // Valore
+                const tdVal = document.createElement('td');
+                tdVal.className = 'dataset-value-cell';
+                tdVal.style.padding = '4px';
+                tdVal.style.fontFamily = 'monospace';
+                tdVal.style.width = '70px';
+                tdVal.style.textAlign = 'right';
+                tr.appendChild(tdVal);
+
+                // Colore
+                const tdColor = document.createElement('td');
+                tdColor.style.padding = '4px';
                 const colorInput = document.createElement('input');
                 colorInput.type = 'color';
                 colorInput.className = 'color-picker';
@@ -682,73 +864,125 @@
                     this.style.backgroundColor = this.value;
                     if (chart) chart.update();
                 });
-                
-                const label = document.createElement('span');
-                label.className = 'dataset-label'; // Aggiunta classe per selezione
-                label.textContent = dataset.label;
-                label.style.flex = '1';
-                label.style.marginLeft = '5px';
-                
+                tdColor.appendChild(colorInput);
+                tr.appendChild(tdColor);
+
+                // Nome
+                const tdName = document.createElement('td');
+                tdName.textContent = dataset.label;
+                tdName.style.padding = '4px';
+                tdName.style.whiteSpace = 'nowrap';
+                tr.appendChild(tdName);
+
+                // Visibilità
+                const tdVis = document.createElement('td');
+                tdVis.style.padding = '4px';
                 const toggleBtn = document.createElement('button');
                 toggleBtn.innerHTML = '<i class="fas fa-eye-slash"></i>';
                 toggleBtn.title = 'Toggle visibility';
                 toggleBtn.style.fontSize = '10px';
                 toggleBtn.style.padding = '2px 6px';
-                toggleBtn.style.marginLeft = '5px';
-                toggleBtn.onclick = () => toggleDataset(index);
+                toggleBtn.style.backgroundColor = '#4a5a6a';
+                toggleBtn.style.border = 'none';
+                toggleBtn.style.color = 'white';
+                toggleBtn.style.cursor = 'pointer';
                 
+                let isHidden = dataset.hidden;
+                if (chart) {
+                    const meta = chart.getDatasetMeta(index);
+                    if (meta) isHidden = meta.hidden;
+                }
+                if (isHidden) {
+                    toggleBtn.style.color = 'red';
+                }
+                toggleBtn.onclick = () => toggleDataset(index);
+                tdVis.appendChild(toggleBtn);
+                tr.appendChild(tdVis);
+
+                // Elimina
+                const tdDel = document.createElement('td');
+                tdDel.style.padding = '4px';
                 const removeBtn = document.createElement('button');
                 removeBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
                 removeBtn.title = 'Remove dataset';
                 removeBtn.style.fontSize = '10px';
                 removeBtn.style.padding = '2px 6px';
-                removeBtn.style.marginLeft = '3px';
+                removeBtn.style.backgroundColor = '#4a5a6a';
+                removeBtn.style.border = 'none';
+                removeBtn.style.color = 'white';
+                removeBtn.style.cursor = 'pointer';
                 removeBtn.onclick = () => removeDataset(index);
-                
-                item.appendChild(valueSpan);
-                item.appendChild(colorInput);
-                item.appendChild(label);
-                item.appendChild(toggleBtn);
-                item.appendChild(removeBtn);
-                
-                fragment.appendChild(item);
+                tdDel.appendChild(removeBtn);
+                tr.appendChild(tdDel);
+
+                // Colonne TS
+                if (showTSColumns) {
+                    tsKeys.forEach(key => {
+                        const td = document.createElement('td');
+                        td.style.padding = '4px';
+                        td.style.borderLeft = '1px solid #555';
+                        td.style.fontFamily = 'monospace';
+                        td.style.color = '#a0c0a0';
+                        if (dataset.tsParams && dataset.tsParams[key]) {
+                            td.textContent = dataset.tsParams[key];
+                        } else {
+                            td.textContent = '-';
+                        }
+                        tr.appendChild(td);
+                    });
+                }
+
+                fragment.appendChild(tr);
             });
             
-            list.appendChild(fragment);
+            tbody.appendChild(fragment);
         }
+
+        document.getElementById('ts-toggle-btn').addEventListener('click', function() {
+            showTSColumns = !showTSColumns;
+            this.style.backgroundColor = showTSColumns ? '#2196F3' : '#4a5a6a';
+            updateDatasetList();
+        });
 
         function toggleDataset(index) {
             const meta = chart.getDatasetMeta(index);
             meta.hidden = !meta.hidden;
+            datasets[index].hidden = meta.hidden; // Sincronizza anche l'oggetto dataset
             
-            // Trova il bottone corretto usando l'indice originale, anche dopo il riordinamento
-            const allItems = document.getElementById('dataset-list').children;
-            let toggleBtn = null;
-            for(let item of allItems) {
-                if (item.dataset && parseInt(item.dataset.originalIndex) === index) {
-                    toggleBtn = item.querySelector('button[title="Toggle visibility"]');
-                    break;
-                }
-            }
-
-            if (toggleBtn) {
-                if (meta.hidden) {
-                    toggleBtn.style.color = 'red';
-                } else {
-                    toggleBtn.style.color = '';
+            // Trova il bottone corretto usando l'indice originale
+            const tbody = document.getElementById('dataset-list-body');
+            const row = Array.from(tbody.children).find(child => parseInt(child.dataset.originalIndex) === index);
+            
+            if (row) {
+                const toggleBtn = row.querySelector('button[title="Toggle visibility"]');
+                if (toggleBtn) {
+                    if (meta.hidden) {
+                        toggleBtn.style.color = 'red';
+                    } else {
+                        toggleBtn.style.color = 'white';
+                    }
                 }
             }
             
-            chart.update('none'); // Usiamo 'none' per evitare animazioni indesiderate
+            chart.update('none');
 
-            // Forza il riordinamento della lista se il mouse è ancora sul grafico
             if (lastMouseEvent) {
                 chart.options.onHover(lastMouseEvent, [], chart);
             }
         }
 
         function removeDataset(index) {
+            // Sincronizza lo stato hidden prima di rimuovere per preservarlo negli altri dataset
+            if (chart) {
+                datasets.forEach((ds, i) => {
+                    const meta = chart.getDatasetMeta(i);
+                    if (meta) ds.hidden = meta.hidden;
+                });
+            }
+
             datasets.splice(index, 1);
+            originalDatasets.splice(index, 1); // Rimuove anche dai dati originali per mantenere l'allineamento
+            
             if (chart) { // Verifica se chart esiste
                 chart.data.datasets = datasets; // Assegna l'array modificato
                 chart.update();
@@ -920,7 +1154,7 @@
                 document.getElementById('loader').style.display = 'flex';
                 requestAnimationFrame(() => {
                     try {
-                        addDataset(event.data.points, event.data.filename, event.data.dataType);
+                        addDataset(event.data.points, event.data.filename, event.data.dataType, event.data.content);
                         setTimeout(() => {
                             document.getElementById('loader').style.display = 'none';
                         }, 300);
@@ -955,6 +1189,48 @@
                     label.setAttribute('for', input.id);
                 }
             });
+
+            // Rendere il pannello dataset trascinabile
+            const datasetPanel = document.querySelector('.dataset-controls');
+            const datasetHeader = datasetPanel.querySelector('h4');
+            
+            if (datasetPanel && datasetHeader) {
+                datasetHeader.style.cursor = 'move';
+                datasetHeader.title = 'Drag to move';
+                
+                let isDragging = false;
+                let startX, startY, startLeft, startTop;
+                
+                datasetHeader.addEventListener('mousedown', function(e) {
+                    isDragging = true;
+                    startX = e.clientX;
+                    startY = e.clientY;
+                    
+                    // Usa offsetLeft/Top che sono relativi al genitore posizionato (.chart-container)
+                    startLeft = datasetPanel.offsetLeft;
+                    startTop = datasetPanel.offsetTop;
+                    
+                    // Imposta right a auto per permettere il posizionamento tramite left
+                    datasetPanel.style.right = 'auto';
+                    
+                    document.body.style.userSelect = 'none';
+                });
+                
+                document.addEventListener('mousemove', function(e) {
+                    if (!isDragging) return;
+                    
+                    const dx = e.clientX - startX;
+                    const dy = e.clientY - startY;
+                    
+                    datasetPanel.style.left = (startLeft + dx) + 'px';
+                    datasetPanel.style.top = (startTop + dy) + 'px';
+                });
+                
+                document.addEventListener('mouseup', function() {
+                    isDragging = false;
+                    document.body.style.userSelect = '';
+                });
+            }
         });
     </script>
 <script>
