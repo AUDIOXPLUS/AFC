@@ -171,8 +171,10 @@ app.use(session({
     secret: 'your-secret-key',
     resave: false,
     saveUninitialized: true,
-    cookie: { 
+    cookie: {
         secure: false, // Imposta a true se utilizzi HTTPS
+        httpOnly: true, // Previene accesso via JavaScript
+        sameSite: 'lax', // Permette invio cookie tra pagine diverse
         maxAge: 24 * 60 * 60 * 1000 // 24 ore
     }
 }));
